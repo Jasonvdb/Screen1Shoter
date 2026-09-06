@@ -139,6 +139,7 @@ prefix. The upload and validate flag takes the same name without the prefix.
 | `iphone-6.5` | `APP_IPHONE_65` | `IPHONE_65` | 1284x2778 |
 | `ipad-13` | `APP_IPAD_PRO_3GEN_129` | `IPAD_PRO_3GEN_129` | 2064x2752 |
 | `watch-s10` | `APP_WATCH_SERIES_10` | `WATCH_SERIES_10` | 416x496 |
+| `watch-ultra` | `APP_WATCH_ULTRA` | `WATCH_ULTRA` | 422x514 |
 
 Read the token for a size from the manifest instead of retyping it:
 
@@ -415,7 +416,8 @@ asc screenshots list --version-localization "$LOC_ID" --output json \
       | .screenshots[] | "\($dt)\t\(.attributes.fileName)\t\(.attributes.assetDeliveryState.state)"'
 ```
 
-Add `APP_WATCH_SERIES_10:WATCH_SERIES_10` to both loops for a watch app. Every
+Add the app's watch pair to both loops for a watch app:
+`APP_WATCH_SERIES_10:WATCH_SERIES_10` or `APP_WATCH_ULTRA:WATCH_ULTRA`. Every
 line must end in `COMPLETE` and the per-type counts must match the export.
 Then run `s1s status --set uploaded --locale "$LOCALE" --sizes iphone-6.9,ipad-13 --yes`
 and offer the `ios:` commit.

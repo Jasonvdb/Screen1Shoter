@@ -17,7 +17,8 @@ export type SizeId =
   | 'iphone-6.1'
   | 'ipad-13'
   | 'ipad-11'
-  | 'watch-s10';
+  | 'watch-s10'
+  | 'watch-ultra';
 
 /** App Store Connect display type; also the export folder name. */
 export type AppDisplayType =
@@ -27,7 +28,8 @@ export type AppDisplayType =
   | 'APP_IPHONE_61'
   | 'APP_IPAD_PRO_3GEN_129'
   | 'APP_IPAD_PRO_3GEN_11'
-  | 'APP_WATCH_SERIES_10';
+  | 'APP_WATCH_SERIES_10'
+  | 'APP_WATCH_ULTRA';
 
 export interface Dims {
   width: number;
@@ -58,6 +60,13 @@ export interface SizePreset {
   acceptedDims: Dims[];
   /** Preferred bezel id in the bezel cache (see BezelEntry.id). */
   bezel: string;
+  /**
+   * `bezel` is left out of `s1s bezels install` with no --device. Set on a
+   * passthrough preset whose frame only a template such as `phone-watch`
+   * draws, so a project that never asks for that frame does not download a
+   * few hundred MB of DMG for it.
+   */
+  bezelOptional?: boolean;
   /** Bezel ids to try, in order, when `bezel` is not installed. */
   bezelFallbacks: string[];
   /** Expected size of a simulator screenshot for this preset. */

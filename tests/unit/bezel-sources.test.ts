@@ -10,7 +10,9 @@ import {
   type BezelFileName,
   bezelSlug,
   dmgsFor,
+  WATCH_BEZEL_IDS,
   isBezelSourceId,
+  isWatchBezelId,
   normaliseBezelFilename,
   sourceForFile,
 } from '../../src/core/bezels/sources.ts';
@@ -53,9 +55,23 @@ const REAL_FILES: Array<[string, BezelFileName]> = [
     'PNG/Sport Loop/Apple Watch S11 - 42mm - Aluminum Silver + Sport Loop Forest.png',
     { id: 'apple-watch-series-11-42mm', variant: 'aluminum-silver-sport-loop-forest', orientation: 'portrait' },
   ],
+  // The Ultra ships in one case size, so its name spends no part on the size
+  // and none on the orientation either: two parts, model then strap.
+  [
+    'PNG/Alpine Loop/AW Ultra 3 - Black + Alpine Loop Black.png',
+    { id: 'apple-watch-ultra-3', variant: 'black-alpine-loop-black', orientation: 'portrait' },
+  ],
+  [
+    'PNG/Ocean Band/AW Ultra 3 - Natural + Ocean Band Neon Green.png',
+    { id: 'apple-watch-ultra-3', variant: 'natural-ocean-band-neon-green', orientation: 'portrait' },
+  ],
+  [
+    'PNG/Trail Loop/AW Ultra 3 - Natural + Trail Loop Blue Bright Blue.png',
+    { id: 'apple-watch-ultra-3', variant: 'natural-trail-loop-blue-bright-blue', orientation: 'portrait' },
+  ],
 ];
 
-/** Everything else the two DMGs contain. */
+/** Everything else the DMGs contain. */
 const NOT_BEZELS = [
   '.DropDMGBackground/Bezel-iPhone17@2x.png',
   '.DropDMGBackground/Bezel-iPadPro@2x.png',
@@ -67,6 +83,8 @@ const NOT_BEZELS = [
   'Photoshop/iPad Pro (M5) 13" - Silver - Portrait.psd',
   'PNG/Sport Band/.DS_Store',
   'Photoshop/Apple Watch S11 - 46mm - Aluminum Jet Black + Sport Band Black.psd',
+  'PNG/Alpine Loop/.DS_Store',
+  'Photoshop/AW Ultra 3 - Black + Alpine Loop Black.psd',
 ];
 
 describe('normaliseBezelFilename', () => {
@@ -81,7 +99,12 @@ describe('normaliseBezelFilename', () => {
 
   it('rejects malformed names', () => {
     expect(normaliseBezelFilename('')).toBeNull();
+    // Two parts is the Ultra's shape, but only for a watch model: a phone name
+    // that short is a missing colour, not a strap.
     expect(normaliseBezelFilename('PNG/iPhone 17 - Portrait.png')).toBeNull();
+    expect(normaliseBezelFilename('PNG/iPhone 17 - Black.png')).toBeNull();
+    expect(normaliseBezelFilename('PNG/AW Ultra 3.png')).toBeNull();
+    expect(normaliseBezelFilename('PNG/ - Ocean Band Black.png')).toBeNull();
     expect(normaliseBezelFilename('PNG/iPhone 17 - Black - Upright.png')).toBeNull();
     expect(normaliseBezelFilename('PNG/iPhone 17 - Black - Portrait - Extra.png')).toBeNull();
     expect(normaliseBezelFilename('PNG/ - Black - Portrait.png')).toBeNull();
@@ -130,10 +153,11 @@ describe('sourceForFile', () => {
 });
 
 describe('BEZEL_SOURCES', () => {
-  it('lists the eight models seen in the three DMGs', () => {
+  it('lists the nine models seen in the four DMGs', () => {
     expect([...BEZEL_SOURCE_IDS].sort()).toEqual([
       'apple-watch-series-11-42mm',
       'apple-watch-series-11-46mm',
+      'apple-watch-ultra-3',
       'ipad-pro-11-m5',
       'ipad-pro-13-m5',
       'iphone-17',
@@ -198,6 +222,23 @@ describe('BEZEL_SOURCES', () => {
     expect(BEZEL_SOURCES['iphone-17-pro'].portrait.screenRect).toMatchObject({ width: 1206, height: 2622 });
     expect(BEZEL_SOURCES['ipad-pro-11-m5'].portrait.screenRect).toMatchObject({ width: 1668, height: 2420 });
     expect(BEZEL_SOURCES['apple-watch-series-11-46mm'].portrait.screenRect).toMatchObject({ width: 416, height: 496 });
+  });
+
+  it('records the Ultra 3 cut-out App Store Connect accepts for APP_WATCH_ULTRA', () => {
+    const ultra = BEZEL_SOURCES['apple-watch-ultra-3'].portrait;
+    expect(ultra.screenRect).toMatchObject({ width: 422, height: 514 });
+    expect(ultra.cornerRadius).toBe(114);
+    // Rounder than an iPhone's and rounder still than the Series watch's
+    // 24.3%, which is why the corner scan may not start 20% in.
+    expect(ultra.cornerRadius / ultra.screenRect.width).toBeGreaterThan(0.25);
+  });
+
+  it('lists the watch bezels a phone-watch props.watchBezel may name', () => {
+    expect([...WATCH_BEZEL_IDS]).toEqual(['apple-watch-series-11-46mm', 'apple-watch-series-11-42mm', 'apple-watch-ultra-3']);
+    for (const id of BEZEL_SOURCE_IDS) {
+      expect(isWatchBezelId(id)).toBe(WATCH_BEZEL_IDS.includes(id));
+    }
+    expect(isWatchBezelId('iphone-17-pro-max')).toBe(false);
   });
 
   it("records the watch corner radius the whole cut-out needs, not the one a 20% probe reaches", () => {

@@ -7,7 +7,7 @@ import type { Dims, Rect } from '../../config/types.ts';
 
 export type BezelOrientation = 'portrait' | 'landscape';
 
-export type BezelDmgId = 'iphone-17' | 'ipad-pro-m5' | 'apple-watch-11';
+export type BezelDmgId = 'iphone-17' | 'ipad-pro-m5' | 'apple-watch-11' | 'apple-watch-ultra-3';
 
 export interface BezelDmg {
   /** Apple CDN URL. No login, but `hdiutil attach` prints an SLA and waits for "Y" on stdin. */
@@ -39,6 +39,12 @@ export const BEZEL_DMGS: Readonly<Record<BezelDmgId, BezelDmg>> = {
     bytes: 357_953_080,
     pngDir: 'PNG',
   },
+  'apple-watch-ultra-3': {
+    url: 'https://devimages-cdn.apple.com/design/resources/download/Bezel-Apple-Watch-Ultra-3-2025.dmg',
+    dmgName: 'Bezel-Apple-Watch-Ultra-3-2025.dmg',
+    bytes: 329_151_217,
+    pngDir: 'PNG',
+  },
 };
 
 // Not inspected in the spike (URLs from the plan; contents unknown, so no
@@ -56,7 +62,8 @@ export type BezelSourceId =
   | 'ipad-pro-13-m5'
   | 'ipad-pro-11-m5'
   | 'apple-watch-series-11-46mm'
-  | 'apple-watch-series-11-42mm';
+  | 'apple-watch-series-11-42mm'
+  | 'apple-watch-ultra-3';
 
 export interface BezelPortraitFacts {
   imageSize: Dims;
@@ -273,6 +280,39 @@ export const BEZEL_SOURCES: Readonly<Record<BezelSourceId, BezelSource>> = {
       cornerRadius: 90,
     },
   },
+  // PNG/{Alpine Loop,Milanese Loop,Ocean Band,Trail Loop}/AW Ultra 3 - <Case> + <Band>.png
+  // A third file-name shape: Apple ships the Ultra in one case size, so the
+  // name has no size part and no orientation part either. Its cut-out is
+  // 422x514, the larger of the two sizes APP_WATCH_ULTRA accepts, and it is
+  // the frame `phone-watch` uses for props.watchBezel: 'apple-watch-ultra-3'.
+  'apple-watch-ultra-3': {
+    dmg: 'apple-watch-ultra-3',
+    model: 'AW Ultra 3',
+    subDir: '',
+    variants: [
+      'black-alpine-loop-black',
+      'black-alpine-loop-light-blue',
+      'natural-alpine-loop-light-blue',
+      'natural-alpine-loop-terra-cotta',
+      'black-milanese-loop',
+      'natural-milanese-loop',
+      'black-ocean-band-anchor-blue',
+      'black-ocean-band-black',
+      'natural-ocean-band-anchor-blue',
+      'natural-ocean-band-neon-green',
+      'black-trail-loop-black-charcoal',
+      'natural-trail-loop-blue-bright-blue',
+      'natural-trail-loop-green-neon',
+    ],
+    pxPerPt: 1,
+    measuredVariant: 'black-alpine-loop-black',
+    portrait: {
+      imageSize: { width: 600, height: 960 },
+      deviceRect: rect(34, 18, 561, 924),
+      screenRect: rect(89, 223, 422, 514),
+      cornerRadius: 114,
+    },
+  },
 };
 
 export const BEZEL_SOURCE_IDS: readonly BezelSourceId[] = Object.keys(BEZEL_SOURCES) as BezelSourceId[];
@@ -280,6 +320,24 @@ export const BEZEL_SOURCE_IDS: readonly BezelSourceId[] = Object.keys(BEZEL_SOUR
 export function isBezelSourceId(id: string): id is BezelSourceId {
   return Object.hasOwn(BEZEL_SOURCES, id);
 }
+
+/**
+ * Every Apple Watch bezel id starts with this. Apple's own naming carries the
+ * product, so no extra field on BezelSource has to repeat it.
+ */
+const WATCH_ID_PREFIX = 'apple-watch-';
+
+export function isWatchBezelId(id: string): boolean {
+  return id.startsWith(WATCH_ID_PREFIX);
+}
+
+/**
+ * Watch bezels in table order, which is what `phone-watch` accepts as
+ * props.watchBezel: the frame it stands beside the phone. Only the id a
+ * preset names is part of the default install; `s1s bezels install --device
+ * <id>` fetches the rest.
+ */
+export const WATCH_BEZEL_IDS: readonly BezelSourceId[] = BEZEL_SOURCE_IDS.filter(isWatchBezelId);
 
 /** DMGs to download for a set of bezel ids, in first-use order. Unknown ids are skipped. */
 export function dmgsFor(ids: readonly string[]): BezelDmgId[] {
@@ -314,6 +372,7 @@ export const FILENAME_OVERRIDES: Readonly<Record<string, string>> = {
   'ipad-pro-m5-11': 'ipad-pro-11-m5',
   'apple-watch-s11-46mm': 'apple-watch-series-11-46mm',
   'apple-watch-s11-42mm': 'apple-watch-series-11-42mm',
+  'aw-ultra-3': 'apple-watch-ultra-3',
 };
 
 /** Generic form of the override for DMGs not seen yet: `ipad-air-m4-13` -> `ipad-air-13-m4`. */
@@ -324,6 +383,13 @@ const PART_SEPARATOR = ' - ';
 /** Second part of an Apple Watch file name: the case size, where a phone names the orientation. */
 const WATCH_CASE_SIZE = /^\d{2}mm$/;
 
+/**
+ * Model part of an Apple Watch file, which is the only product whose name may
+ * end after the strap: 'Apple Watch S11', 'AW Ultra 3'. A two-part phone name
+ * ('iPhone 17 - Portrait.png') is not a bezel and must still be rejected.
+ */
+const WATCH_MODEL = /^(?:apple watch|aw)\b/i;
+
 /** 'iPad Pro (M5) 13"' -> 'ipad-pro-m5-13'; 'Cosmic Orange' -> 'cosmic-orange'. Keeps dots (12.9). */
 export function bezelSlug(text: string): string {
   return text
@@ -333,29 +399,49 @@ export function bezelSlug(text: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
+interface NameParts {
+  /** Model text to slug into the bezel id, case size included when the name spends a part on it. */
+  rawModel: string;
+  /** Text to slug into the colour/strap variant. */
+  variantText: string;
+  orientationText: string;
+}
+
+/**
+ * Which of the three shapes `parts` is, or null. A watch never spends a part
+ * on the orientation (Apple ships portrait only), so the shapes are told
+ * apart by the parts that are left:
+ *
+ *   `<model> - <NNmm> - <Case> + <Band>.png`          two case sizes in one DMG (Series 11)
+ *   `<model> - <Case> + <Band>.png`                   one case size (Ultra 3)
+ *   `<model> - <Colour> - <Portrait|Landscape>.png`   iPhone, iPad
+ */
+function nameShape(parts: readonly string[]): NameParts | null {
+  const [model, second, third] = parts;
+  if (model === undefined || second === undefined) return null;
+  if (parts.length === 2) {
+    return WATCH_MODEL.test(model) ? { rawModel: model, variantText: second, orientationText: 'portrait' } : null;
+  }
+  if (parts.length !== 3 || third === undefined) return null;
+  // The case size takes the slot a phone spends on the colour, so it joins the model.
+  if (WATCH_CASE_SIZE.test(second)) return { rawModel: `${model} ${second}`, variantText: third, orientationText: 'portrait' };
+  return { rawModel: model, variantText: second, orientationText: third.toLowerCase() };
+}
+
 /**
  * Pure: maps an Apple bezel file name (any path prefix) to id / variant /
- * orientation, or null for anything that is neither shape Apple ships (PSDs,
- * .DS_Store, the DMG background image).
- *
- *   `<model> - <Colour> - <Portrait|Landscape>.png`   iPhone, iPad
- *   `<model> - <NNmm> - <Case> + <Band>.png`          Apple Watch
- *
- * The watch spends the third part on the strap instead of the orientation and
- * ships portrait only, so the case size joins the model and the whole
- * case-plus-band string becomes the variant.
+ * orientation, or null for anything that is none of the shapes Apple ships
+ * (PSDs, .DS_Store, the DMG background image). See `nameShape` for the three.
  */
 export function normaliseBezelFilename(path: string): BezelFileName | null {
   const base = path.split('/').pop() ?? '';
   if (base.startsWith('.') || !/\.png$/i.test(base)) return null;
-  const parts = base.slice(0, -4).split(PART_SEPARATOR).map((part) => part.trim());
-  if (parts.length !== 3) return null;
-  const [model, colour, last] = parts as [string, string, string];
-  const watch = WATCH_CASE_SIZE.test(colour);
-  const orientationText = watch ? 'portrait' : last.toLowerCase();
+  const shape = nameShape(base.slice(0, -4).split(PART_SEPARATOR).map((part) => part.trim()));
+  if (!shape) return null;
+  const { rawModel, variantText, orientationText } = shape;
   if (orientationText !== 'portrait' && orientationText !== 'landscape') return null;
-  const rawId = bezelSlug(watch ? `${model} ${colour}` : model);
-  const variant = bezelSlug(watch ? last : colour);
+  const rawId = bezelSlug(rawModel);
+  const variant = bezelSlug(variantText);
   if (!rawId || !variant) return null;
   const id = FILENAME_OVERRIDES[rawId] ?? rawId.replace(IPAD_CHIP_SIZE, '$1-$3-$2');
   return { id, variant, orientation: orientationText };

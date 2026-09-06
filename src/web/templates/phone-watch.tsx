@@ -8,6 +8,16 @@
 // phone's own dimensions; without it the ref would look for a phone-sized file
 // in the watch directory.
 //
+// Which Apple Watch stands there follows from that same prefix: the watch
+// size's `preset.bezel`. `watch-ultra:<watch>` asks for an Ultra 3 frame and a
+// real 422x514 Ultra capture to go in it. To keep one watch capture and change
+// only the frame, name the bezel instead: `props.watchBezel:
+// 'apple-watch-ultra-3'`. The capture is drawn `object-fit: cover`, so a frame
+// whose cut-out has a slightly different aspect crops the capture rather than
+// stretching the app UI. `s1s bezels list` shows what is installed, and the
+// Ultra bezel is not part of the default install: run
+// `s1s bezels install --device apple-watch-ultra-3` once.
+//
 // Compliance: both devices are whole, upright and un-cropped inside their real
 // Apple bezels and the copy stays beside them, so this is a compliant
 // template. Apple's rule bans cropping and tilting a product image, not
@@ -23,13 +33,15 @@ import { deviceAspect } from '../hooks/bezel.ts';
 import { useBezel } from '../hooks/useBezel.ts';
 import { placeholderCapture } from '../hooks/useCapture.ts';
 import { FramedColumn, FramedText, framedAlign, framedDeviceMaxWidth, framedFamily, LAYOUT } from './hero-top-text.tsx';
-import { WATCH, watchBox } from './phone-watch-layout.ts';
+import { WATCH, watchBox, watchSizeId } from './phone-watch-layout.ts';
 
-export { EDGE_MARGIN, WATCH, watchBox } from './phone-watch-layout.ts';
+export { DEFAULT_WATCH_SIZE_ID, EDGE_MARGIN, WATCH, watchBox, watchSizeId } from './phone-watch-layout.ts';
 export type { PhoneWatchFamily, WatchBox, WatchPlacement } from './phone-watch-layout.ts';
 
-export const WATCH_PRESET_ID = 'watch-s10';
-
+function stringProp(props: TemplateProps, name: string): string | undefined {
+  const value = props.screen.props[name];
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
 
 /**
  * `props.watchVariant` names the case and band, e.g.
@@ -39,8 +51,19 @@ export const WATCH_PRESET_ID = 'watch-s10';
  * `s1s bezels list` prints the installed variants.
  */
 export function watchVariantOf(props: TemplateProps): string | undefined {
-  const value = props.screen.props['watchVariant'];
-  return typeof value === 'string' && value.length > 0 ? value : undefined;
+  return stringProp(props, 'watchVariant');
+}
+
+/**
+ * `props.watchBezel` names the frame only: any watch bezel id from
+ * `s1s bezels list`, such as 'apple-watch-ultra-3' for a fitness app or
+ * 'apple-watch-series-11-42mm' for the smaller case. The capture keeps the
+ * size its ref asks for. Leaving it out uses the watch size's own
+ * `preset.bezel`, and naming an id that is not installed falls back to that
+ * with a `bezel-fallback` warning saying which id was missing.
+ */
+export function watchBezelOf(props: TemplateProps): string | undefined {
+  return stringProp(props, 'watchBezel');
 }
 
 function PhoneWatchScreen(props: TemplateProps) {
@@ -50,11 +73,14 @@ function PhoneWatchScreen(props: TemplateProps) {
   const s = layoutScale(preset);
   const px = (value: number) => Math.round(value * s);
 
-  const watchPreset = SIZE_PRESETS[WATCH_PRESET_ID];
+  // The prefix on the second capture ref picks the watch size, and with it
+  // the frame; props.watchBezel overrides the frame alone.
+  const watchPreset = SIZE_PRESETS[watchSizeId(screen.captures[1]?.requested)];
   const watchVariant = watchVariantOf(props);
+  const watchBezelId = watchBezelOf(props);
   // Geometry only; each DeviceFrame picks the same bezel itself.
   const phoneBezel = useBezel(preset, theme);
-  const watchBezel = useBezel(watchPreset, theme, { variant: watchVariant ?? 'auto' });
+  const watchBezel = useBezel(watchPreset, theme, { bezelId: watchBezelId, variant: watchVariant ?? 'auto' });
 
   const captures: [CaptureSource, CaptureSource] = [
     screen.captures[0] ?? placeholderCapture(screen.id, preset.family, screen.locale),
@@ -64,7 +90,7 @@ function PhoneWatchScreen(props: TemplateProps) {
   // file nobody reads, and the fix is a screens.ts edit.
   const watchHint =
     screen.captures[1] === undefined
-      ? `add capture: ['${screen.captures[0]?.requested ?? screen.id}', '${WATCH_PRESET_ID}:<watch capture>'] to screens.ts`
+      ? `add capture: ['${screen.captures[0]?.requested ?? screen.id}', '${watchPreset.id}:<watch capture>'] to screens.ts`
       : undefined;
 
   // The phone box must be the one hero-top-text would produce, so the row is
@@ -86,6 +112,7 @@ function PhoneWatchScreen(props: TemplateProps) {
                 captures={[captures[1]]}
                 preset={watchPreset}
                 theme={theme}
+                bezelId={watchBezelId}
                 variant={watchVariant ?? 'auto'}
                 fit={{ width: box.width }}
                 captureHint={watchHint}

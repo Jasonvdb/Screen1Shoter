@@ -75,6 +75,14 @@ Every file under `docs/` belongs in that list; add a line when you add one.
 - `S1S_HOME` (default `~/.screen1shoter`) holds the bezel cache, DMGs and
   mounts. Apple's bezel PNGs never go into this repo or the package. Tests
   that need bezels use synthetic ones under a temp `S1S_HOME`.
+- Every number in `src/core/bezels/sources.ts` is measured from the real DMG,
+  never typed from a spec sheet. `s1s bezels inspect <url>` prints the file
+  names; `measureBezel` gives the rects. `docs/bezels.md` is the human record
+  and must gain a row in the same commit.
+- A new preset adds its `bezel` to `defaultBezelIds()`, and every Apple Watch
+  DMG is over 300 MB. Set `bezelOptional: true` when nothing but a template
+  that names the frame would ever draw it, so `s1s bezels install` with no
+  `--device` does not grow. Today that is `watch-ultra` only.
 - `s1s render` on `example/screenshots` in place rewrites its
   `manifest.json` hashes and `runs`. Do not commit those changes.
 

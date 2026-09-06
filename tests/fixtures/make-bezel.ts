@@ -13,7 +13,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import sharp from 'sharp';
 import type { BezelEntry, BezelIndex, Dims, Rect } from '../../src/config/types.ts';
-import { BEZEL_SOURCES, type BezelOrientation, type BezelSourceId } from '../../src/core/bezels/sources.ts';
+import { BEZEL_SOURCES, isWatchBezelId, type BezelOrientation, type BezelSourceId } from '../../src/core/bezels/sources.ts';
 
 /** Transparent margin kept around the device outline, as the installer does. */
 export const BEZEL_TRIM = 2;
@@ -148,14 +148,14 @@ export function bezelColourName(variant: string): string {
  * `normaliseBezelFilename` keys on, so the fixture must reproduce it.
  */
 export function isWatchModel(id: BezelSourceId): boolean {
-  return BEZEL_SOURCES[id].model.includes(' - ');
+  return isWatchBezelId(id);
 }
 
 /**
  * Path of a bezel PNG relative to the DMG's `PNG/` folder, exactly as Apple
  * names it: `<model> - <Colour> - <Portrait|Landscape>.png` for a phone or
- * iPad, `<model> - <NNmm> - <Case> + <Band>.png` for a watch (the model here
- * already holds the size, and there is no landscape file).
+ * iPad, `<model> - <Case> + <Band>.png` for a watch (there is no landscape
+ * file, and the model already holds the case size when the DMG ships two).
  *
  * The real watch names join case and band with " + ", which `bezelSlug` folds
  * to the same dash as a space, so the slug round-trips either way.

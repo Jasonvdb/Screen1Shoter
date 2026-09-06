@@ -17,7 +17,9 @@ and, only on request, upload with `asc`. Localization is the same phases re-run 
 The tool is `s1s` (Screen1Shoter). Run `s1s <command> --help` when unsure about a flag; for a
 nested command both `s1s <group> <cmd> --help` and `s1s <group> help <cmd>` print its flags.
 Default sizes: `iphone-6.9` (1320x2868, `APP_IPHONE_69`) and `ipad-13` (2064x2752,
-`APP_IPAD_PRO_3GEN_129`); `watch-s10` (416x496 raw) when the app has a watch target.
+`APP_IPAD_PRO_3GEN_129`); for a watch target, `watch-s10` (416x496 raw,
+`APP_WATCH_SERIES_10`) or `watch-ultra` (422x514 raw, `APP_WATCH_ULTRA`) - one watch set
+satisfies Apple, so pick the watch the app's audience wears.
 All paths below are relative to the app repo. Run every command from the app repo root.
 
 ## 2. Golden rules

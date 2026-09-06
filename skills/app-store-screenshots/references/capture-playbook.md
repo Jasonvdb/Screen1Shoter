@@ -470,6 +470,7 @@ the sha and size; or note the file in `captureNotes` so the fixer knows.
 | `ipad-13` | iPad Pro 13-inch (M5) | 2064 x 2752 | 2064 x 2752 | yes |
 | `ipad-11` | iPad Pro 11-inch (M5) | 1668 x 2420 | 1668 x 2420 | yes |
 | `watch-s10` | Apple Watch Series 11 (46mm) | 416 x 496 | 416 x 496 | no (raw) |
+| `watch-ultra` | Apple Watch Ultra 3 (49mm) | 422 x 514 | 422 x 514 | no (raw) |
 
 The capture must come from the listed simulator (or one with the same
 screen). A different iPhone size renders resampled with a `capture-dims`
@@ -586,10 +587,18 @@ hand.
 
 ## 9. Watch captures
 
-Apple Watch screenshots are raw, unframed 416 x 496 PNGs from the Series 11
-46mm simulator (`watch-s10`, folder `APP_WATCH_SERIES_10`). The renderer
+Apple Watch screenshots are raw and unframed. Two sizes are available and one
+watch set satisfies Apple, so pick the watch the app's audience wears:
+416 x 496 from the Series 11 46mm simulator (`watch-s10`, folder
+`APP_WATCH_SERIES_10`) or 422 x 514 from the Ultra 3 (`watch-ultra`, folder
+`APP_WATCH_ULTRA`). The renderer
 copies the capture through unchanged, so the capture is the final image:
 compose the marketing state inside the watch app.
+
+A watch capture also feeds `phone-watch`, which stands the watch beside the
+phone on one iPhone or iPad frame. That frame follows the size prefix on the
+capture ref, so a `watch-ultra:` capture arrives in an Ultra 3 bezel; see
+`template-catalog.md`.
 
 Patch: give the watch app a scene switch driven by an env var, in its own
 DEBUG-only file (`watch-demo.patch`). Each scene is a full screen with

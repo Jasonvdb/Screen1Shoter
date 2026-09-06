@@ -109,7 +109,9 @@ describe('pure decisions', () => {
   it('requestedIds: presets by default, --all, --device with validation, everything for --from', () => {
     expect(requestedIds({})).toEqual(defaultBezelIds());
     // The watch joined the defaults when its bezel landed: watch-s10 names it,
-    // and a default install has to cover every preset's own bezel.
+    // and a default install has to cover every preset's own bezel. The Ultra
+    // frame is the one exception, marked bezelOptional because only a template
+    // that names it draws it and its DMG is 314 MB.
     expect(defaultBezelIds()).toEqual([
       'iphone-17-pro-max',
       'iphone-17-pro',
@@ -117,6 +119,9 @@ describe('pure decisions', () => {
       'ipad-pro-11-m5',
       'apple-watch-series-11-46mm',
     ]);
+    expect(defaultBezelIds()).not.toContain('apple-watch-ultra-3');
+    expect(requestedIds({ all: true })).toContain('apple-watch-ultra-3');
+    expect(requestedIds({ devices: ['apple-watch-ultra-3'] })).toEqual(['apple-watch-ultra-3']);
     expect(requestedIds({ all: true })).toEqual([...BEZEL_SOURCE_IDS]);
     expect(requestedIds({ devices: ['iphone-17', 'iphone-17'] })).toEqual(['iphone-17']);
     expect(requestedIds({ from: '/x' })).toBeNull();

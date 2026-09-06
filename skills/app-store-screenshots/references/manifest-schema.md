@@ -192,7 +192,8 @@ Optional fields are marked `?`. Unknown fields anywhere are kept by the CLI
 ### `sizes.<sizeId>`
 
 Keys are size ids: `iphone-6.9`, `iphone-6.7` (alias of 6.9, own export
-folder), `iphone-6.5`, `iphone-6.1`, `ipad-13`, `ipad-11`, `watch-s10`.
+folder), `iphone-6.5`, `iphone-6.1`, `ipad-13`, `ipad-11`, `watch-s10`,
+`watch-ultra`.
 
 | Field | Type | Owner | Notes |
 |---|---|---|---|
@@ -201,7 +202,7 @@ folder), `iphone-6.5`, `iphone-6.1`, `ipad-13`, `ipad-11`, `watch-s10`.
 | `px` | `{width,height}` | init, capture | Exact PNG size |
 | `simulator` | string | init, capture | Preset name at init; the real device name after `s1s capture` |
 | `udid?` | string | capture | Set by `s1s capture`; absent before the first capture. Treat as a hint: it goes stale when the sim is deleted. Resolve the sim by its unique name (`s1s sim list --json`) instead |
-| `framed` | boolean | init, capture | `false` for the watch passthrough |
+| `framed` | boolean | init, capture | `false` for either watch passthrough |
 
 Preset facts (from `src/config/presets.ts`):
 
@@ -214,6 +215,7 @@ Preset facts (from `src/config/presets.ts`):
 | `ipad-13` | `APP_IPAD_PRO_3GEN_129` | `IPAD_PRO_3GEN_129` | 2064x2752 | iPad Pro 13-inch (M5) |
 | `ipad-11` | `APP_IPAD_PRO_3GEN_11` | `IPAD_PRO_3GEN_11` | 1668x2420 | iPad Pro 11-inch (M5) |
 | `watch-s10` | `APP_WATCH_SERIES_10` | `WATCH_SERIES_10` | 416x496 (passthrough) | Apple Watch Series 11 (46mm) |
+| `watch-ultra` | `APP_WATCH_ULTRA` | `WATCH_ULTRA` | 422x514 (passthrough) | Apple Watch Ultra 3 (49mm) |
 
 ### `demoData?`
 

@@ -39,6 +39,7 @@ const APPLE_TABLE: Record<SizeId, AppleRow> = {
   'ipad-13': { family: 'ipad', displayType: 'APP_IPAD_PRO_3GEN_129', token: 'IPAD_PRO_3GEN_129', px: d(2064, 2752), pt: d(1032, 1376), scale: 2, simulator: 'iPad Pro 13-inch (M5)' },
   'ipad-11': { family: 'ipad', displayType: 'APP_IPAD_PRO_3GEN_11', token: 'IPAD_PRO_3GEN_11', px: d(1668, 2420), pt: d(834, 1210), scale: 2, simulator: 'iPad Pro 11-inch (M5)' },
   'watch-s10': { family: 'watch', displayType: 'APP_WATCH_SERIES_10', token: 'WATCH_SERIES_10', px: d(416, 496), pt: d(416, 496), scale: 1, simulator: 'Apple Watch Series 11 (46mm)' },
+  'watch-ultra': { family: 'watch', displayType: 'APP_WATCH_ULTRA', token: 'WATCH_ULTRA', px: d(422, 514), pt: d(422, 514), scale: 1, simulator: 'Apple Watch Ultra 3 (49mm)' },
 };
 
 /** Sizes App Store Connect accepts per display type (verified facts only). */
@@ -49,12 +50,13 @@ const ACCEPTED_FACTS: Partial<Record<AppDisplayType, Dims[]>> = {
   APP_IPHONE_61: [d(1206, 2622)],
   APP_IPAD_PRO_3GEN_129: [d(2064, 2752), d(2048, 2732)],
   APP_WATCH_SERIES_10: [d(416, 496)],
+  APP_WATCH_ULTRA: [d(422, 514), d(410, 502)],
 };
 
 const ids: SizeId[] = [...ALL_SIZE_IDS];
 
 describe('SIZE_PRESETS', () => {
-  it('lists exactly the seven Apple size classes, once each', () => {
+  it('lists exactly the eight Apple size classes, once each', () => {
     expect(ids).toEqual(Object.keys(APPLE_TABLE));
     expect(new Set(ids).size).toBe(ids.length);
   });
@@ -96,15 +98,31 @@ describe('SIZE_PRESETS', () => {
     }
   });
 
-  it('watch is an unframed 1x passthrough with exactly one accepted size', () => {
-    const watch = SIZE_PRESETS['watch-s10'];
-    expect(watch.passthrough).toBe(true);
-    expect(watch.scale).toBe(1);
-    expect(watch.pt).toEqual(watch.px);
-    expect(watch.acceptedDims).toEqual([d(416, 496)]);
+  it('every watch size is an unframed 1x passthrough, and nothing else is', () => {
+    const watches = ids.filter((id) => SIZE_PRESETS[id].family === 'watch');
+    expect(watches).toEqual(['watch-s10', 'watch-ultra']);
     for (const id of ids) {
-      if (id !== 'watch-s10') expect(SIZE_PRESETS[id].passthrough).toBeFalsy();
+      const p = SIZE_PRESETS[id];
+      if (p.family !== 'watch') {
+        expect(p.passthrough).toBeFalsy();
+        continue;
+      }
+      expect(p.passthrough).toBe(true);
+      expect(p.scale).toBe(1);
+      expect(p.pt).toEqual(p.px);
     }
+    expect(SIZE_PRESETS['watch-s10'].acceptedDims).toEqual([d(416, 496)]);
+    // APP_WATCH_ULTRA takes the Ultra 3's 422x514 and the Ultra/Ultra 2's
+    // 410x502, which is a same-aspect resample rather than a wrong device.
+    expect(SIZE_PRESETS['watch-ultra'].acceptedDims).toEqual([d(422, 514), d(410, 502)]);
+  });
+
+  it('marks only the Ultra frame optional, so the default bezel install does not grow', () => {
+    const optional = ids.filter((id) => SIZE_PRESETS[id].bezelOptional);
+    expect(optional).toEqual(['watch-ultra']);
+    // An optional frame must be one no set needs on its own: a passthrough
+    // preset renders its capture unframed, so only phone-watch ever draws it.
+    for (const id of optional) expect(SIZE_PRESETS[id].passthrough).toBe(true);
   });
 
   it('iPhone classes share one layout: aspect ratio within 0.459-0.463', () => {
@@ -177,7 +195,7 @@ describe('lookup helpers', () => {
   it('presetsByFamily', () => {
     expect(presetsByFamily('iphone').map((p) => p.id)).toEqual(['iphone-6.9', 'iphone-6.7', 'iphone-6.5', 'iphone-6.1']);
     expect(presetsByFamily('ipad').map((p) => p.id)).toEqual(['ipad-13', 'ipad-11']);
-    expect(presetsByFamily('watch').map((p) => p.id)).toEqual(['watch-s10']);
+    expect(presetsByFamily('watch').map((p) => p.id)).toEqual(['watch-s10', 'watch-ultra']);
     expect(presetsByFamily('ipad', ['iphone-6.9', 'ipad-11']).map((p) => p.id)).toEqual(['ipad-11']);
     expect(presetsByFamily('watch', ['iphone-6.9'])).toEqual([]);
   });

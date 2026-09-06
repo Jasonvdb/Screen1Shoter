@@ -31,7 +31,7 @@ must have the same pixel size (see section 3).
 | `APP_IPAD_PRO_129` (2nd-gen 12.9") | `IPAD_PRO_129` (not verified) | none | 2064x2752, 2048x2732 | Optional; legacy slot, same pixels as the 13" set |
 | `APP_IPAD_PRO_3GEN_11` | `IPAD_PRO_3GEN_11` | `ipad-11` | 1668x2420, 1668x2388, 1640x2360, 1488x2266 | Optional |
 | `APP_WATCH_SERIES_10` | `WATCH_SERIES_10` | `watch-s10` | 416x496 | Required if the app has a watchOS app (any one watch set satisfies it) |
-| `APP_WATCH_ULTRA` | `WATCH_ULTRA` (not verified) | none | 422x514, 410x502 | Optional |
+| `APP_WATCH_ULTRA` | `WATCH_ULTRA` | `watch-ultra` | 422x514, 410x502 | Optional; satisfies the watchOS requirement on its own |
 | `APP_WATCH_SERIES_7` | `WATCH_SERIES_7` (not verified) | none | 396x484 | Optional |
 | `APP_WATCH_SERIES_4` | `WATCH_SERIES_4` (not verified) | none | 368x448 | Optional |
 | `APP_WATCH_SERIES_3` | `WATCH_SERIES_3` (not verified) | none | 312x390 | Optional |
@@ -41,12 +41,15 @@ Notes:
 
 - Tokens marked "not verified" follow the pattern of dropping the `APP_`
   prefix. `IPHONE_69`, `IPHONE_67`, `IPHONE_65`, `IPHONE_61`,
-  `IPAD_PRO_3GEN_129`, `IPAD_PRO_3GEN_11` and `WATCH_SERIES_10` are the
-  values `s1s` and the verified `asc` calls use.
-- `s1s` renders the seven presets in the third column. It writes 1320x2868
+  `IPAD_PRO_3GEN_129`, `IPAD_PRO_3GEN_11`, `WATCH_SERIES_10` and
+  `WATCH_ULTRA` are the values `s1s` and the verified `asc` calls use
+  (`WATCH_ULTRA` confirmed on 2026-09-03 with `asc screenshots validate --path
+  <dir> --device-type WATCH_ULTRA`: `errorCount: 0`).
+- `s1s` renders the eight presets in the third column. It writes 1320x2868
   for `iphone-6.9`, 1284x2778 for `iphone-6.5`, 1206x2622 for `iphone-6.1`,
-  2064x2752 for `ipad-13`, 1668x2420 for `ipad-11`, and copies the 416x496
-  watch capture as is. It never resizes a render to another accepted size.
+  2064x2752 for `ipad-13`, 1668x2420 for `ipad-11`, and copies the watch
+  capture as is (416x496 for `watch-s10`, 422x514 for `watch-ultra`). It never
+  resizes a render to another accepted size.
 - `iphone-6.7` is an alias. `s1s render` renders it once with the 6.9" layout
   and `s1s export` copies the same PNGs into both
   `APP_IPHONE_69/` and `APP_IPHONE_67/`. Only add the alias when the user
@@ -69,8 +72,12 @@ Notes:
   are optional.
 - iPad: if `TARGETED_DEVICE_FAMILY` contains `2` (the app runs on iPad, not
   only in compatibility mode), a 13" iPad set is required.
-- watchOS: if the project has a watch target, one watch set is required. The
-  current slot is `APP_WATCH_SERIES_10`.
+- watchOS: if the project has a watch target, one watch set is required. Any
+  one watch display type satisfies it; `s1s` can produce two of them,
+  `APP_WATCH_SERIES_10` (`watch-s10`, 416x496) and `APP_WATCH_ULTRA`
+  (`watch-ultra`, 422x514). Ship the one that matches the watch the app's
+  audience wears, and ask the user before shipping both - the two sets are
+  separate uploads with separate copy to keep in step.
 - Mac: a Mac App Store listing needs an `APP_DESKTOP` set. The tool does not
   produce it.
 - Localized sets are optional per locale. App Store Connect falls back to the
@@ -129,6 +136,7 @@ size, so it drops into the bezel 1:1.
 | `ipad-13` | 1032x1376 | @2x | 2064x2752 | iPad Pro 13-inch (M5) |
 | `ipad-11` | 834x1210 | @2x | 1668x2420 | iPad Pro 11-inch (M5) |
 | `watch-s10` | 416x496 | @1x in the tool (passthrough) | 416x496 | Apple Watch Series 11 (46mm) |
+| `watch-ultra` | 422x514 | @1x in the tool (passthrough) | 422x514 | Apple Watch Ultra 3 (49mm) |
 
 Consequences:
 
@@ -140,8 +148,11 @@ Consequences:
 - `s1s capture` accepts an exact match of the capture size. A file with the
   same aspect within 1% is stored with a `capture-dims` warning. Anything
   else is an error that names the expected simulator.
-- The watch preset skips the browser. The 416x496 capture is copied unframed;
-  the raw file must already be 416x496.
+- Both watch presets skip the browser. The capture is copied unframed, so the
+  raw file must already be exactly the preset's size: 416x496 for `watch-s10`,
+  422x514 for `watch-ultra`. An Ultra or Ultra 2 capture is 410x502, the same
+  aspect within 1%, so it is stored with a `capture-dims` warning and
+  resampled rather than refused.
 
 ## 5. Apple marketing rules for product bezels
 
@@ -171,10 +182,11 @@ Template choice that follows from the rules:
 | `feature-grid` | yes | iPad only: device left, up to three callout cards right |
 | `raw` | yes | Unframed capture filling the canvas. Default for watch |
 | `watch-caption` | yes | Watch capture plus a short caption. Opt-in: ask before you use it instead of `raw` |
+| `phone-watch` | yes | An Apple Watch standing in front of the phone or iPad, so a shopper on those tabs sees the watch app. One screen of a set, not the whole set |
 | `bleed-bottom` | no | Device cropped at the bottom edge. Opt-in only when the user asks |
 | `tilted` | no | Device rotated a few degrees (`props.rotate`, default -8). Opt-in only when the user asks |
 
-All eight are implemented. Non-compliant templates tag the canvas
+All nine are implemented. Non-compliant templates tag the canvas
 `data-s1s-noncompliant` and are listed in
 `screenshots/out/<locale>/review.md`; nothing is blocked, so the render and
 the export still succeed and the guideline risk is the user's. Never switch a
@@ -184,12 +196,15 @@ screen to one of them without the user's approval, and record the decision in
 ## 6. Watch screenshots are unframed
 
 Apple Watch screenshots go to App Store Connect without a bezel. The
-`watch-s10` preset is a passthrough for the default `raw` template: `s1s
+`watch-s10` and `watch-ultra` presets are passthroughs for the default `raw`
+template: `s1s
 render` copies `screenshots/captures/<locale>/watch/<id>.png` to
 `out/<locale>/APP_WATCH_SERIES_10/NN-<id>.png` unchanged and checks that it is
-416x496 with no alpha. A watch screen on `watch-caption` has copy to paint, so
+416x496 with no alpha (`watch-ultra` does the same into
+`out/<locale>/APP_WATCH_ULTRA/` at 422x514). A watch screen on `watch-caption`
+has copy to paint, so
 it goes through Chromium instead; the capture is still unframed and still must
-be exactly 416x496. Apply the marketing rules inside the app instead: real
+be exactly the preset's size. Apply the marketing rules inside the app instead: real
 UI, marketing-grade values, a plausible clock. `xcrun simctl status_bar` does
 not support watchOS, so `s1s sim status-bar` reports `supported: false` and
 the real simulator clock stays. Accept it, or set the fixture time inside the
@@ -210,10 +225,19 @@ PNGs (used) and PSDs (ignored) and shows a licence on mount.
 |---|---|---|---|
 | iPhone 17 family | `https://devimages-cdn.apple.com/design/resources/download/Bezel-iPhone-17.dmg` | 265 MB | `iphone-17-pro-max`, `iphone-17-pro`, `iphone-17`, `iphone-air` |
 | iPad Pro (M5) | `https://devimages-cdn.apple.com/design/resources/download/Bezel-iPad-Pro-(M5).dmg` | 6.8 MB | `ipad-pro-13-m5`, `ipad-pro-11-m5` |
+| Apple Watch Series 11 | `https://devimages-cdn.apple.com/design/resources/download/Bezel-Apple-Watch-Series-11-2025.dmg` | 341 MB | `apple-watch-series-11-46mm`, `apple-watch-series-11-42mm` |
+| Apple Watch Ultra 3 | `https://devimages-cdn.apple.com/design/resources/download/Bezel-Apple-Watch-Ultra-3-2025.dmg` | 314 MB | `apple-watch-ultra-3` |
+
+A watch SET needs no bezel: both watch presets are passthroughs that copy the
+capture unframed. The watch bezels exist for `phone-watch`, which stands one
+beside the phone or iPad. `s1s bezels install` with no `--device` installs
+every frame a preset names EXCEPT `apple-watch-ultra-3`, which is marked
+optional so a project that never asks for it does not pay 314 MB; get it with
+`s1s bezels install --device apple-watch-ultra-3`.
 
 Other Apple DMGs (`Bezel-iPhone-16.dmg`, `Bezel-iPad-Air-(M4).dmg`,
-`Bezel-Apple-Watch-Series-11-2025.dmg`) exist but are not wired into the
-tool. The watch preset needs no bezel.
+`Bezel-Apple-Watch-Ultra-2-2024.dmg` and the Mac, Studio Display and Apple TV
+frames) exist but are not wired into the tool.
 
 Cache location: `~/.screen1shoter/bezels/<id>/<variant>.png` plus
 `~/.screen1shoter/bezels/index.json`. `S1S_HOME` overrides `~/.screen1shoter`.

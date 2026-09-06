@@ -1,9 +1,10 @@
 # Apple product bezels: facts from the W2 Stage A spike
 
 Measured on 2026-09-02 from the first two DMGs below with `hdiutil`, `sips` and
-a sharp script (raw RGBA scan); the Apple Watch DMG was added on 2026-09-03 for
-W7 and measured the same way. `src/core/bezels/sources.ts` encodes these facts;
-this file is the human record so nobody has to re-download to check a number.
+a sharp script (raw RGBA scan); the Apple Watch Series 11 DMG was added on
+2026-09-03 for W7 and the Apple Watch Ultra 3 DMG the same day for W8, both
+measured the same way. `src/core/bezels/sources.ts` encodes these facts; this
+file is the human record so nobody has to re-download to check a number.
 
 ## DMGs
 
@@ -12,6 +13,15 @@ this file is the human record so nobody has to re-download to check a number.
 | iPhone 17 family | `https://devimages-cdn.apple.com/design/resources/download/Bezel-iPhone-17.dmg` | 265,205,982 | `~/.screen1shoter/dmg/Bezel-iPhone-17.dmg` |
 | iPad Pro (M5) | `https://devimages-cdn.apple.com/design/resources/download/Bezel-iPad-Pro-(M5).dmg` | 6,787,021 | `~/.screen1shoter/dmg/Bezel-iPad-Pro-(M5).dmg` |
 | Apple Watch Series 11 (W7) | `https://devimages-cdn.apple.com/design/resources/download/Bezel-Apple-Watch-Series-11-2025.dmg` | 357,953,080 | `~/.screen1shoter/dmg/Bezel-Apple-Watch-Series-11-2025.dmg` |
+| Apple Watch Ultra 3 (W8) | `https://devimages-cdn.apple.com/design/resources/download/Bezel-Apple-Watch-Ultra-3-2025.dmg` | 329,151,217 | `~/.screen1shoter/dmg/Bezel-Apple-Watch-Ultra-3-2025.dmg` |
+
+Apple lists other bezels not used here: `Bezel-Apple-Watch-Ultra-2-2024.dmg`,
+`Bezel-iPhone-16.dmg`, `Bezel-iPad-Air-(M4).dmg`, `Bezel-iPad-(A16).dmg`,
+`Bezel-iPad-mini-(A17-Pro).dmg` plus Mac, Studio Display and Apple TV frames
+(scraped from `https://developer.apple.com/design/resources/`, 2026-09-03).
+Only the Ultra 3 DMG is `bezelOptional`: `s1s bezels install` with no
+`--device` skips it, because the only thing that draws it is a `phone-watch`
+screen that names it.
 
 - No login. `curl -L -o <file> "<url>"` works; quote the URL (parentheses).
   The server reports `Content-Length`, so a file with the exact size above can
@@ -74,19 +84,56 @@ PNG/iPad Pro (M5) 13" - {Silver, Space Black} - {Portrait, Landscape}.png
 The inch mark is the ASCII double quote (0x22). File dates inside the iPad
 image are 2026-04-14.
 
+Apple Watch Series 11 DMG (`Bezel-Apple-Watch-Series-11-2025.dmg`), one
+sub-folder per strap family, both case sizes side by side, portrait only:
+
+```
+Apple Design Resources License.rtf
+Photoshop/Apple Watch S11 - {46mm, 42mm} - <Case> + <Band>.psd   (ignore)
+PNG/Magnetic Link/Apple Watch S11 - {46mm, 42mm} - Titanium {Gold, Natural, Slate} + Magnetic Link <Colour>.png
+PNG/Milanese Loop/Apple Watch S11 - {46mm, 42mm} - Titanium {Gold, Natural, Slate} + Milanese Loop.png
+PNG/Sport Band/Apple Watch S11 - {46mm, 42mm} - <Case> + Sport Band <Colour>.png
+PNG/Sport Loop/Apple Watch S11 - {46mm, 42mm} - <Case> + Sport Loop <Colour>.png
+```
+
+Apple Watch Ultra 3 DMG (`Bezel-Apple-Watch-Ultra-3-2025.dmg`), 13 PNGs, one
+sub-folder per strap family, one case size, portrait only. Every file is
+600x960 with alpha at 72 dpi:
+
+```
+Apple Design Resources License.rtf
+Photoshop/... (ignore)
+PNG/Alpine Loop/AW Ultra 3 - {Black + Alpine Loop Black, Black + Alpine Loop Light Blue, Natural + Alpine Loop Light Blue, Natural + Alpine Loop Terra Cotta}.png
+PNG/Milanese Loop/AW Ultra 3 - {Black, Natural} + Milanese Loop.png
+PNG/Ocean Band/AW Ultra 3 - {Black + Ocean Band Anchor Blue, Black + Ocean Band Black, Natural + Ocean Band Anchor Blue, Natural + Ocean Band Neon Green}.png
+PNG/Trail Loop/AW Ultra 3 - {Black + Trail Loop Black Charcoal, Natural + Trail Loop Blue Bright Blue, Natural + Trail Loop Green Neon}.png
+```
+
+Apple writes the model `AW Ultra 3`, not `Apple Watch Ultra 3`. Install order
+is the sorted path, so `variants[0]` (what `bezelVariant: 'auto'` picks) is
+`black-alpine-loop-black`. The CDN reports `Last-Modified: 2025-11-10` for the
+DMG itself.
+
 ### File-name rule
 
-Two shapes, both with separator ` - ` (space, hyphen, space):
+Three shapes, all with separator ` - ` (space, hyphen, space):
 
 - `<model> - <Colour> - <Portrait|Landscape>.png` (iPhone, iPad)
-- `<model> - <NNmm> - <Case> + <Band>.png` (Apple Watch)
+- `<model> - <NNmm> - <Case> + <Band>.png` (Apple Watch Series 11)
+- `<model> - <Case> + <Band>.png` (Apple Watch Ultra 3)
 
-A watch file spends its second part on the case size and its third on the
-strap, and the DMG ships portrait only. `normaliseBezelFilename` keys on the
-second part: `\d{2}mm` means a watch, the size joins the model
-(`apple-watch-s11-46mm` -> `apple-watch-series-11-46mm` via
-`FILENAME_OVERRIDES`), the whole case-plus-band string becomes the variant and
-the orientation is portrait. " + " and " " slug to the same dash, so
+No watch file spends a part on the orientation, because no watch DMG ships a
+landscape file; what is left tells the shapes apart. A Series 11 file spends
+its second part on the case size, so `normaliseBezelFilename` keys on it:
+`\d{2}mm` means a watch, the size joins the model (`apple-watch-s11-46mm` ->
+`apple-watch-series-11-46mm` via `FILENAME_OVERRIDES`), the whole
+case-plus-band string becomes the variant and the orientation is portrait.
+The Ultra ships one case size, so its name has neither part and is only two
+long; a two-part name counts as a bezel only when the model reads as a watch
+(`/^(?:apple watch|aw)\b/i`, matching `AW Ultra 3`), so
+`iPhone 17 - Portrait.png` is still not a bezel. `aw-ultra-3` maps to
+`apple-watch-ultra-3` through `FILENAME_OVERRIDES`; the id carries no case
+size because the DMG makes no distinction. " + " and " " slug to the same dash, so
 `Aluminum Jet Black + Sport Band Black` is `aluminum-jet-black-sport-band-black`. `normaliseBezelFilename` lowercases, drops `"`/`(`/`)`, turns
 runs of other characters into `-`, then applies `FILENAME_OVERRIDES`
 (`ipad-pro-m5-13` -> `ipad-pro-13-m5`, `ipad-pro-m5-11` -> `ipad-pro-11-m5`;
@@ -112,6 +159,13 @@ preset, so captures drop in 1:1 with no resampling.
 | ipad-pro-11-m5 | 1880x2640 | (15,15) 1854x2606 | (106,110) 1668x2420 | 0.6893 | none | 64 | 58 |
 | apple-watch-series-11-46mm | 560x880 | (31,16) 521x849 | (72,192) 416x496 | 0.8387 | none | 127 | 101 |
 | apple-watch-series-11-42mm | 520x800 | (36,19) 469x763 | (73,177) 374x446 | 0.8386 | none | 114 | 90 |
+| apple-watch-ultra-3 | 600x960 | (34,18) 561x924 | (89,223) 422x514 | 0.8210 | none | 132* | 114 |
+
+\* The Ultra's corner-row count was taken with `cornerProfile` on the installed
+(trimmed) PNG rather than the spike's untrimmed scan. The two conventions
+differ by one row: the same call reads 126 on `apple-watch-series-11-46mm`,
+which this table records as 127. Only `cornerRadius` is used at render time,
+and that number matches either way.
 
 `cornerRadius` is what `measure.ts` (`radiusFromProfile`) computes on the
 real file and what `s1s bezels install` writes to `index.json`;
@@ -131,10 +185,12 @@ Colour variants share the alpha channel: the three iPhone 17 Pro Max colours
 and both iPad colours gave identical rects, identical semi-transparent pixel
 counts and identical corner profiles. Measure once per id and reuse.
 
-The watch is the exception, and only in `deviceRect`: the PNG includes the
+The watches are the exception, and only in `deviceRect`: the PNG includes the
 band, so a Sport Loop is 12 px taller than a Sport Band (849 / 853 / 861 / 865
-across the four strap families, all 46 mm) while `screenRect`, the corner
-radius and the case itself never move. `installBezelFile` measures every file
+across the four Series 11 strap families, all 46 mm) and an Ultra 3 Ocean Band
+is 30 px shorter than an Alpine Loop (894-899 against 924, with the Milanese
+Loop at 920), while `screenRect`, the corner radius and the case itself never
+move. `installBezelFile` measures every file
 it writes, and `checkAgainstSource` guards only `screenRect`, so one recorded
 measurement per id stays true; `measuredVariant` names the file it came from.
 

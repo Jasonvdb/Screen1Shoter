@@ -139,6 +139,13 @@ Presets (verified against `asc screenshots sizes --all`):
 | ipad-13 | ipad | APP_IPAD_PRO_3GEN_129 | IPAD_PRO_3GEN_129 | 2064x2752 | 1032x1376 @2 | iPad Pro 13-inch (M5) | default |
 | ipad-11 | ipad | APP_IPAD_PRO_3GEN_11 | IPAD_PRO_3GEN_11 | 1668x2420 | 834x1210 @2 | iPad Pro 11-inch (M5) | |
 | watch-s10 | watch | APP_WATCH_SERIES_10 | WATCH_SERIES_10 | 416x496 | 416x496 @1 | Apple Watch Series 11 (46mm) | passthrough |
+| watch-ultra | watch | APP_WATCH_ULTRA | WATCH_ULTRA | 422x514 | 422x514 @1 | Apple Watch Ultra 3 (49mm) | passthrough, bezelOptional (W8) |
+
+`bezelOptional` keeps a preset's `bezel` out of `defaultBezelIds()`, so
+`s1s bezels install` with no `--device` does not fetch it. Set on `watch-ultra`
+only: the preset is a passthrough, so nothing frames its own set, and the only
+consumer is a `phone-watch` screen that names the frame. `--device
+apple-watch-ultra-3` or `--all` installs it.
 
 Resolution order in `resolveScreen`: base < `overrides[family]` <
 `overrides[sizeId]` < `locales[locale]`. `template` and `capture` replace;
@@ -246,6 +253,13 @@ the 1320x2868 check. `parseCaptureRef` reports `unknownSize: true` for a prefix
 that names no preset and `screenDefSchema` refuses it, so a typo is a
 `screens.ts` error rather than part of a file name. `phone-watch` is the only
 built-in that needs it.
+
+W8 gave the prefix a second job in `phone-watch`: `watchSizeId(ref)`
+(`src/web/templates/phone-watch-layout.ts`) turns the prefix into the watch
+size whose `preset.bezel` is drawn, so `'watch-ultra:lap'` asks for both a
+422x514 capture and an Ultra 3 frame from one edit and the two can never
+disagree. A ref with no prefix, an unknown one, or one naming a phone size
+falls back to `DEFAULT_WATCH_SIZE_ID` (`watch-s10`).
 
 ### src/core/matrix.ts
 ```ts
@@ -512,7 +526,9 @@ Data attributes:
   not guideline-compliant (`bleed-bottom`, `tilted`); review.md lists these.
   `phone-watch` is compliant: both devices are whole, upright and un-cropped,
   and Apple's rule bans cropping and tilting a product image, not standing two
-  products together.
+  products together. Choosing another watch model does not change that: a
+  `props.watchBezel` that is not installed falls back to the watch size's own
+  bezel and reports `bezel-fallback` naming the id that was missing.
 - `data-s1s-bezel="<id>/<variant>"` (or `"generic"`) on every `DeviceFrame`
   root (`data-s1s-id="device"`), `data-s1s-bezel-fallback="<wanted id>"` when
   a substitute id or the generic frame was used (`checks.ts` -> `bezel-fallback`,
@@ -551,11 +567,17 @@ inside the repo. `/bezels/*` serves the cache dir to the browser.
 ```ts
 // src/core/bezels/sources.ts (Stage A facts; docs/bezels.md is the human record)
 export const BEZEL_DMGS, BEZEL_SOURCES, BEZEL_SOURCE_IDS; export function isBezelSourceId, dmgsFor(ids), normaliseBezelFilename(path), sourceForFile(path);
+export const WATCH_BEZEL_IDS; export function isWatchBezelId(id);   // W8: the frames phone-watch's props.watchBezel accepts
   // ids: iphone-17-pro-max iphone-17-pro iphone-17 iphone-air ipad-pro-13-m5 ipad-pro-11-m5
-  //      apple-watch-series-11-46mm apple-watch-series-11-42mm (W7); variants[0] is the 'auto' colour.
-  // normaliseBezelFilename reads two shapes: `<model> - <Colour> - <Portrait|Landscape>.png`
-  //   and, when the second part is a case size, `<model> - <NNmm> - <Case> + <Band>.png`
-  //   (Apple Watch: no orientation part, portrait only, the whole case-plus-band string is the variant).
+  //      apple-watch-series-11-46mm apple-watch-series-11-42mm (W7) apple-watch-ultra-3 (W8);
+  //      variants[0] is the 'auto' colour.
+  // normaliseBezelFilename reads three shapes, told apart by the parts a watch does not
+  //   spend on the orientation (Apple ships no landscape watch bezel):
+  //     `<model> - <Colour> - <Portrait|Landscape>.png`   iPhone, iPad
+  //     `<model> - <NNmm> - <Case> + <Band>.png`          two case sizes in one DMG (Series 11)
+  //     `<model> - <Case> + <Band>.png`                   one case size (AW Ultra 3)
+  //   The whole case-plus-band string is the variant. A two-part name counts only for a watch
+  //   model (`/^(?:apple watch|aw)\b/i`): `iPhone 17 - Portrait.png` stays not-a-bezel.
   //   `measuredVariant` names the file `portrait` was measured on: a watch band changes deviceRect,
   //   though never the case or its cut-out, and only screenRect guards an install.
 // src/core/bezels/measure.ts (sharp raw RGBA; unit-tested on a synthetic bezel)
@@ -607,9 +629,10 @@ mounts nothing and flags the slot `data-s1s-overflow="overflow"` (with a
 becomes ready. Verified on the real iPhone 17 Pro Max
 (screen (56,48) 1320x2868, aspect 0.4603, radius 189, island (529,91)
 374x108, px/pt 3), iPad Pro 13 M5 ((92,96) 2064x2752, 0.75, radius 58,
-no island, px/pt 2) and Apple Watch S11 46mm ((72,192) 416x496, 0.8387,
-radius 101, no island, px/pt 1; the PNG includes the band, so `deviceRect`
-differs per strap while the cut-out does not).
+no island, px/pt 2), Apple Watch S11 46mm ((72,192) 416x496, 0.8387,
+radius 101, no island, px/pt 1) and Apple Watch Ultra 3 ((89,223) 422x514,
+0.8210, radius 114, no island, px/pt 1). On both watches the PNG includes the
+band, so `deviceRect` differs per strap while the cut-out does not.
 
 ## 6b. Contact sheet (W2)
 

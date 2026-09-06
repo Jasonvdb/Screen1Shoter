@@ -5,16 +5,28 @@
 import { describe, expect, it } from 'vitest';
 import { SIZE_PRESETS } from '../../src/config/presets.ts';
 import type { Dims, SizePreset } from '../../src/config/types.ts';
-import { BEZEL_SOURCES, isBezelSourceId } from '../../src/core/bezels/sources.ts';
+import { BEZEL_SOURCES, WATCH_BEZEL_IDS, isBezelSourceId } from '../../src/core/bezels/sources.ts';
 import { fitInto } from '../../src/web/components/fit-box.ts';
 import { LAYOUT } from '../../src/web/templates/framed-layout.ts';
-import { EDGE_MARGIN, WATCH, watchBox } from '../../src/web/templates/phone-watch-layout.ts';
+import {
+  DEFAULT_WATCH_SIZE_ID,
+  EDGE_MARGIN,
+  WATCH,
+  watchBox,
+  watchSizeId,
+} from '../../src/web/templates/phone-watch-layout.ts';
 
 /** Same rule as layoutScale(): 1 at 440 pt (iPhone) / 1032 pt (iPad). */
 const scaleOf = (preset: SizePreset): number => preset.pt.width / (preset.family === 'ipad' ? 1032 : 440);
 
 const WATCH_FACTS = BEZEL_SOURCES['apple-watch-series-11-46mm'].portrait;
 const watchAspect = WATCH_FACTS.deviceRect.width / WATCH_FACTS.deviceRect.height;
+
+/** Every frame props.watchBezel may name, so the placement holds for all of them. */
+const WATCH_MODELS = WATCH_BEZEL_IDS.map((id) => {
+  const facts = BEZEL_SOURCES[id].portrait;
+  return { id, facts, aspect: facts.deviceRect.width / facts.deviceRect.height };
+});
 
 const presets = Object.values(SIZE_PRESETS).filter((p) => !p.aliasOf && (p.family === 'iphone' || p.family === 'ipad'));
 
@@ -95,5 +107,63 @@ describe('watchBox', () => {
     const { box: phone, top } = phoneBox(preset);
     const half: Dims = { width: phone.width / 2, height: phone.height / 2 };
     expect(watchBox(WATCH.iphone, half, top, preset.pt, watchAspect).width).toBe(Math.round(WATCH.iphone.width * half.width));
+  });
+});
+
+describe('watchSizeId', () => {
+  it('takes the watch size the capture ref names', () => {
+    expect(watchSizeId('watch-ultra:watch-lap')).toBe('watch-ultra');
+    expect(watchSizeId('watch-s10:watch-lap')).toBe('watch-s10');
+  });
+
+  it('falls back to the Series watch for a ref that names no watch size', () => {
+    // A bare name, an unknown prefix (the schema rejects that one first) and a
+    // phone size all mean "nobody chose", not "use a phone-sized watch frame".
+    expect(watchSizeId(undefined)).toBe(DEFAULT_WATCH_SIZE_ID);
+    expect(watchSizeId('watch-lap')).toBe(DEFAULT_WATCH_SIZE_ID);
+    expect(watchSizeId('nope:watch-lap')).toBe(DEFAULT_WATCH_SIZE_ID);
+    expect(watchSizeId('iphone-6.9:watch-lap')).toBe(DEFAULT_WATCH_SIZE_ID);
+    expect(SIZE_PRESETS[DEFAULT_WATCH_SIZE_ID].family).toBe('watch');
+  });
+
+  it('names a size whose bezel is a watch, so the frame follows the capture size', () => {
+    for (const id of Object.keys(SIZE_PRESETS) as Array<keyof typeof SIZE_PRESETS>) {
+      const preset = SIZE_PRESETS[id];
+      if (preset.family !== 'watch') continue;
+      expect(watchSizeId(`${id}:watch-lap`)).toBe(id);
+      expect(WATCH_BEZEL_IDS).toContain(preset.bezel);
+    }
+  });
+});
+
+describe('watchBox across every watch model', () => {
+  // The Ultra is squarer than a Series watch (aspect 0.607 against 0.614), so
+  // the box grows taller for the same width. Placement must survive that on
+  // every canvas, not only on the model the numbers were tuned against.
+  for (const preset of presets) {
+    const family = preset.family === 'ipad' ? 'ipad' : 'iphone';
+    for (const model of WATCH_MODELS) {
+      it(`${preset.id} + ${model.id}: on the canvas, below and right of the phone's centre`, () => {
+        const { box: phone, top } = phoneBox(preset);
+        const w = watchBox(WATCH[family], phone, top, preset.pt, model.aspect);
+        const left = (preset.pt.width - phone.width) / 2 + w.left;
+
+        expect(left).toBeGreaterThanOrEqual(0);
+        expect(top + w.top).toBeGreaterThanOrEqual(0);
+        expect(left + w.width).toBeLessThanOrEqual(preset.pt.width);
+        expect(top + w.top + w.height).toBeLessThanOrEqual(preset.pt.height);
+        expect(left + w.width / 2).toBeGreaterThan((preset.pt.width - phone.width) / 2 + phone.width / 2);
+        expect(top + w.top + w.height / 2).toBeGreaterThan(top + phone.height / 2);
+        // Still an inset, not a co-star.
+        expect((w.width * w.height) / (phone.width * phone.height)).toBeLessThan(0.25);
+      });
+    }
+  }
+
+  it('gives one width to every model, so a frame swap does not resize the watch', () => {
+    const preset = SIZE_PRESETS['iphone-6.9'];
+    const { box: phone, top } = phoneBox(preset);
+    const widths = WATCH_MODELS.map((m) => watchBox(WATCH.iphone, phone, top, preset.pt, m.aspect).width);
+    expect(new Set(widths).size).toBe(1);
   });
 });

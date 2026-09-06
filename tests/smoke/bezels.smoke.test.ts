@@ -15,10 +15,16 @@ import { BEZEL_SOURCES, type BezelSourceId } from '../../src/core/bezels/sources
 import { makeTempDir, must, parseJsonLine, pngInfo, runS1s, type TempDir } from '../fixtures/helpers.ts';
 import { syntheticSourceEntry, writeSyntheticDmgTree, type SyntheticDmgTree } from '../fixtures/make-bezel.ts';
 
-// The watch is here for its file name, which spends the orientation slot on the
-// strap, and for its geometry, whose corner radius reaches past the probes the
-// phone and iPad shapes need.
-const IDS = ['iphone-17-pro-max', 'ipad-pro-13-m5', 'apple-watch-series-11-46mm'] as const satisfies readonly BezelSourceId[];
+// Both watches are here for their file names, which spend the orientation slot
+// on the strap (the Series on a case size too, the Ultra on nothing), and for
+// their geometry, whose corner radius reaches past the probes the phone and
+// iPad shapes need.
+const IDS = [
+  'iphone-17-pro-max',
+  'ipad-pro-13-m5',
+  'apple-watch-series-11-46mm',
+  'apple-watch-ultra-3',
+] as const satisfies readonly BezelSourceId[];
 
 interface InspectedFile {
   file: string;
@@ -122,6 +128,7 @@ describe('s1s bezels on a synthetic DMG tree (smoke)', () => {
         'iphone-17-pro-max/deep-blue/portrait',
         'ipad-pro-13-m5/space-black/portrait',
         'apple-watch-series-11-46mm/titanium-gold-magnetic-link-sage-gray/portrait',
+        'apple-watch-ultra-3/black-alpine-loop-black/portrait',
       ].sort(),
     );
     expect(json.kept).toEqual([]);
@@ -184,6 +191,7 @@ describe('s1s bezels on a synthetic DMG tree (smoke)', () => {
     expect(json.presets['iphone-6.1']).toBe('iphone-17-pro-max/deep-blue (fallback)');
     expect(json.presets['ipad-11']).toBeNull();
     expect(json.presets['watch-s10']).toBe('apple-watch-series-11-46mm/titanium-gold-magnetic-link-sage-gray');
+    expect(json.presets['watch-ultra']).toBe('apple-watch-ultra-3/black-alpine-loop-black');
   });
 
   it('the written index parses and resolves the default presets without a fallback', async () => {

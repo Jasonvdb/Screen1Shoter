@@ -186,6 +186,44 @@ describe('measureRaw on a synthetic Apple Watch bezel', () => {
   });
 });
 
+/**
+ * The Ultra 3 cut-out. Its radius is 27% of the screen width, rounder still
+ * than the Series watch's 24.3%, so it is the shape that most needs the
+ * centre-start corner profile and the 20/50/80% column union.
+ */
+const WATCH_ULTRA: BezelEntry = {
+  id: 'synthetic-watch-ultra',
+  variant: 'black-alpine-loop-black',
+  file: 'synthetic-watch-ultra/black-alpine-loop-black.png',
+  imageSize: { width: 600, height: 960 },
+  deviceRect: rect(34, 18, 561, 924),
+  screenRect: rect(89, 223, 422, 514),
+  cornerRadius: 114,
+  orientation: 'portrait',
+  screenAspect: 422 / 514,
+};
+
+describe('measureRaw on a synthetic Apple Watch Ultra bezel', () => {
+  let m: BezelMeasurement;
+  beforeAll(async () => {
+    const { png } = await synthetic(WATCH_ULTRA);
+    m = measureRaw(await rawOf(png));
+  });
+
+  it('measures the full 422x514 cut-out', () => {
+    expectRectNear(m.deviceRect, WATCH_ULTRA.deviceRect);
+    expectRectNear(m.screenRect, WATCH_ULTRA.screenRect);
+    expect(m.screenRect.width).toBe(422);
+    expect(m.screenRect.height).toBe(514);
+  });
+
+  it('invents no Dynamic Island and recovers the radius', () => {
+    expect(m.islandRect).toBeUndefined();
+    expect(Math.abs(m.cornerRadius - WATCH_ULTRA.cornerRadius)).toBeLessThanOrEqual(2);
+    expect(m.cornerRadius / m.screenRect.width).toBeGreaterThan(0.25);
+  });
+});
+
 describe('measureRaw orientation and failures', () => {
   it('reports landscape when the screen is wider than tall and still finds the island on the left', async () => {
     const landscape: BezelEntry = {

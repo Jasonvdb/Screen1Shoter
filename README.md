@@ -25,6 +25,7 @@ The repo ships two products that share one contract:
 | W5 | `s1s export`, `s1s validate`, `s1s status`, `asc` integration | done |
 | W6 | Opt-in templates (`bleed-bottom`, `tilted`, `watch-caption`), panorama backgrounds, project fonts, de-DE localization dry run | done |
 | W7 | Apple Watch bezels, cross-size capture refs, `phone-watch` template | done |
+| W8 | Apple Watch Ultra 3 bezel, `watch-ultra` size, a choosable watch model in `phone-watch` | done |
 
 The W4 pilot and the W5 export ran against MotoFit, whose repo holds the
 result: 14 upload-ready PNGs under `metadata/screenshots/en-US/` that pass
@@ -37,6 +38,26 @@ iPhone or iPad shopper ever saw it. `phone-watch` stands a real Apple Watch
 bezel in front of the phone on one frame of the iPhone and iPad sets, keeping
 `hero-top-text`'s text block and device box so the rest of the carousel still
 lines up.
+
+W8 made the watch model a choice, because the right watch depends on the app:
+a training or outdoor app wants the Ultra's rugged titanium case, not a
+Series 11. Two knobs, each with one job.
+
+- `capture: [<phone>, 'watch-ultra:<watch>']` picks the size. The prefix
+  already decided where the capture is read from and what pixel size it must
+  be; now it also decides which watch is drawn, so the two can never disagree.
+  Use it when the app has a real Ultra capture (422x514, from the
+  "Apple Watch Ultra 3 (49mm)" simulator).
+- `props: { watchBezel: 'apple-watch-ultra-3' }` changes only the frame and
+  leaves the capture size alone. Use it to put one 416x496 watch capture in
+  another model's frame; the capture is drawn `object-fit: cover`, so the
+  small aspect difference crops a couple of percent instead of stretching the
+  app UI. `s1s bezels list` prints the installed frames, and
+  `props.watchVariant` names the case and band inside one.
+
+The Ultra frame is not part of the default bezel install, because nothing but
+a screen that asks for it ever draws it. Fetch it once with
+`s1s bezels install --device apple-watch-ultra-3` (314 MB).
 
 Still open: retiring the three old screenshot skills
 (`scripts/install-skills.sh --retire`) needs the user's word, because it
@@ -91,8 +112,8 @@ Outputs are exact `preset.px`, RGB, no alpha, with 1/3-scale previews,
 (`sheet-<sizeId>.png`, every rendered screen in one image) under
 `screenshots/out/<locale>/`. A `render --screens <subset>` keeps the other
 screens of the previous report in `report.json`, `review.md` and the sheets.
-Apple Watch (`watch-s10`) is a passthrough: the 416x496 capture is copied
-unframed.
+Both watch sizes are passthroughs: the capture (416x496 for `watch-s10`,
+422x514 for `watch-ultra`) is copied unframed, and the browser is skipped.
 
 Per-app files live in `<app>/screenshots/`: `screens.ts`, `theme.ts`,
 `copy/<locale>.json`, `captures/<locale>/<family>/<name>.png`,
@@ -143,16 +164,21 @@ progress and logs go to stderr. `--project <dir>` points at an app repo or its
 | `ipad-13` | `APP_IPAD_PRO_3GEN_129` | 2064x2752 | iPad Pro 13-inch (M5) | default |
 | `ipad-11` | `APP_IPAD_PRO_3GEN_11` | 1668x2420 | iPad Pro 11-inch (M5) | |
 | `watch-s10` | `APP_WATCH_SERIES_10` | 416x496 | Apple Watch Series 11 (46mm) | passthrough, unframed |
+| `watch-ultra` | `APP_WATCH_ULTRA` | 422x514 | Apple Watch Ultra 3 (49mm) | passthrough, unframed; also accepts 410x502 |
 
 The full table with points, scale and accepted dimensions is in
 `CONTRACTS.md` section 3.
 
 ## Bezels
 
-`s1s bezels install` fetches Apple's "Bezel-iPhone-17.dmg" (265 MB) and
-"Bezel-iPad-Pro-(M5).dmg", mounts them with `hdiutil`, measures every portrait
+`s1s bezels install` fetches Apple's "Bezel-iPhone-17.dmg" (265 MB),
+"Bezel-iPad-Pro-(M5).dmg" and "Bezel-Apple-Watch-Series-11-2025.dmg" (341 MB),
+mounts them with `hdiutil`, measures every portrait
 PNG (device box, screen cut-out, corner radius, Dynamic Island) and writes
 trimmed copies plus `index.json` to `~/.screen1shoter/bezels/<id>/<variant>.png`.
+The Apple Watch Ultra 3 frame is left out of that default and needs
+`--device apple-watch-ultra-3`; only a `phone-watch` screen naming it draws it,
+so no project pays for its DMG without asking.
 The DMG is deleted after install (and after `bezels inspect <url>`); pass
 `--keep-dmg` to keep it under `~/.screen1shoter/dmg`, where a complete file
 is reused instead of downloaded again.

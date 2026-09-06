@@ -112,7 +112,8 @@ export const BUILTIN_TEMPLATES: readonly TemplateMeta[] = [
     phase: 'W7',
     description:
       "hero-top-text plus an Apple Watch standing in front of the device's lower right corner, so a phone or iPad shopper sees the watch app. " +
-      "Needs capture: [<phone>, 'watch-s10:<watch>']; props.watchVariant names the case and band.",
+      "Needs capture: [<phone>, 'watch-s10:<watch>']; the size prefix also picks the model, so 'watch-ultra:<watch>' frames an Ultra 3. " +
+      'props.watchBezel names another frame without changing the capture size, props.watchVariant the case and band.',
     captures: 2,
   },
 ];

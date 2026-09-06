@@ -6,9 +6,28 @@
 // block and the phone, so a set can put phone-watch on one screen and
 // hero-top-text on the rest and the copy band and the device still land at the
 // same y at the same width. Everything here describes only the extra device.
-import type { Dims } from '../../config/types.ts';
+import { SIZE_PRESETS } from '../../config/presets.ts';
+import { parseCaptureRef } from '../../config/resolve.ts';
+import type { CaptureRef, Dims, SizeId } from '../../config/types.ts';
 
 export type PhoneWatchFamily = 'iphone' | 'ipad';
+
+/** Watch size used when the second capture ref names none. */
+export const DEFAULT_WATCH_SIZE_ID: SizeId = 'watch-s10';
+
+/**
+ * The watch size the second capture ref names, which is the one knob that
+ * decides both halves at once: the file's expected pixel size and, through
+ * `preset.bezel`, which Apple Watch is drawn. `watch-ultra:lap` puts a real
+ * 422x514 Ultra capture in an Ultra 3 frame; a bare or phone-sized ref falls
+ * back to the Series watch. `props.watchBezel` changes only the frame, for a
+ * project that has one watch capture and wants another model beside the phone.
+ */
+export function watchSizeId(ref: CaptureRef | undefined): SizeId {
+  if (ref === undefined) return DEFAULT_WATCH_SIZE_ID;
+  const { sizeId } = parseCaptureRef(ref);
+  return sizeId !== null && SIZE_PRESETS[sizeId].family === 'watch' ? sizeId : DEFAULT_WATCH_SIZE_ID;
+}
 
 export interface WatchPlacement {
   /** Watch device-box width, as a fraction of the phone's device-box width. */

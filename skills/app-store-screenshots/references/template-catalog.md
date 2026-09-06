@@ -21,7 +21,7 @@ All paths in this file are relative to the app repo. The CLI is `s1s`.
 | `bleed-bottom` | iphone, ipad | 1 | headline, highlight, subline, badge | NOT compliant | built, opt-in |
 | `tilted` | iphone, ipad | 1 | headline, highlight, subline, badge | NOT compliant | built, opt-in |
 | `watch-caption` | watch | 1 | headline, highlight | compliant | built, opt-in |
-| `phone-watch` | iphone, ipad | 2 (`capture: [phone, 'watch-s10:watch']`) | headline, highlight, subline, badge | compliant | built |
+| `phone-watch` | iphone, ipad | 2 (`capture: [phone, 'watch-s10:watch']`, or `watch-ultra:` for an Ultra) | headline, highlight, subline, badge | compliant | built |
 
 Every built-in template above is implemented and renders today. Check the list
 on the machine before you rely on it:
@@ -236,9 +236,35 @@ reported missing. A prefix naming no preset is a `screens.ts` error, not a file
 name. A missing second capture shows a hint panel naming the `screens.ts`
 change, not a capture command.
 
-Needs the watch bezel: `s1s bezels install` (it is in the defaults, from
-`Bezel-Apple-Watch-Series-11-2025.dmg`). Without it the watch falls back to the
-generic CSS frame and `report.json` carries a `bezel-fallback` warning.
+### Choosing the watch model
+
+The prefix also picks which Apple Watch is drawn, through that size's
+`preset.bezel`. Pick the model the app's own audience wears: a training,
+outdoor or dive app reads as an Ultra app, a general-purpose app as a
+Series watch.
+
+| Want | Write | Capture needed |
+|---|---|---|
+| Series 11, 46 mm (default) | `capture: [phone, 'watch-s10:<watch>']` | 416x496, "Apple Watch Series 11 (46mm)" |
+| Ultra 3, 49 mm, with a matching capture | `capture: [phone, 'watch-ultra:<watch>']` | 422x514, "Apple Watch Ultra 3 (49mm)" |
+| Another frame, same capture | `props: { watchBezel: '<bezel id>' }` | whatever the ref already asks for |
+
+Use the prefix when the app can be captured on that watch: the capture then
+fills its own cut-out 1:1. Use `props.watchBezel` when the project has one
+watch capture and wants a different model beside the phone; the capture is
+drawn `object-fit: cover`, so the small aspect difference crops about 2 %
+off the bottom rather than stretching the app UI. Frames available today:
+`apple-watch-series-11-46mm`, `apple-watch-series-11-42mm`,
+`apple-watch-ultra-3`.
+
+Needs the watch bezel. `s1s bezels install` covers the Series 11
+(`Bezel-Apple-Watch-Series-11-2025.dmg`, in the defaults). The Ultra 3 frame is
+NOT in the defaults, because only a screen that names it draws it: run
+`s1s bezels install --device apple-watch-ultra-3` (314 MB) once. Without the
+frame the watch falls back to the Series 11 (or, with none installed, the
+generic CSS frame) and `report.json` carries a `bezel-fallback` warning naming
+the id that was missing - which is also what a mistyped `watchBezel` looks
+like. `s1s bezels list` prints what is installed.
 
 Copy fields: `headline`, `highlight`, `subline`, `badge`. Drop a badge that
 names the platform the frame now shows - "Apple Watch" beside a picture of an
@@ -250,6 +276,8 @@ Props:
   A watch shares no colour name with a phone, so a project's single
   `theme.bezelVariant` never matches one and the fallback is whichever variant
   installed first. Name it. `s1s bezels list` prints what is installed.
+- `watchBezel`: the frame only, e.g. `'apple-watch-ultra-3'`. The capture keeps
+  the size its ref asks for. Leave it out to use the watch size's own bezel.
 - `align`, `background`, `deviceMaxWidth` (all as `hero-top-text`).
 
 iPad: 30 % watch with a smaller overhang, so it reads as a companion beside a
@@ -887,7 +915,10 @@ with a warning.
   iPhone and iPad frame should carry it too (`phone-watch`): the watch set is
   behind a listing tab most shoppers never open.
 - `capture` refs that name another size (`'watch-s10:watch-lap'`) point at a
-  file that really exists under that size's family directory.
+  file that really exists under that size's family directory, and the size in
+  the prefix is the watch the frame should show.
+- No `bezel-fallback` warning on a `phone-watch` screen: that is what a
+  `props.watchBezel` typo or an Ultra frame nobody installed looks like.
 - Panorama, when the set uses one: the seam lines up on the contact sheet, no
   screen of the run silently kept its own `background`, and the slice order
   matches the export order (`NN`).

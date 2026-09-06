@@ -108,6 +108,26 @@ export const SIZE_PRESETS: Record<SizeId, SizePreset> = {
     simulatorName: 'Apple Watch Series 11 (46mm)',
     passthrough: true,
   },
+  // The Ultra's own App Store set, and the frame `phone-watch` draws for
+  // props.watchBezel: 'apple-watch-ultra-3'. APP_WATCH_ULTRA accepts both
+  // 422x514 (Ultra 3, and the bezel cut-out) and 410x502 (Ultra / Ultra 2),
+  // which is a same-aspect resample rather than a wrong device.
+  'watch-ultra': {
+    id: 'watch-ultra',
+    family: 'watch',
+    displayType: 'APP_WATCH_ULTRA',
+    deviceTypeToken: 'WATCH_ULTRA',
+    px: d(422, 514),
+    pt: d(422, 514),
+    scale: 1,
+    acceptedDims: [d(422, 514), d(410, 502)],
+    bezel: 'apple-watch-ultra-3',
+    bezelFallbacks: [],
+    captureDims: d(422, 514),
+    simulatorName: 'Apple Watch Ultra 3 (49mm)',
+    passthrough: true,
+    bezelOptional: true,
+  },
 };
 
 export const ALL_SIZE_IDS: readonly SizeId[] = Object.keys(SIZE_PRESETS) as SizeId[];

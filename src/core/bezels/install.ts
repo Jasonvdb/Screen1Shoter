@@ -88,10 +88,13 @@ export interface InstallResult {
   offline?: string;
 }
 
-/** Bezels the presets ask for by default: every `preset.bezel` with a source. */
+/** Bezels the presets ask for by default: every `preset.bezel` with a source, minus the `bezelOptional` ones. */
 export function defaultBezelIds(): string[] {
   const ids: string[] = [];
   for (const preset of Object.values(SIZE_PRESETS)) {
+    // `bezelOptional` frames are a few hundred MB of DMG that only a template
+    // asking for them by name ever draws: `--device <id>` or `--all` gets them.
+    if (preset.bezelOptional) continue;
     if (isBezelSourceId(preset.bezel) && !ids.includes(preset.bezel)) ids.push(preset.bezel);
   }
   return ids;

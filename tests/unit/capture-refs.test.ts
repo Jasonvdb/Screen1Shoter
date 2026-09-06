@@ -107,6 +107,19 @@ describe('resolveScreen with a cross-size ref', () => {
   });
 });
 
+describe('resolveScreen with the Ultra watch size', () => {
+  it('routes a watch-ultra ref to the 422x514 preset, same directory as the Series watch', () => {
+    const screen: ScreenDef = { id: 'lap-times', template: 'phone-watch', capture: ['lap-times', 'watch-ultra:watch-lap'] };
+    const resolved = resolveScreen(screen, iphone69, 'en-US', undefined, recordingResolver);
+    const wrist = must(resolved.captures[1]);
+    // One captures/<locale>/watch/ directory for every watch size; only the
+    // dimension check and the bezel differ.
+    expect(wrist.resolvedPath).toBe('captures/en-US/watch/watch-lap.png');
+    expect(wrist.dims).toEqual(SIZE_PRESETS['watch-ultra'].captureDims);
+    expect(wrist.dims).not.toEqual(watch.captureDims);
+  });
+});
+
 describe('screenDefSchema', () => {
   it('accepts a prefixed ref', () => {
     expect(screenDefSchema.safeParse({ id: 'lap-times', capture: ['lap-times', 'watch-s10:watch-lap'] }).success).toBe(true);

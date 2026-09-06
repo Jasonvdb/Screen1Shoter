@@ -48,9 +48,14 @@ export default defineScreens({
     //                 tab most shoppers never open. `template: 'phone-watch',
     //                 capture: ['home', 'watch-s10:watch-stats'],
     //                 props: { watchVariant: 'aluminum-jet-black-sport-band-black' }`.
-    //                 A `<sizeId>:` prefix reads a capture belonging to another device.
+    //                 A `<sizeId>:` prefix reads a capture belonging to another device,
+    //                 and it also picks the watch: 'watch-ultra:watch-stats' frames an
+    //                 Apple Watch Ultra 3 and wants a 422x514 capture. To keep one
+    //                 416x496 capture and change only the frame, add
+    //                 `props: { watchBezel: 'apple-watch-ultra-3' }` instead.
     //                 Compliant, and it keeps hero-top-text's text block and device box,
-    //                 so it does not break a set. Needs `s1s bezels install`.
+    //                 so it does not break a set. Needs `s1s bezels install` (the Ultra
+    //                 frame needs `--device apple-watch-ultra-3`).
     // {{watch:start}}
     {
       id: 'watch-stats',
