@@ -121,7 +121,11 @@ export function canTransition(from: ImageStatus, to: ImageStatus): boolean {
   return b >= a || BACKWARD_TARGETS.includes(to);
 }
 
-/** Returns a new manifest with `run` appended to `runs`. */
+/** `manifest.runs` keeps the newest entries only. */
+export const MAX_MANIFEST_RUNS = 50;
+
+/** Returns a new manifest with `run` appended, keeping the newest MAX_MANIFEST_RUNS. */
 export function appendRun(m: ProjectManifest, run: ManifestRun): ProjectManifest {
-  return { ...m, runs: [...m.runs, run] };
+  const runs = [...m.runs, run];
+  return { ...m, runs: runs.length > MAX_MANIFEST_RUNS ? runs.slice(-MAX_MANIFEST_RUNS) : runs };
 }

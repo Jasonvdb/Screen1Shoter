@@ -28,7 +28,7 @@ skills); the `asc` commands are the same, the inputs now come from `s1s export`.
 
 Check all of these before you resolve any id.
 
-1. The export exists and passes the offline check (lands in W5):
+1. The export exists and passes the offline check:
 
    ```sh
    s1s export --locale en-US
@@ -38,11 +38,21 @@ Check all of these before you resolve any id.
    `s1s export` refuses to run on incomplete or error-level renders, copies
    `NN.png` into `metadata/screenshots/<locale>/<APP_DISPLAY_TYPE>/`, runs
    `asc screenshots validate` per size when `asc` is installed (`--no-asc`
-   skips that), and prints the next `asc screenshots upload` command. Pass
-   `--dry-run` to see the file list first, `--prune` to delete `NN.png|jpg`
-   beyond the screen count. `s1s validate` is offline: names `^\d{2}\.(png|jpg)$`
-   contiguous from `01`, 1-10 files, accepted dims, no alpha, uniform dims per
-   set, all-or-nothing across locales, and the duplicate-dims trap (section 6).
+   skips that), and prints one upload command per display type: the
+   per-localization form of section 7, already carrying `--dry-run`. It prints
+   the section 8 fan-out form as well, but only when the tree has no
+   duplicate-dims siblings. Pass `--dry-run` to see the file list first,
+   `--prune` to delete every `NN.png|jpg|jpeg` in the folder this run did not
+   write (a leftover ordinal, a `00.png`, the same ordinal in another
+   extension); without `--prune` those files are reported as `stale` and still
+   upload. `s1s validate` is offline: names `^\d{2}\.(png|jpe?g)$` contiguous
+   from `01`, 1-10 files, accepted dims, no alpha, RGB, uniform dims per set,
+   all-or-nothing across locales, and the duplicate-dims trap (section 6).
+   `--locale` narrows the table only: the all-or-nothing rule always compares
+   every locale folder, so a narrowed run can report a sibling locale by name.
+   `--sizes` is different: it narrows the rule as well, because a display type
+   you excluded cannot be compared across locales. Run `s1s validate` with no
+   `--sizes` before an upload, or a locale missing a whole device set passes.
    Exit 1 means fix before upload.
 
 2. `asc` is authenticated:
@@ -54,7 +64,7 @@ Check all of these before you resolve any id.
    If this fails, stop and ask the human to run `asc auth login`. Do not put
    API keys in the manifest or in chat.
 
-3. The set is complete for every device you will upload (section 8).
+3. The set is complete for every device you will upload (section 10).
 
 ## 2. Resolve the app id
 
@@ -296,13 +306,18 @@ asc screenshots list --version-localization "$LOC_ID" --output json \
       | length == $n and all(.attributes.assetDeliveryState.state == "COMPLETE")'
 ```
 
-After a pass, record the result in the manifest: each image gets
-`storeFileName` (`NN.png`), `uploadedAt` (ISO time) and status `uploaded`
-(lands in W5):
+After a pass, record the result in the manifest. `s1s export` already wrote
+`storeFileName` (`NN.png`); this command writes status `uploaded` and
+`uploadedAt` (one ISO time for the call) and clears `wasUploaded` on any image
+that carried it:
 
 ```sh
-s1s status --set uploaded --locale "$LOCALE" --sizes iphone-6.9
+s1s status --set uploaded --locale "$LOCALE" --sizes iphone-6.9 --yes
 ```
+
+`--yes` is required whenever the selection still covers every image of the
+locale, which `--sizes` alone does on a one-size project. Keep it: it costs
+nothing when the guard does not fire.
 
 Then offer a commit with the `ios:` prefix, no trailer. The store is the
 authority for shipped state: on the next run `s1s status` reconciles the
@@ -402,5 +417,5 @@ asc screenshots list --version-localization "$LOC_ID" --output json \
 
 Add `APP_WATCH_SERIES_10:WATCH_SERIES_10` to both loops for a watch app. Every
 line must end in `COMPLETE` and the per-type counts must match the export.
-Then run `s1s status --set uploaded --locale "$LOCALE" --sizes iphone-6.9,ipad-13`
-(lands in W5) and offer the `ios:` commit.
+Then run `s1s status --set uploaded --locale "$LOCALE" --sizes iphone-6.9,ipad-13 --yes`
+and offer the `ios:` commit.

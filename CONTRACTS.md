@@ -87,13 +87,18 @@ presets.ts
   `isSizeId`, `getPreset` (throws on unknown), `presetsFor(ids?)`
   (default sizes when empty; de-duplicated; aliases kept), `presetsByFamily`,
   `renderTarget(preset)` (follows `aliasOf`), `displayFolder(preset)`,
-  `dimsEqual`, `formatDims`, `isAcceptedDims`.
+  `dimsEqual`, `formatDims`, `isAcceptedDims`, `presetByDisplayType`,
+  `acceptedDimsForDisplayType` (covers legacy folders such as
+  `APP_IPAD_PRO_129`), `displayTypesShareDims` (the duplicate-dims rule,
+  used by both `s1s export` and `s1s validate`).
 
 resolve.ts
 : `screenAppliesTo(screen, preset)`, `resolveScreen(screen, preset, locale,
   copy, captureResolver)`, `captureKey(locale, family, ref)`,
   `captureRelPath(locale, family, ref)`, `formatOrdinal(n)` ('01'),
   `renderFileName(n, id)` ('01-home.png'), `exportFileName(n)` ('01.png'),
+  `EXPORT_FILE_RE` / `exportOrdinal(name)` (the one matcher for a set file,
+  shared by `--prune` and `s1s validate`),
   `renderRoute(locale, sizeId, screenId)`, `sheetRoute(locale, sizeId)`.
 
 template-meta.ts
@@ -177,6 +182,8 @@ export function imageState(m: ProjectManifest, locale: string, sizeId: SizeId, s
 export function updateImage(m: ProjectManifest, ref: { locale: string; sizeId: SizeId; screenId: string }, patch: Partial<ImageState>, opts?: { drop?: readonly DroppableImageField[] }): ProjectManifest; // drop removes fields (a failed render clears render/renderHash/renderedAt)
   // returns a new manifest; creates locale/device/screen nodes (status 'pending') as needed
 export function canTransition(from: ImageStatus, to: ImageStatus): boolean;   // forward one or more steps, or back to 'pending'/'captured'/'generated'
+export function appendRun(m: ProjectManifest, run: ManifestRun): ProjectManifest; // keeps the newest MAX_MANIFEST_RUNS (50)
+export const MAX_MANIFEST_RUNS: number;
 export const manifestSchema: z.ZodType<ProjectManifest>;
 ```
 Render bookkeeping rule (render.ts calls `updateImage`): on hash change set
@@ -235,7 +242,15 @@ export function reviewPath(project: Project, locale: string): string;    // out/
 export function sheetPath(project: Project, locale: string, sizeId: SizeId): string; // out/<locale>/sheet-<sizeId>.png
 export function capturePath(project: Project, locale: string, family: DeviceFamily, ref: CaptureRef): string;
 export function metadataDir(project: Project): string;           // appDir/<manifest.app.metadataDir>
+export function exportDir(metadataRoot: string, locale: string, displayType: AppDisplayType): string; // <root>/<locale>/<APP_DISPLAY_TYPE>
+export function toPosix(path: string): string;                   // the one spelling manifest paths are written in
+export function assertLocaleSegment(locale: string): void;       // S1sError('usage') on '', '.', '..' or any separator
 ```
+
+`assertLocaleSegment` is the one guard every command that joins `--locale`
+onto the export root calls first (`s1s export`, `s1s validate`): `--locale
+../../shared` would otherwise resolve out of the root, where `s1s export
+--prune` deletes what it finds.
 
 ### src/core/exec.ts and src/core/sim.ts
 ```ts
@@ -243,6 +258,7 @@ export interface RunResult { code: number; stdout: string; stderr: string }
 export async function run(cmd: string, args: string[], opts?: { stdin?: string; cwd?: string; env?: NodeJS.ProcessEnv; timeoutMs?: number }): Promise<RunResult>;
 export async function runOk(cmd: string, args: string[], opts?: ...): Promise<RunResult>;   // S1sError('tool-missing' | 'sim-failed') on ENOENT / non-zero
 export async function which(cmd: string): Promise<string | null>;
+export function formatCommand(cmd: string, args: readonly string[]): string; // the one shell-safe rendering, used by messages and by the commands `s1s export` prints
 
 export interface SimDevice { udid: string; name: string; state: string; runtime: string; isAvailable: boolean; platform: 'iOS' | 'watchOS' | 'other' }
 export async function listSims(): Promise<SimDevice[]>;                       // xcrun simctl list devices --json
@@ -251,6 +267,11 @@ export async function statusBar(udid: string, opts: { time?: string; clear?: boo
 export async function appearance(udid: string, mode: 'light' | 'dark'): Promise<void>;
 export async function screenshot(udid: string, outPath: string): Promise<Dims>;  // xcrun simctl io <udid> screenshot --type png
 ```
+
+`formatCommand` quotes by allowlist (`[A-Za-z0-9_@%+=:,./-]`), not by a
+blocklist of shell metacharacters. `s1s export` prints commands the user
+pastes into a shell, and a placeholder such as `<APP_ID>` must come out as
+`'<APP_ID>'` or the paste reads it as a redirection.
 
 ### src/render/server.ts and src/render/vite-plugin-s1s.ts
 ```ts
@@ -290,6 +311,73 @@ export function reviewMarkdown(project: Project, report: RenderReport): string;
 export async function writeReview(project: Project, report: RenderReport): Promise<string>; // returns reviewPath
 ```
 
+### src/core/reconcile.ts (W5)
+```ts
+export type FileState = 'present' | 'missing' | 'none';   // 'none' = not expected
+export interface ReconcileRow { locale; sizeId; displayType; screenId; ordinal /* 0 = orphan */; status; capture: FileState; render: FileState; export: FileState; renderStale: boolean; notes: string[] }
+export interface ReconcileReport { version: 1; generatedAt; locales; rows; orphans: ReconcileRow[]; strayExports: string[]; summary: Record<string, number>; ok: boolean }
+export interface ReconcileOptions { locale?: string; sizes?: string[]; screens?: string[] }
+export const STORE_NOT_CONSULTED: string;                 // the note every 'uploaded' row carries
+export async function reconcile(project: Project, opts?: ReconcileOptions): Promise<ReconcileReport>;
+export interface ImageRef { locale: string; sizeId: SizeId; screenId: string }
+export interface SetStatusOptions { now?: string }   // the ISO time 'uploaded' records; injectable for tests
+export function setStatus(manifest: ProjectManifest, refs: readonly ImageRef[], target: ImageStatus, opts?: SetStatusOptions): ProjectManifest;
+  // pure; checks canTransition for every ref before applying any, else S1sError('usage') naming each row
+  // target 'uploaded' also writes uploadedAt (one timestamp for the call) and drops wasUploaded
+```
+Local only: App Store Connect is authoritative for shipped state, so nothing
+here talks to the network. `render` is compared by sha1 (`renderHash`); a
+manifest `capture`/`render`/`export` path is always resolved against
+`project.dir`. Orphans (manifest entries whose screen or size left
+`screens.ts`) are reported but do not flip `ok`, and `--sizes`/`--screens`
+narrowing never manufactures one.
+
+### src/render/export.ts (W5)
+```ts
+export type ExportAction = 'written' | 'unchanged' | 'skipped';  // 'skipped' is reserved; the rules never produce it
+export interface ExportFile { sizeId; displayType; screenId; ordinal; from; to; sha256; action }
+export interface ExportOptions { locale: string; sizes?: string[]; metadataDir?: string; prune?: boolean; dryRun?: boolean; asc?: boolean /* true */; onProgress?: (file: ExportFile) => void }
+export interface ExportReport { version: 1; generatedAt; locale; metadataDir; sizes; dryRun; files; pruned: string[]; stale: string[]; warnings: Warning[]; asc: AscValidateResult[] | null; uploadCommands: string[]; fanOutCommands: string[]; ok: boolean }
+export async function exportProject(project: Project, opts: ExportOptions): Promise<ExportReport>;
+export function applyExportManifest(project, locale, files): ProjectManifest;  // pure; status 'exported' where canTransition allows, else 'uploaded' + wasUploaded: true when the store copy is repointed
+```
+`out/<locale>/report.json` is the only source of truth for what exists, so an
+alias size lands in both display-type folders without re-deriving anything.
+The run is refused (`export-blocked`) on a failed item, an error-level
+warning, a missing PNG or a dry-run render report. `--prune` deletes every
+`EXPORT_FILE_RE` name in the folder this run did not write (a leftover
+ordinal, a `00.png`, the same ordinal in another extension); dot-files, other
+names and subfolders are left alone. Without `--prune` those same files are
+reported in `stale`, because they still upload. `report.asc` holds one result
+per display type in the order the display types appear in `files`.
+`uploadCommands` is the per-localization form of asc-upload.md section 7 (one
+`--path` folder per display type, every command `--dry-run`, never
+`--replace`); `fanOutCommands` is the section 8 form and is empty when this
+run warned about `duplicate-dims`.
+
+### src/render/validate.ts (W5)
+```ts
+export type ValidateCode = 'file-name' | 'file-gap' | 'set-empty' | 'set-too-many' | 'dims-unaccepted' | 'dims-mixed' | 'has-alpha' | 'not-an-image' | 'locale-incomplete' | 'duplicate-dims';
+export interface ValidateProblem { code: ValidateCode; level: 'warn' | 'error'; message: string; file?: string; scope?: 'tree' /* found by a cross-locale rule; may name a locale outside --locale */ }
+export interface ValidateSet { locale; displayType; dir; files: string[]; count; dims: Dims | null; problems }
+export interface ValidateOptions { metadataDir?: string; locale?: string /* narrows the report, never the cross-locale rule */; sizes?: string[] }
+export interface ValidateReport { version: 1; generatedAt; metadataDir; locales /* reported in detail */; scanned /* every locale folder found */; sets; problems; ok }
+export const MIN_SET_FILES = 1, MAX_SET_FILES = 10;
+export async function validateExport(project: Project, opts?: ValidateOptions): Promise<ValidateReport>;
+export function duplicateDimsMessage(locale, a, b, dims): string;  // shared with export.ts
+```
+Offline; pixel size and alpha always come from `sharp`, never from the file
+name. Problems are collected, never thrown: it throws only `validate-failed`
+(unreadable directory) and `usage` (unknown size id). Dot-files are skipped
+everywhere. `locale-incomplete` is an error for a missing display type and a
+warn for a differing file count; `duplicate-dims` is a warn. A file that is
+not RGB/sRGB is a warn-level `not-an-image` (the code doubles as the
+colour-space check; an unreadable file is the error-level form).
+`--locale` narrows `locales`, the sets and their per-file problems only: the
+all-or-nothing rule always compares every folder in `scanned`, reading a
+sibling's folder names and file counts without opening a pixel, and marks
+what it finds `scope: 'tree'`.
+
 ### src/cli (implementer 4)
 - `src/cli/main.ts` parses argv and is the target of `bin/s1s.js`;
   `src/cli/program.ts` builds the commander program (`buildProgram()`,
@@ -307,9 +395,10 @@ export async function writeReview(project: Project, report: RenderReport): Promi
   message, hint } }`, exit `S1sError.exitCode` (1 failure, 2 usage).
 - Exit codes: 0 ok; 1 failure or error-level warnings; 2 usage.
 - Commands: `init`, `link [--cli]`, `doctor`, `dev`, `render`, `sheet`,
-  `capture`, `sim list|status-bar|appearance`, `bezels inspect|install|list`.
-  `status`, `export`, `validate` (W5) are registered as stubs that print
-  "not implemented" with exit 2.
+  `capture`, `sim list|status-bar|appearance`, `bezels inspect|install|list`,
+  `status`, `export`, `validate`. All are real; there is no stub mechanism.
+  `status.ts`, `export.ts` and `validate.ts` also export their text renderer
+  (`statusText`, `exportText`, `validateText`) so tests can pin the output.
 - `link --cli` creates `~/.local/bin/s1s -> <S1S_ROOT>/bin/s1s.js`
   (replace an existing symlink, refuse to clobber a regular file). `link`
   without flags creates `<project>/node_modules/screen1shoter -> <S1S_ROOT>`
@@ -603,3 +692,29 @@ Still open (not blocking W2):
 - `@types/node` is pinned to 24.13.3 (matches Node 24.x), not the newest
   26.x line; everything else is the latest version on the registry as of
   2026-09-02.
+
+Integrated in W5 Stage C: `pnpm check` (386 unit tests) and `pnpm test:smoke`
+(19 tests) green; `s1s status`, `s1s export --no-asc` and `s1s validate`
+verified end to end on a scratch copy of `example/` (render -> export of
+`iphone-6.9` + `iphone-6.7` -> validate -> status), including the
+`--set` guards and `--dry-run`. Decisions and the duplicates collapsed:
+- `WarningCode` gained `export-unapproved`, `duplicate-dims` and
+  `manifest-incomplete` (all warn). `s1s export` had been borrowing
+  `copy-unused` and `overflow` for them.
+- The duplicate-dims rule has one spelling: the predicate
+  `displayTypesShareDims` in `presets.ts` and the message
+  `duplicateDimsMessage` in `validate.ts`, which `export.ts` imports.
+  `s1s export` warns from the folder listing (before the sibling's pixels
+  are known), `s1s validate` reports from the real dims of both sets.
+- One export-file matcher (`EXPORT_FILE_RE` / `exportOrdinal` in
+  `resolve.ts`), one display-type lookup (`presetByDisplayType`), one
+  `exportDir`, one `toPosix` (`paths.ts`), one `sha1File` (`fs.ts`).
+- `appendRun` caps `runs` itself; `MAX_MANIFEST_RUNS` moved from
+  `render/bookkeeping.ts` to `core/manifest.ts`, which also stops
+  `src/cli/commands/status.ts` reaching into `src/render` for a constant.
+- `ImageState.export` is project-relative posix, exactly like `capture` and
+  `render`; `reconcile` resolves it against `project.dir` only.
+- `s1s doctor` gained a `metadata dir` check and now reads `--project`.
+- `reconcile` adds the rows it emits to the covered set, so
+  `s1s status --sizes iphone-6.7` on a project whose `screens.sizes` omits
+  that alias no longer lists the same image as both a row and an orphan.

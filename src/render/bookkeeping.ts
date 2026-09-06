@@ -14,10 +14,8 @@ import type {
 } from '../config/types.ts';
 import { countByLevel, makeWarning } from '../config/warnings.ts';
 import { appendRun, imageState, updateImage } from '../core/manifest.ts';
+import { toPosix } from '../core/paths.ts';
 import type { Project } from '../core/project.ts';
-
-/** `manifest.runs` keeps the newest entries only. */
-export const MAX_MANIFEST_RUNS = 50;
 
 /** The RenderOptions fields the bookkeeping needs. */
 export interface BookkeepingOptions {
@@ -25,10 +23,6 @@ export interface BookkeepingOptions {
   sizes?: string[];
   screens?: string[];
   dryRun?: boolean;
-}
-
-function toPosix(path: string): string {
-  return path.split('\\').join('/');
 }
 
 export function buildReport(
@@ -85,7 +79,7 @@ export function renderRun(opts: BookkeepingOptions, report: RenderReport, starte
  * wasUploaded when the previous status was 'uploaded'); on an unchanged hash
  * keep the status and only refresh the warnings. A failed item drops its
  * render fields and records an error-level 'render-failed' warning. Returns
- * the new manifest with the run appended (capped at MAX_MANIFEST_RUNS).
+ * the new manifest with the run appended (appendRun caps the list).
  */
 export function applyManifest(
   project: Pick<Project, 'dir' | 'manifest'>,
@@ -130,7 +124,5 @@ export function applyManifest(
       manifest = updateImage(manifest, ref, patch);
     }
   });
-  manifest = appendRun(manifest, renderRun(opts, report, startedAt, now));
-  if (manifest.runs.length > MAX_MANIFEST_RUNS) manifest = { ...manifest, runs: manifest.runs.slice(-MAX_MANIFEST_RUNS) };
-  return manifest;
+  return appendRun(manifest, renderRun(opts, report, startedAt, now));
 }

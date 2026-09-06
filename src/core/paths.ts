@@ -5,6 +5,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { captureRelPath } from '../config/resolve.ts';
 import type { AppDisplayType, CaptureRef, DeviceFamily, SizeId } from '../config/types.ts';
+import { S1sError } from './errors.ts';
 import type { Project } from './project.ts';
 
 function homeFromEnv(): string {
@@ -28,6 +29,15 @@ export function bezelDir(): string {
 
 export function dmgDir(): string {
   return join(S1S_HOME, 'dmg');
+}
+
+/**
+ * Posix separators. Manifest paths (`capture`, `render`, `export`) and the
+ * `--path` of a printed `asc` command are always written this way, so a
+ * manifest committed on one platform reads the same on another.
+ */
+export function toPosix(path: string): string {
+  return path.split('\\').join('/');
 }
 
 type ProjectDir = Pick<Project, 'dir'>;
@@ -67,4 +77,29 @@ export function capturePath(project: ProjectDir, locale: string, family: DeviceF
 /** <app>/<manifest.app.metadataDir> (default metadata/screenshots) */
 export function metadataDir(project: Pick<Project, 'appDir' | 'manifest'>): string {
   return resolve(project.appDir, project.manifest.app.metadataDir || 'metadata/screenshots');
+}
+
+/**
+ * <metadataDir>/<locale>/<APP_DISPLAY_TYPE>: the folder `s1s export` fills
+ * with NN.png and `asc screenshots upload --path <metadataDir>` fans out over.
+ * Takes the root rather than the project so `s1s export --metadata-dir` can
+ * point somewhere else without a second manifest.
+ */
+export function exportDir(metadataRoot: string, locale: string, displayType: AppDisplayType): string {
+  return join(metadataRoot, locale, displayType);
+}
+
+/**
+ * A locale is one folder name. Every command that joins `--locale` onto the
+ * export root must call this first: `--locale ../../shared` would otherwise
+ * resolve out of the root, and `s1s export --prune` deletes what it finds
+ * there. Shared by `s1s export` and `s1s validate` so the two never disagree
+ * about what a locale may be called.
+ */
+export function assertLocaleSegment(locale: string): void {
+  if (locale === '' || locale === '.' || locale === '..' || /[\\/]/.test(locale)) {
+    throw new S1sError('usage', `Invalid locale "${locale}": a locale is one folder name, such as en-US.`, {
+      hint: 'Pass --locale en-US (no path separators), and --metadata-dir to move the export root.',
+    });
+  }
 }

@@ -20,10 +20,6 @@ between them:
 | P6 | Same phases per locale: brief, transcreate, capture or reuse, render, export | G5, G6, G7 |
 | P7 | Revert the demo-data branch, shut down simulators, verify `git status` | - |
 
-`s1s export`, `s1s validate` and `s1s status` land in W5; the skill describes
-them as the plan specifies and reconciles from `screenshots/manifest.json` by
-hand until then.
-
 All state lives in `screenshots/manifest.json` in the app repo, so any session
 can resume where the last one stopped. Exports land in
 `metadata/screenshots/<locale>/<APP_DISPLAY_TYPE>/NN.png`, the layout that

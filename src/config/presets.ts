@@ -159,6 +159,43 @@ export function displayFolder(preset: SizePreset): AppDisplayType {
   return preset.displayType;
 }
 
+const PRESET_BY_DISPLAY_TYPE = new Map<string, SizePreset>(
+  Object.values(SIZE_PRESETS).map((preset) => [preset.displayType, preset]),
+);
+
+/** The preset that renders into a display-type folder; undefined for a folder no preset writes. */
+export function presetByDisplayType(displayType: string): SizePreset | undefined {
+  return PRESET_BY_DISPLAY_TYPE.get(displayType);
+}
+
+/**
+ * Display types with no preset that still hold pixels a preset writes. Only
+ * the duplicate-dims rule needs them: a legacy 12.9" folder beside the 13"
+ * one uploads the same pixels twice (references/apple-rules.md section 3).
+ */
+const LEGACY_DISPLAY_DIMS: Readonly<Record<string, readonly Dims[]>> = {
+  APP_IPAD_PRO_129: [d(2064, 2752), d(2048, 2732)],
+};
+
+/** Sizes App Store Connect accepts in a display-type folder; null for a name nothing knows. */
+export function acceptedDimsForDisplayType(displayType: string): readonly Dims[] | null {
+  return presetByDisplayType(displayType)?.acceptedDims ?? LEGACY_DISPLAY_DIMS[displayType] ?? null;
+}
+
+/**
+ * True when two display-type folders accept a common pixel size. That is the
+ * duplicate-dims trap: `asc screenshots upload --path <metadata dir>` fans out
+ * over the tree and selects files by pixel size, so one set's files upload
+ * into both. `s1s export` warns about it and `s1s validate` reports it.
+ */
+export function displayTypesShareDims(a: string, b: string): boolean {
+  if (a === b) return false;
+  const left = acceptedDimsForDisplayType(a);
+  const right = acceptedDimsForDisplayType(b);
+  if (left === null || right === null) return false;
+  return left.some((dims) => right.some((other) => dimsEqual(dims, other)));
+}
+
 export function dimsEqual(a: Dims, b: Dims): boolean {
   return a.width === b.width && a.height === b.height;
 }

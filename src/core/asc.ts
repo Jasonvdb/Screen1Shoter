@@ -1,5 +1,7 @@
 // Detection of the `asc` CLI and its offline screenshot validation. Upload
-// itself stays a printed command the user or the skill runs deliberately.
+// itself stays a printed command the user or the skill runs deliberately;
+// `src/render/export.ts` builds those lines, because their shape depends on
+// what the export found (asc-upload.md sections 7 and 8).
 import { S1sError } from './errors.ts';
 import { formatCommand, run, which } from './exec.ts';
 
@@ -51,28 +53,4 @@ export async function ascValidateScreenshots(opts: AscValidateOptions): Promise<
     // Not JSON (older asc or an error banner): keep the raw text.
   }
   return { ok: result.code === 0, command: formatCommand('asc', args), report, stderr: result.stderr.trim() };
-}
-
-export interface AscUploadCommandOptions {
-  appId: string;
-  version: string;
-  /** <app>/metadata/screenshots (children are locale dirs). */
-  metadataDir: string;
-  deviceType: string;
-  mode?: 'replace' | 'skip-existing';
-  dryRun?: boolean;
-}
-
-/** The next command to print after an export; never executed here. */
-export function ascUploadCommand(opts: AscUploadCommandOptions): string {
-  const args = [
-    'screenshots', 'upload',
-    '--app', opts.appId,
-    '--version', opts.version,
-    '--path', opts.metadataDir,
-    '--device-type', opts.deviceType,
-    `--${opts.mode ?? 'replace'}`,
-  ];
-  if (opts.dryRun) args.push('--dry-run');
-  return formatCommand('asc', args);
 }

@@ -115,6 +115,19 @@ export function exportFileName(ordinal: number): string {
   return `${formatOrdinal(ordinal)}.png`;
 }
 
+/**
+ * The only names an export set may hold: '01.png', '07.jpg', '10.jpeg'.
+ * `s1s export --prune` deletes by it and `s1s validate` rejects by it, so the
+ * two commands must never disagree about what a set file is called.
+ */
+export const EXPORT_FILE_RE = /^(\d{2})\.(png|jpe?g)$/;
+
+/** Ordinal of an export file name ('03.png' -> 3), or null when it is not one. */
+export function exportOrdinal(name: string): number | null {
+  const digits = EXPORT_FILE_RE.exec(name)?.[1];
+  return digits === undefined ? null : Number.parseInt(digits, 10);
+}
+
 /** Hash route for one render item. */
 export function renderRoute(locale: string, sizeId: string, screenId: string): string {
   return `/#/render/${encodeURIComponent(locale)}/${encodeURIComponent(sizeId)}/${encodeURIComponent(screenId)}`;

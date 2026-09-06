@@ -1,15 +1,17 @@
 // `s1s doctor`: environment checks. `fail` = rendering cannot work;
 // `warn` = a later phase (bezels, capture, upload) needs attention.
-import { lstat, readFile, readlink } from 'node:fs/promises';
+import { lstat, readFile, readdir, readlink, stat as statPath } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import type { Command } from 'commander';
 import type { BezelIndex } from '../../config/index.ts';
 import { isS1sError } from '../../core/errors.ts';
 import { run, which } from '../../core/exec.ts';
-import { S1S_HOME, bezelDir, toolRoot } from '../../core/paths.ts';
+import { readManifest } from '../../core/manifest.ts';
+import { S1S_HOME, bezelDir, metadataDir, toolRoot } from '../../core/paths.ts';
+import { findProjectDir } from '../../core/project.ts';
 import { ensureDeveloperDir, listSims } from '../../core/sim.ts';
-import { bullets, defineAction, table, type CommandOutput } from '../output.ts';
+import { bullets, defineAction, table, type CommandOutput, type GlobalOpts } from '../output.ts';
 import { cliLinkPath } from './link.ts';
 
 export type CheckStatus = 'ok' | 'warn' | 'fail';
@@ -126,6 +128,26 @@ async function checkSimctl(): Promise<Check> {
   }
 }
 
+/**
+ * Export target: `s1s export` writes metadata/screenshots/<locale>/... and
+ * `asc` uploads from there. Missing is fine (export creates it); a file in the
+ * way, or a dir with no locale folders yet, is worth saying out loud.
+ */
+async function checkMetadataDir(projectDir: string | null): Promise<Check> {
+  // Environment-only run (no app repo here): nothing to check, not a problem.
+  if (projectDir === null) return ok('metadata dir', 'not checked: no screenshots project here');
+  const manifest = await readManifest(join(projectDir, 'manifest.json')).catch(() => null);
+  if (manifest === null) return warn('metadata dir', `cannot read ${join(projectDir, 'manifest.json')}`, 'Fix the manifest JSON; `s1s export` reads app.metadataDir from it.');
+  const dir = metadataDir({ appDir: dirname(projectDir), manifest });
+  const info = await statPath(dir).catch(() => null);
+  if (!info) return warn('metadata dir', `${dir} does not exist`, '`s1s export` creates it; until then there is nothing for `asc screenshots upload` to read.');
+  if (!info.isDirectory()) return fail('metadata dir', `${dir} is not a directory`, 'Move the file aside: `s1s export` needs that path to be a folder.');
+  const locales = (await readdir(dir, { withFileTypes: true }).catch(() => [])).filter((e) => e.isDirectory()).map((e) => e.name);
+  return locales.length > 0
+    ? ok('metadata dir', `${dir} (${locales.join(', ')})`)
+    : warn('metadata dir', `${dir} is empty`, 'Run `s1s export --locale <locale>` to fill it.');
+}
+
 async function checkCliLink(): Promise<Check> {
   const linkPath = cliLinkPath();
   const expected = join(toolRoot(), 'bin', 's1s.js');
@@ -139,7 +161,8 @@ async function checkCliLink(): Promise<Check> {
   return onPath ? ok('cli link', `${linkPath} -> ${target}`) : warn('cli link', `${linkPath} ok, but ${binDir} is not on PATH`, `Add ${binDir} to PATH in your shell profile.`);
 }
 
-export async function runDoctor(): Promise<Check[]> {
+export async function runDoctor(opts: { projectDir?: string } = {}): Promise<Check[]> {
+  const projectDir = findProjectDir(opts.projectDir ?? process.cwd());
   return [
     ok('tool', `${toolRoot()} (S1S_HOME ${S1S_HOME})`),
     checkNode(),
@@ -149,12 +172,13 @@ export async function runDoctor(): Promise<Check[]> {
     await checkBezels(),
     await checkAsc(),
     await checkSimctl(),
+    await checkMetadataDir(projectDir),
     await checkCliLink(),
   ];
 }
 
-async function doctorCommand(): Promise<CommandOutput> {
-  const checks = await runDoctor();
+async function doctorCommand(globals: GlobalOpts): Promise<CommandOutput> {
+  const checks = await runDoctor(globals.project !== undefined ? { projectDir: globals.project } : {});
   const failed = checks.filter((c) => c.status === 'fail');
   const hints = checks.filter((c) => c.hint !== undefined).map((c) => `${c.id}: ${c.hint}`);
   const lines = [table(['check', 'status', 'detail'], checks.map((c) => [c.id, c.status, c.detail]))];
@@ -171,7 +195,7 @@ export function registerDoctor(program: Command): void {
   defineAction(
     program
       .command('doctor')
-      .description('Check node, tsx, Playwright + Chromium, sharp, bezels, asc, simctl and the CLI link'),
-    () => doctorCommand(),
+      .description('Check node, tsx, Playwright + Chromium, sharp, bezels, asc, simctl, the metadata dir and the CLI link'),
+    ({ globals }) => doctorCommand(globals),
   );
 }

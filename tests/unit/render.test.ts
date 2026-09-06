@@ -5,10 +5,10 @@ import { join } from 'node:path';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { RenderItem, RenderReport, RenderReportItem, Warning } from '../../src/config/types.ts';
 import { makeWarning } from '../../src/config/warnings.ts';
-import { imageState, updateImage } from '../../src/core/manifest.ts';
+import { MAX_MANIFEST_RUNS, imageState, updateImage } from '../../src/core/manifest.ts';
 import { buildMatrix } from '../../src/core/matrix.ts';
 import { loadProject, type Project } from '../../src/core/project.ts';
-import { MAX_MANIFEST_RUNS, applyManifest, buildReport } from '../../src/render/bookkeeping.ts';
+import { applyManifest, buildReport } from '../../src/render/bookkeeping.ts';
 import { CALLOUTS_ELEMENT, calloutOverflow, renderProject } from '../../src/render/render.ts';
 import { catchS1sError, fixtureProjectDir, makeTempDir, must, writeTempProject, type TempDir } from '../fixtures/helpers.ts';
 

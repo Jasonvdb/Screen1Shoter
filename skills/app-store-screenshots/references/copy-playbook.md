@@ -145,7 +145,7 @@ Write `screenshots/plan.md` (benefits in order, template per screen, brand colou
 s1s render --locale en-US --sizes iphone-6.9,ipad-13 --dry-run --allow-placeholder --json   # validates copy JSON shape and the screens config
 ```
 
-`s1s status --set copy-approved --locale en-US` (lands in W5) will do the status write; until then edit `manifest.json` directly.
+`s1s status --set copy-approved --locale en-US --from pending --yes` does the status write. `--from pending` is what "only on images still at `pending`" means: the write is all-or-nothing, so without it one `captured` image refuses the whole command. `--yes` confirms a selection that still covers the whole locale, which it does on a fresh project; a `--from pending` that matches nothing is a no-op, not an error.
 
 Offer an `ios:` commit of `screenshots/plan.md`, `screenshots/copy/`, `screenshots/manifest.json`.
 

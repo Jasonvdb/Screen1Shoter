@@ -64,9 +64,10 @@ Image status, per locale x size x screen, forward by any number of steps, or bac
 `pending -> copy-approved -> captured -> generated -> image-approved -> exported -> uploaded`.
 `s1s capture` sets `captured` from `pending` or `copy-approved` and keeps any higher status;
 `s1s render` sets `generated` on a hash change (from any status, including `uploaded`);
-`s1s export` sets `exported`. You set `copy-approved`, `image-approved` and `uploaded`, plus
-`captureRating`, `captureNotes` and `screens[].capture.steps`. A render after an upload sets
-`wasUploaded: true`; treat it as "re-upload needed" and clear it after the re-upload.
+`s1s export` sets `exported`. You set `copy-approved`, `image-approved` and `uploaded` with
+`s1s status --set <status> --locale <l> [--sizes] [--screens] [--from <status>] --yes`, plus
+`captureRating`, `captureNotes` and `screens[].capture.steps`. A render or export that moves an
+image the store holds sets `wasUploaded: true`; `s1s status --set uploaded` clears it.
 `runs[]` is CLI-owned; never append to it. Field-by-field contract and the hand-edit recipes:
 [references/manifest-schema.md](references/manifest-schema.md).
 
@@ -92,9 +93,10 @@ at the first incomplete phase. Route on the argument:
 
 Recall and reconcile, always, before anything else:
 
-1. Run `s1s status --json` (lands in W5). If it exits 2 with "not implemented", use the manual
-   path: read `screenshots/manifest.json` and list the files. Use `find`, not shell globs: one
-   unmatched glob aborts the whole command in zsh.
+1. Run `s1s status --json`. It reconciles `screens.ts`, the manifest and the files on disk,
+   and lists orphaned manifest entries and stray exports. It never contacts the store. To
+   list files by hand use `find`, not shell globs: one unmatched glob aborts the whole
+   command in zsh.
 
 ```sh
 s1s status --json; echo "exit $?"
@@ -201,9 +203,9 @@ Write:
   and `locales.en-US { copyStatus: "draft", captureSource: "own", devices: {} }`.
 
 G1: show the plan table and every headline. Ask for approval, apply push-back edits, repeat until
-approved. Then set `copy.approved = true`, `copyStatus: "approved"`, and status `copy-approved`
-only for images still at `pending`; leave higher statuses untouched (a changed headline shows
-up as a new render hash on the next `s1s render`). Offer a commit:
+approved. Then set `copy.approved = true`, `copyStatus: "approved"`, and run
+`s1s status --set copy-approved --locale en-US --from pending --yes`; higher statuses stay put
+(a changed headline shows up as a new render hash on the next `s1s render`). Offer a commit:
 `ios: plan App Store screenshots and copy`.
 
 ## 7. P2 Capture (gate G2)
@@ -357,11 +359,11 @@ s1s dev --locale en-US --open   # long-running; background it, report the URL, s
 ls screenshots/out/en-US/sheet-*.png screenshots/out/en-US/review.md
 ```
 
-G3: ask for approval per size, or for changes. On changes go back to P3. On approval set
-`image-approved` for every screen of the approved sizes: `s1s status --set image-approved
---locale en-US --sizes iphone-6.9,ipad-13` (lands in W5); until it lands, set the status with
-the `node -e` recipe in [references/manifest-schema.md](references/manifest-schema.md)
-section 6. Offer a commit: `ios: add App Store screenshot sources for en-US`.
+G3: ask for approval per size, or for changes. On changes go back to P3. On approval run
+`s1s status --set image-approved --locale en-US --sizes iphone-6.9,ipad-13 --yes`. The write is
+all-or-nothing: one image that cannot make the transition refuses the whole command and leaves
+the manifest untouched; `--yes` confirms a selection that covers the whole locale.
+Offer a commit: `ios: add App Store screenshot sources for en-US`.
 
 ## 10. P5 Export, validate, upload (gate G4)
 
@@ -374,15 +376,16 @@ asc screenshots validate --path metadata/screenshots/en-US/APP_IPAD_PRO_3GEN_129
 asc screenshots validate --path metadata/screenshots/en-US/APP_WATCH_SERIES_10 --device-type WATCH_SERIES_10   # watch only
 ```
 
-Until `s1s export` lands (W5) both commands exit 2: stop after G3, report "ready for export
-(W5)", and do not copy PNGs into `metadata/screenshots/` by hand.
-Once they land: `s1s export` refuses an incomplete set or one with
-error-level warnings, writes `NN.png` only when the hash changed,
-warns about sibling `APP_*` folders with identical dims (asc fan-out uploads them twice), sets
-`exported` and prints the next upload command. `--prune` removes stale `NN.png` beyond the
-count, `--dry-run` shows the plan, `--no-asc` skips the asc validation. `s1s validate` checks
-names `01..NN`, 1 to 10 files, accepted dims, no alpha, uniform dims, and all-or-nothing across
-locales. Size and format rules: [references/apple-rules.md](references/apple-rules.md).
+Never copy PNGs into `metadata/screenshots/` by hand; `s1s export` owns that folder.
+`s1s export` refuses an incomplete set or one with error-level warnings, writes `NN.png` only
+when the hash changed, warns about sibling `APP_*` folders with identical dims (asc fan-out
+uploads them twice), sets `exported` (an image already `uploaded` keeps it and gets
+`wasUploaded: true`), and prints the section 7 upload command per display type with `--dry-run`.
+`--prune` deletes every `NN.png|jpg|jpeg` the run did not write (else they are listed as `stale`
+and still upload), `--dry-run` shows the plan, `--no-asc` skips the asc validation. `s1s validate`
+checks names `01..NN`, 1 to 10 files, accepted dims, no alpha, RGB, uniform dims, and
+all-or-nothing over every locale folder (`--locale` narrows the table, never that rule). Size and
+format rules: [references/apple-rules.md](references/apple-rules.md).
 Offer a commit: `ios: export en-US App Store screenshots`.
 
 Upload only when the user asks (argument `upload` or an explicit request), one device set per
@@ -400,8 +403,9 @@ gate. Exact commands, the editable-version rule and the verify query:
 3. G4: show the dry-run summary. Ask. On yes, run the same command with `--replace` instead
    of `--dry-run`.
 4. Verify with `asc screenshots list --version-localization "$LOC_ID" --output json` and
-   compare `sets[].screenshots[]` file names and count. Write `storeFileName`, `uploadedAt`,
-   status `uploaded`, and remove `wasUploaded` when present.
+   compare `sets[].screenshots[]` file names and count. Then
+   `s1s status --set uploaded --locale en-US --sizes iphone-6.9 --yes`: it writes `uploadedAt`,
+   sets `uploaded` and clears `wasUploaded`. `s1s export` already wrote `storeFileName`.
 5. Repeat for `IPAD_PRO_3GEN_129`, then `WATCH_SERIES_10`. Offer a commit:
    `ios: upload en-US App Store screenshots`.
 
@@ -418,8 +422,8 @@ Procedure, brief template, glossary rules, expansion budgets and number rules:
 3. Transcreate `screenshots/copy/<locale>.json` from `en-US.json`. Keep one highlight word.
    Decide line breaks with the copy (array headlines). Add the locale to `locales` in
    `screens.ts` and `locales.<locale>` to the manifest with `copyStatus: "draft"`.
-4. G5: show en-US and `<locale>` side by side. Ask. On approval: `copyStatus: "approved"`,
-   `approved: true`, status `copy-approved` for images still at `pending` only.
+4. G5: show en-US and `<locale>` side by side. Ask. On approval set `copyStatus: "approved"`,
+   `approved: true`, then `s1s status --set copy-approved --locale <locale> --from pending --yes`.
 5. Own captures only: re-enter the branch as in P2 step 1 (existing branch, else re-apply the
    patch), `xcrun simctl shutdown all`, then one fresh sim at a time resolved by name.
    `demoData.launchApprovedAt` must exist; otherwise ask G0. Launch with
@@ -436,19 +440,19 @@ jq '.counts' screenshots/out/<locale>/report.json
 
    A reused capture reports `capture-fallback-locale` at info level; that is expected.
 7. G6: gallery `s1s dev --locale <locale>` (background; stopped in P7), sheets,
-   `screenshots/out/<locale>/review.md`.
-   On approval set `image-approved`.
-8. Export and validate; `validate` enforces all-or-nothing across locales. Until `s1s export`
-   lands (W5), stop here: report "ready for export (W5)"; never copy PNGs into
-   `metadata/screenshots/` by hand.
+   `screenshots/out/<locale>/review.md`. On approval run
+   `s1s status --set image-approved --locale <locale> --sizes iphone-6.9,ipad-13 --yes`.
+8. Export and validate; `validate` compares every locale folder for all-or-nothing, even with
+   `--locale`. While you ship device by device, add `--sizes` so a set you have not exported
+   yet stays out of scope. Never copy PNGs into `metadata/screenshots/` by hand.
 
 ```sh
 s1s export --locale <locale> && s1s validate --locale <locale>
 ```
 
-9. G7: upload per device set with the per-localization form as in P5, then verify. Write
-   `storeFileName`, `uploadedAt`, status `uploaded`, and remove `wasUploaded` when present.
-   Offer a commit: `ios: add <locale> App Store screenshots`.
+9. G7: upload per device set with the per-localization form as in P5, then verify. Record it
+   with `s1s status --set uploaded --locale <locale> --sizes iphone-6.9 --yes`, which writes
+   `uploadedAt` and clears `wasUploaded`. Commit: `ios: add <locale> App Store screenshots`.
 
 ## 12. P7 Cleanup
 

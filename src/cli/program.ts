@@ -1,44 +1,24 @@
 // Builds the `s1s` commander program: the root options every command reads
-// through `defineAction`, the implemented commands, and "not implemented"
-// stubs for later phases so `--help` shows the full surface.
+// through `defineAction`, and every command of the surface.
 //
 // Kept apart from main.ts (which runs on import) so tests can build the
 // program and inspect every registered command.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
-import { S1sError } from '../core/errors.ts';
 import { toolRoot } from '../core/paths.ts';
 import { registerBezels } from './commands/bezels.ts';
 import { registerCapture } from './commands/capture.ts';
 import { registerDev } from './commands/dev.ts';
 import { registerDoctor } from './commands/doctor.ts';
+import { registerExport } from './commands/export.ts';
 import { registerInit } from './commands/init.ts';
 import { registerLink } from './commands/link.ts';
 import { registerRender } from './commands/render.ts';
 import { registerSheet } from './commands/sheet.ts';
 import { registerSim } from './commands/sim.ts';
-import { defineAction } from './output.ts';
-
-/** Commands from later phases. Registered so `--help` shows the full surface. */
-const LATER_COMMANDS: ReadonlyArray<{ name: string; description: string; phase: string }> = [
-  { name: 'status', description: 'Reconcile the manifest, files on disk and the store', phase: 'W5' },
-  { name: 'export', description: 'Copy renders into metadata/screenshots/<locale>/<APP_DISPLAY_TYPE>/NN.png', phase: 'W5' },
-  { name: 'validate', description: 'Check an export folder offline against App Store Connect rules', phase: 'W5' },
-];
-
-function registerStub(program: Command, stub: { name: string; description: string; phase: string }): void {
-  defineAction(
-    program
-      .command(stub.name)
-      .description(`${stub.description} (not implemented yet: ${stub.phase})`)
-      .allowUnknownOption()
-      .allowExcessArguments(),
-    async () => {
-      throw new S1sError('usage', `\`s1s ${stub.name}\` is not implemented yet (planned for ${stub.phase}).`);
-    },
-  );
-}
+import { registerStatus } from './commands/status.ts';
+import { registerValidate } from './commands/validate.ts';
 
 function readVersion(): string {
   try {
@@ -67,7 +47,9 @@ export function buildProgram(): Command {
   registerCapture(program);
   registerSim(program);
   registerBezels(program);
-  for (const stub of LATER_COMMANDS) registerStub(program, stub);
+  registerStatus(program);
+  registerExport(program);
+  registerValidate(program);
   return program;
 }
 

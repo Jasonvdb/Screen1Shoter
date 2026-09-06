@@ -48,7 +48,7 @@ Notes:
   2064x2752 for `ipad-13`, 1668x2420 for `ipad-11`, and copies the 416x496
   watch capture as is. It never resizes a render to another accepted size.
 - `iphone-6.7` is an alias. `s1s render` renders it once with the 6.9" layout
-  and `s1s export` (lands in W5) copies the same PNGs into both
+  and `s1s export` copies the same PNGs into both
   `APP_IPHONE_69/` and `APP_IPHONE_67/`. Only add the alias when the user
   asks for a 6.7" set.
 - Display types with no preset (12.9" 2nd gen, older watches, Mac, Apple TV,
@@ -76,7 +76,8 @@ Notes:
 - Localized sets are optional per locale. App Store Connect falls back to the
   primary locale's screenshots for a locale without its own set. The skill
   still treats a locale as all-or-nothing: either every device set the source
-  locale has, or none.
+  locale has, or none. `s1s validate` checks that across the whole export
+  tree; `--locale` narrows the table it prints, never this rule.
 
 Decide the device families in Phase 0 from the pbxproj and record them in
 `screenshots/manifest.json` under `app.deviceFamilies`.
@@ -84,15 +85,15 @@ Decide the device families in Phase 0 from the pbxproj and record them in
 ## 3. Rules for one set
 
 Each rule below is enforced by App Store Connect at upload time. `s1s
-validate` (lands in W5) checks the same rules offline, and `asc screenshots
-validate` checks them before upload.
+validate` checks the same rules offline, and `asc screenshots validate`
+checks them before upload.
 
 | Rule | Detail |
 |---|---|
 | Count | 1 to 10 screenshots per set |
 | Format | PNG or JPEG. `s1s` writes PNG |
 | Alpha | No alpha channel. `sips -g hasAlpha` must print `no` |
-| Colour | RGB, sRGB. `s1s render` flattens onto `theme.background` and removes alpha |
+| Colour | RGB, sRGB. `s1s render` flattens onto `theme.background` and removes alpha. `s1s validate` reports a greyscale or CMYK file as a warn-level `not-an-image`, not an error |
 | Pixel size | Exactly one of the accepted sizes for the display type |
 | Uniform size | Every file in one set has the same pixel size. Do not mix 1320x2868 and 1290x2796 |
 | Orientation | Portrait or landscape allowed; keep one orientation per set |
@@ -111,8 +112,8 @@ asc screenshots validate --path metadata/screenshots/en-US/APP_IPHONE_69 --devic
 Trap: `asc screenshots upload --path metadata/screenshots` fans out over the
 locale folders under `--path`. Two sibling folders with identical pixel sizes
 (`APP_IPHONE_69` and `APP_IPHONE_67`, or `APP_IPAD_PRO_3GEN_129` and
-`APP_IPAD_PRO_129`) upload the same pixels twice. `s1s export` (lands in W5)
-warns about this; upload one `--device-type` at a time. See `asc-upload.md`.
+`APP_IPAD_PRO_129`) upload the same pixels twice. `s1s export` and
+`s1s validate` both warn about this; upload one `--device-type` at a time. See `asc-upload.md`.
 
 ## 4. Points versus pixels
 
@@ -297,8 +298,8 @@ Then render and export:
 
 ```sh
 s1s render --locale en-US --sizes iphone-6.9,ipad-13,watch-s10 --json
-s1s export --locale en-US          # lands in W5
-s1s validate --locale en-US        # lands in W5
+s1s export --locale en-US
+s1s validate --locale en-US
 asc screenshots validate --path metadata/screenshots/en-US/APP_IPHONE_69 --device-type IPHONE_69
 ```
 

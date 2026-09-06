@@ -248,10 +248,11 @@ On approval:
 
 1. Set `"approved": true` in `screenshots/copy/<locale>.json`.
 2. Set `manifest.locales.<locale>.copyStatus` to `"approved"`.
-3. For every size x screen under `manifest.locales.<locale>.devices`, set
-   `status` to `copy-approved` when it is `pending` or the node is missing
-   (create it). Leave higher statuses untouched; `captured -> copy-approved`
-   is a refused transition.
+3. Run `s1s status --set copy-approved --locale <locale> --from pending --yes`.
+   `--from pending` leaves higher statuses untouched; without it one
+   `captured` image refuses the whole write, because `captured ->
+   copy-approved` is a refused transition. A size x screen the manifest has
+   no node for counts as `pending`, so the same command creates it.
 4. Offer a commit (section 12).
 
 ## 6. Own captures: re-apply the demo patch and replay the steps
@@ -398,7 +399,8 @@ copy of the capture; validate dims only.
 
 Every successful render sets `status` to `generated` for the changed
 screens. A screen already `uploaded` whose hash changes gets `wasUploaded:
-true`; it must go through G6 and G7 again.
+true`; `s1s status` reports it as a row note, and it must go through G6 and
+G7 again.
 
 ## 8. Gate G6: image approval
 
@@ -419,24 +421,28 @@ in App Store Connect copies the primary-language screenshots in silently, so
 audit every device set of the locale before release; the copy is a trap,
 not a safety net.
 
-1. Export and validate (both land in W5):
+1. Export and validate:
 
    ```bash
    s1s export --locale de-DE --sizes iphone-6.9
    s1s validate --locale de-DE --sizes iphone-6.9
    ```
 
-   Until `s1s export` lands (W5) both commands exit 2: stop after G6, report
-   "ready for export (W5)", and do not copy PNGs into `metadata/screenshots/`
-   by hand. `export` refuses an incomplete or error-carrying set, copies changed
+   Never copy PNGs into `metadata/screenshots/` by hand; `s1s export` owns
+   that folder. `export` refuses an incomplete or error-carrying set, copies changed
    renders to `metadata/screenshots/de-DE/APP_IPHONE_69/NN.png`, warns about
    sibling `APP_*` folders with identical dims (the asc fan-out double-upload
    trap), sets `exported`, runs `asc screenshots validate` per size when
-   `asc` is present, and prints the next upload command. `validate` checks
-   the folder offline: `NN.png` contiguous from `01`, 1 to 10 files, dims in
-   the accepted list, no alpha, uniform dims per set, and all-or-nothing
-   across locales. Never touch another locale's folder; the source locale is
-   immutable.
+   `asc` is present, and prints the per-localization upload command of
+   `asc-upload.md` section 7 for each display type, already carrying
+   `--dry-run` (the section 8 fan-out form follows only when no sibling
+   folder shares the dims). `validate` checks the folder offline: `NN.png`
+   contiguous from `01`, 1 to 10 files, dims in the accepted list, no alpha,
+   RGB, uniform dims per set, and all-or-nothing across locales. `--locale
+   de-DE` narrows the table only: the all-or-nothing rule still compares
+   every locale folder, so this run can report that en-US has a display type
+   de-DE is missing. Never touch another locale's folder; the source locale
+   is immutable.
 2. Stop at "ready to upload" unless the user asked for the upload. This is
    gate G7: show the exact command, the version string and the device set,
    and get a yes.
@@ -468,18 +474,22 @@ not a safety net.
    ```
 
    Every `NN.png` must be present with state `COMPLETE`. Re-upload any that
-   is not. Then set `status` to `uploaded`, write `uploadedAt` and
-   `storeFileName`, remove `wasUploaded` when present, and offer a commit.
+   is not. Then record it in the manifest:
+
+   ```bash
+   s1s status --set uploaded --locale de-DE --sizes iphone-6.9 --yes
+   ```
+
+   That sets the status, writes `uploadedAt` and clears `wasUploaded`;
+   `storeFileName` came from `s1s export`. Offer a commit.
 5. Repeat steps 1 to 4 for `ipad-13`, then `watch-s10` when present.
 
 ## 10. Reconcile on resume
 
 Every run starts by reconciling `screenshots/manifest.json` with the files on
-disk and, when `asc` is authenticated, the store. `s1s status --json` does
-this (lands in W5); until then, compute it from the manifest,
-`ls screenshots/out/<locale>/<APP_DISPLAY_TYPE>/`,
-`ls metadata/screenshots/<locale>/<APP_DISPLAY_TYPE>/` and the
-`asc screenshots list` query above. Per locale, per device, per screen:
+disk. `s1s status --json` does that; it never contacts the store, so pair it
+with the `asc screenshots list` query above when you need the shipped state.
+Per locale, per device, per screen:
 
 | Manifest status | Render in `out/` | Export in `metadata/` | Store COMPLETE | Action |
 |---|---|---|---|---|
@@ -498,8 +508,9 @@ Rules:
 - The store is authoritative for "shipped". A store `COMPLETE` asset with a
   lower manifest status advances the manifest to `uploaded` unless
   `wasUploaded` is true or the local export sha differs from `exportSha256`;
-  then the image is shipped-but-stale: review, export, re-upload, clear
-  `wasUploaded`.
+  then the image is shipped-but-stale: review, export, re-upload, then
+  `s1s status --set uploaded`, which clears `wasUploaded`. `s1s status`
+  prints the stale rows as notes, so you need not read the JSON for them.
 - Never re-transcreate or re-render a screen at `image-approved` or above
   unless its inputs changed. Resume at the next incomplete step.
 - Missing render or export files at a high status mean `out/` was cleaned or

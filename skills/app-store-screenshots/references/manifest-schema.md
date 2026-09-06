@@ -19,7 +19,7 @@ inside the manifest are relative to `screenshots/` (posix, forward slashes).
 | `screenshots/copy/<locale>.json` | agent | Text per screen per locale (section 8) |
 | `screenshots/captures/<locale>/<family>/<name>.png` | `s1s capture` | Simulator screenshots |
 | `screenshots/out/<locale>/...` | `s1s render`, `s1s sheet` | Renders, previews, `report.json`, `review.md`, `sheet-<sizeId>.png`. Gitignored |
-| `metadata/screenshots/<locale>/<APP_DISPLAY_TYPE>/NN.png` | `s1s export` (lands in W5) | Upload layout for `asc` |
+| `metadata/screenshots/<locale>/<APP_DISPLAY_TYPE>/NN.png` | `s1s export` | Upload layout for `asc` |
 | `screenshots/captures/demo-data.patch` | agent | Temporary demo-data diff for re-shoots |
 
 `screens.ts` decides what renders. The manifest records what happened. When
@@ -142,11 +142,11 @@ on read (`sizes: {}`, `screens: []`, `locales: {}`, `runs: []`).
               "renderHash": "2416a730bdcb7cbd720681ffe008e9567154b678", // s1s render, sha1 of the PNG
               "renderWarnings": [],               // s1s render; error-level entries block export
               "renderedAt": "2026-09-02T11:02:14.000Z",             // s1s render
-              "export": "../metadata/screenshots/en-US/APP_IPHONE_69/01.png", // s1s export (W5); see section 3
-              "exportSha256": "a1b2c3...",        // s1s export (W5)
-              "storeFileName": "01.png",          // agent after asc upload: fileName in asc screenshots list
-              "uploadedAt": "2026-09-02T13:40:00.000Z", // agent after asc upload
-              "wasUploaded": true                 // s1s render: hash changed after an upload; re-upload needed
+              "export": "../metadata/screenshots/en-US/APP_IPHONE_69/01.png", // s1s export; see section 3
+              "exportSha256": "a1b2c3...",        // s1s export
+              "storeFileName": "01.png",          // s1s export; correct it from asc screenshots list if they differ
+              "uploadedAt": "2026-09-02T13:40:00.000Z", // s1s status --set uploaded
+              "wasUploaded": true                 // s1s render or s1s export moved an uploaded image; re-upload needed
             }
           }
         },
@@ -268,7 +268,7 @@ own locale, source locale (info warning `capture-fallback-locale`), placeholder
 
 | Field | Type | Owner | Set by |
 |---|---|---|---|
-| `status` | enum, section 4 | shared | `s1s capture` (to `captured`), `s1s render` (to `generated`), `s1s export` (to `exported`, W5), agent for the rest |
+| `status` | enum, section 4 | shared | `s1s capture` (to `captured`), `s1s render` (to `generated`), `s1s export` (to `exported`), `s1s status --set` for the agent-owned rest |
 | `capture?` | string | CLI | `s1s capture`: `captures/<locale>/<family>/<name>.png` |
 | `captureSha256?` | string | CLI | `s1s capture` |
 | `capturePx?` | `{width,height}` | CLI | `s1s capture` |
@@ -278,26 +278,37 @@ own locale, source locale (info warning `capture-fallback-locale`), placeholder
 | `renderHash?` | string | CLI | sha1 of the final PNG bytes |
 | `renderWarnings?` | `Warning[]` | CLI | `{code, level, message, element?}`. Project-level `copy-unused` infos are kept out of here |
 | `renderedAt?` | ISO | CLI | Set when the hash changes |
-| `export?` | string | CLI (W5) | Export path written by `s1s export` |
-| `exportSha256?` | string | CLI (W5) | sha256 of the exported file |
-| `storeFileName?` | string | agent | `fileName` reported by `asc screenshots list` after upload |
-| `uploadedAt?` | ISO | agent | When the upload was verified |
-| `wasUploaded?` | boolean | CLI | `s1s render` sets `true` when the hash changes on an `uploaded` image. Clear it when you re-upload |
+| `export?` | string | CLI | `s1s export`: posix, relative to `screenshots/`, so `../metadata/screenshots/<locale>/<APP_DISPLAY_TYPE>/NN.png` |
+| `exportSha256?` | string | CLI | sha256 of the exported file |
+| `storeFileName?` | string | CLI | `s1s export` writes the name it wrote (`NN.png`); the agent may correct it from `asc screenshots list` |
+| `uploadedAt?` | ISO | CLI | `s1s status --set uploaded`, once per call, after you verified the upload |
+| `wasUploaded?` | boolean | CLI | `s1s render` sets `true` when the hash changes on an `uploaded` image; `s1s export` sets it when it repoints one (new store file name or new bytes). `s1s status --set uploaded` clears it |
 
 Warning codes and default levels: `capture-missing` error,
 `capture-fallback-locale` info, `capture-dims` error (warn when only the
 scale differs), `text-min-size` error, `text-clipped` error, `overflow`
 error, `image-missing` error, `copy-missing` error, `copy-unused` info,
-`bezel-fallback` warn, `font-fallback` warn, `render-failed` error.
+`bezel-fallback` warn, `font-fallback` warn, `render-failed` error,
+`export-unapproved` warn, `duplicate-dims` warn, `manifest-incomplete` warn
+(the last three come from `s1s export`, not the renderer).
 `s1s render --strict` promotes warn to error.
+
+`s1s validate` reports its own codes, which never reach the manifest: they
+describe the export folder, not an image's state. Error level: `file-name`
+(not `NN.png`), `file-gap` (ordinals not contiguous from `01`), `set-empty`,
+`set-too-many` (over 10), `dims-unaccepted`, `dims-mixed`, `has-alpha`,
+`not-an-image` (unreadable; also warn level for a non-RGB file),
+`locale-incomplete` (a display type one locale has and another does not).
+Warn level: `duplicate-dims` (the upload fan-out trap, section 6 of
+`asc-upload.md`).
 
 Alias sizes: when `screens.ts` lists both `iphone-6.9` and `iphone-6.7`, the
 render happens once and the manifest gets one `ImageState` per size id.
 
 ### `runs[]`
 
-`{ command, startedAt, finishedAt?, ok?, notes? }`. Appended by `s1s init` and
-`s1s render`. Capped at the newest 50, so an entry can vanish and cannot
+`{ command, startedAt, finishedAt?, ok?, notes? }`. Appended by `s1s init`,
+`s1s render`, `s1s export` and `s1s status --set`. Capped at the newest 50, so an entry can vanish and cannot
 serve as durable state. Read it to learn what ran last; never edit or append
 to it. The agent records its own milestones in agent-owned fields instead:
 `app.preflightAt` (P0), `demoData.appliedAt`, `demoData.launchApprovedAt`,
@@ -316,7 +327,7 @@ pending -> copy-approved -> captured -> generated -> image-approved -> exported 
 | `captured` | A capture with the right pixel size exists | `s1s capture` (only from `pending` or `copy-approved`) |
 | `generated` | A render exists; hash recorded | `s1s render` (on hash change, from any status) |
 | `image-approved` | Human approved the render (G3/G6) | agent |
-| `exported` | Copied to `metadata/screenshots/...` | `s1s export` (lands in W5) |
+| `exported` | Copied to `metadata/screenshots/...` | `s1s export` |
 | `uploaded` | Verified in App Store Connect | agent, after `asc screenshots list` confirms |
 
 Transition rule (`canTransition(from, to)` in `src/core/manifest.ts`):
@@ -335,12 +346,12 @@ What the CLI does to `status` on its own:
 |---|---|
 | `s1s capture` | `pending`/`copy-approved` -> `captured`. Any later status is kept, so a retake of a `generated` or higher image leaves a stale render that reconcile cannot detect: set the status back to `captured` yourself right after the capture, or re-render at once |
 | `s1s render` | Hash changed -> `generated`, plus `wasUploaded: true` if it was `uploaded`. Hash unchanged -> status kept, `renderWarnings` refreshed. Failed item -> status kept, `render`/`renderHash`/`renderedAt` dropped, `render-failed` warning added |
-| `s1s export` (W5) | -> `exported` for every image it copies. Refuses when a set is incomplete or carries error-level warnings |
-| `s1s status --set` (W5) | Agent-driven, guarded by `canTransition` |
+| `s1s export` | -> `exported` for every image it copies. An image already `uploaded` keeps that status and gets `wasUploaded: true` when the file name or the bytes changed. Refuses when a set is incomplete or carries error-level warnings |
+| `s1s status --set` | Agent-driven, guarded by `canTransition`; all-or-nothing over the selected images. `--from <status>` narrows it to the images at one status; `--yes` is required when the selection covers the whole locale. `--set uploaded` also writes `uploadedAt` and clears `wasUploaded`. Appends one `runs[]` entry |
 
-Two gates have no CLI command: `copy-approved` and `image-approved` are the
-agent's record of a human decision. `uploaded` is set by the agent after the
-`asc` verification step.
+`copy-approved`, `image-approved` and `uploaded` are the agent's record of a
+human decision or of a verified upload; the agent decides, `s1s status --set`
+writes.
 
 ## 5. Ownership: CLI versus agent
 
@@ -349,7 +360,7 @@ CLI-owned. Never type these by hand; re-run the command instead:
 - `sizes.<id>.{displayType, token, px, simulator, udid, framed}` (init, capture)
 - `ImageState.{capture, captureSha256, capturePx}` (capture)
 - `ImageState.{render, renderHash, renderWarnings, renderedAt, wasUploaded}` (render)
-- `ImageState.{export, exportSha256}` (export, W5)
+- `ImageState.{export, exportSha256, storeFileName}` (export)
 - `runs[]`
 
 Agent-owned. Edit these with small JSON edits:
@@ -358,13 +369,15 @@ Agent-owned. Edit these with small JSON edits:
 - `demoData.*` including the free-form keys `baselineFile`, `launchApprovedAt`, `launchApprovedBy`, `watchPatch`
 - `screens[]` including `capture.steps`
 - `locales.<l>.{copyStatus, captureSource, versionId, versionString, versionLocalizationId}`
-- `ImageState.{status, captureRating, captureNotes, storeFileName, uploadedAt}`
-- clearing `wasUploaded` after a re-upload
+- `ImageState.{status, captureRating, captureNotes, storeFileName}`
 
-Shared: `status` (section 4). Write it directly only for the agent-owned
-values (`copy-approved`, `image-approved`, `uploaded`, or a rollback to
-`pending`/`captured`/`generated`). Prefer `s1s status --set` once it lands in
-W5.
+`uploadedAt` and clearing `wasUploaded` are CLI-owned too, but the agent
+decides when: both happen inside `s1s status --set uploaded`.
+
+Shared: `status` (section 4). The agent-owned values (`copy-approved`,
+`image-approved`, `uploaded`, or a rollback to `pending`/`captured`/
+`generated`) go through `s1s status --set`, which has shipped; hand-edit the
+JSON only when the CLI is unavailable.
 
 ## 6. Edit the manifest safely
 
@@ -416,16 +429,22 @@ jq '.locales["en-US"].devices["iphone-6.9"].screens["map"].status = "image-appro
   && mv screenshots/manifest.json.tmp screenshots/manifest.json
 ```
 
-Bulk transitions, once `s1s status` lands in W5:
+Bulk transitions (all-or-nothing: one illegal step refuses the whole command):
 
 ```sh
-s1s status --set image-approved --locale en-US --sizes iphone-6.9,ipad-13 --screens map,laps
-s1s status --set uploaded --locale en-US --sizes iphone-6.9
+s1s status --set image-approved --locale en-US --sizes iphone-6.9,ipad-13 --screens map,laps --yes
+s1s status --set uploaded --locale en-US --sizes iphone-6.9 --yes
+s1s status --set copy-approved --locale en-US --from pending --yes
 ```
 
 `--set` applies `canTransition` to every selected image and refuses the whole
-call when one transition is not allowed. Until W5 the `node -e` form above is
-the shell path. In Claude Code the Edit tool on the JSON file is an
+call when one transition is not allowed. `--from <status>` selects only the
+images already at that status, which is how you move part of a mixed locale
+without the refusal; a `--from` that matches nothing is a no-op, not an error.
+`--yes` is required when the selection still covers every image of the locale
+(naming every size is not narrowing), so keep it on a documented command: it
+does nothing when the guard does not fire. Use the `node -e` form above only
+when `s1s` is unavailable. In Claude Code the Edit tool on the JSON file is an
 alternative for a single value; keep the edit to the one line.
 
 Record ASC ids after resolving the version (P5):
@@ -441,8 +460,7 @@ fs.writeFileSync(p, JSON.stringify(m, null, 2) + "\n");' "$VERSION_ID" "1.0.0" "
 ## 7. Reconcile: manifest versus disk versus store
 
 Run this at the start of every session and before any gate. Preferred
-implementation: `s1s status --json` (lands in W5). Until then, compute the
-same table by hand from the manifest and `ls`.
+implementation: `s1s status --json`.
 
 Signals per image (locale x size x screen):
 
@@ -472,8 +490,8 @@ action repairs the first gap. `-` means "not checked" or "absent".
 | `exported` | ok | ok | sha differs | - | image-approved | `s1s export` again; if `renderHash` also changed, back to review |
 | `uploaded` | ok | ok | ok | present | uploaded | Done. Skip the image |
 | `uploaded` | - | - | - | absent | exported | Store lost or wrong version: re-upload after confirming the version is editable |
-| `uploaded` + `wasUploaded: true` | ok | ok | - | present | generated | Render changed after upload: review, export, re-upload, then clear `wasUploaded` |
-| any | - | - | present | present | store-only | Manifest is behind (state lost or hand-rolled export): record `storeFileName`, `uploadedAt`, set `uploaded` (forward, allowed), keep the store file |
+| `uploaded` + `wasUploaded: true` | ok | ok | - | present | generated | Render or export moved after upload (`s1s status` prints this as a row note): review, export, re-upload, then `s1s status --set uploaded` |
+| any | - | - | present | present | store-only | Manifest is behind (state lost or hand-rolled export): record `storeFileName`, then `s1s status --set uploaded` (forward, allowed) for `uploadedAt` and the status; keep the store file |
 
 Additional per-locale checks:
 
@@ -495,10 +513,14 @@ ratings. When the manifest claims more than disk or store show, downgrade in
 the report and say why; do not rewrite the manifest until the human confirms
 the resume point.
 
-Where `s1s status --json` (W5) comes from: it reads the manifest,
-`report.json`, stats the capture/render/export paths and, when
-`versionLocalizationId` is set and `asc` is installed, the store list. It
-prints one row per image with all five signals and the effective status.
+Where `s1s status --json` comes from: it reads `screens.ts` and the
+manifest and stats the capture, render and export paths. It never contacts
+App Store Connect, so an `uploaded` row says so and `asc screenshots list`
+stays authoritative for the shipped state. It prints one row per image, plus
+manifest entries `screens.ts` no longer knows (orphans) and exported files no
+entry claims (`strayExports`). It compares the recorded `renderHash` and
+`exportSha256` against the bytes on disk, so a file edited since it was
+recorded shows up as a note rather than as a healthy row.
 
 ## 8. Copy contract: `screenshots/copy/<locale>.json`
 

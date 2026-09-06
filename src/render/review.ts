@@ -6,11 +6,11 @@ import { dirname, relative } from 'node:path';
 import { templateMeta } from '../config/template-meta.ts';
 import type { RenderReport, RenderReportItem, Warning } from '../config/types.ts';
 import { countByLevel } from '../config/warnings.ts';
-import { reviewPath } from '../core/paths.ts';
+import { reviewPath, toPosix } from '../core/paths.ts';
 import type { Project } from '../core/project.ts';
 
 function rel(project: Project, path: string | null): string {
-  return path === null ? '-' : relative(project.dir, path).split('\\').join('/');
+  return path === null ? '-' : toPosix(relative(project.dir, path));
 }
 
 function warningCell(warnings: readonly Warning[]): string {

@@ -22,12 +22,8 @@ The repo ships two products that share one contract:
 | W2 | Apple bezels, contact sheets, iPad and watch sizes, `two-device` and `feature-grid` templates | done |
 | W3 | Agent skill `app-store-screenshots`, `scripts/install-skills.sh`, repo docs | done |
 | W4 | MotoFit pilot: demo-data patch, captures, first complete en-US set | planned |
-| W5 | `s1s export`, `s1s validate`, `s1s status`, `asc` integration | planned |
+| W5 | `s1s export`, `s1s validate`, `s1s status`, `asc` integration | done |
 | W6 | Localization path, opt-in templates, retire the three old screenshot skills | planned |
-
-`s1s status`, `s1s export` and `s1s validate` are registered today but print
-"not implemented yet: W5" and exit 2. Their intended flags are listed under
-"Commands".
 
 ## Prerequisites
 
@@ -74,7 +70,7 @@ unframed.
 Per-app files live in `<app>/screenshots/`: `screens.ts`, `theme.ts`,
 `copy/<locale>.json`, `captures/<locale>/<family>/<name>.png`,
 `manifest.json`, optional `templates/` and `fonts/`, and the ignored `out/`.
-Exports (W5) go to `<app>/metadata/screenshots/<locale>/<APP_DISPLAY_TYPE>/NN.png`,
+Exports go to `<app>/metadata/screenshots/<locale>/<APP_DISPLAY_TYPE>/NN.png`,
 the layout `asc screenshots upload` reads.
 
 ## Commands
@@ -83,7 +79,7 @@ the layout `asc screenshots upload` reads.
 |---|---|
 | `s1s init [--app-name] [--bundle-id] [--app-id] [--locales] [--sizes] [--watch] [--force] [--overwrite-authored]` | Scaffold `<app>/screenshots` (screens.ts, theme.ts, copy, manifest, captures) and link it |
 | `s1s link [--cli]` | `--cli`: put `s1s` on PATH; without: link the project's node_modules to this checkout |
-| `s1s doctor` | Environment checks |
+| `s1s doctor` | Environment checks: node, tsx, Playwright + Chromium, sharp, bezels, `asc`, simctl, the metadata dir and the CLI link |
 | `s1s dev [--locale] [--port] [--open]` | Vite dev server with the `/#/gallery` page |
 | `s1s render [--locale] [--sizes] [--screens] [--jobs 4] [--dry-run] [--no-sheet] [--strict] [--allow-placeholder]` | Render one locale: PNGs, previews, report.json (with `sheets`), review.md, contact sheets, manifest render fields |
 | `s1s sheet [--locale] [--sizes] [--scale 0.25] [--columns 5]` | Contact sheet per size from the last render (`render` runs it automatically; `--no-sheet` skips it) |
@@ -94,9 +90,9 @@ the layout `asc screenshots upload` reads.
 | `s1s bezels install [--device ids] [--all] [--from dmg\|dir] [--keep-dmg] [--force] [--landscape]` | Download Apple's bezel DMGs, measure the PNGs and cache them under `~/.screen1shoter/bezels` (`S1S_HOME` overrides) |
 | `s1s bezels list` | Show installed bezels with their screen geometry and which preset uses each one |
 | `s1s bezels inspect <dmg-url\|path> [--keep-dmg]` | List the PNGs a DMG (or folder) contains with sizes and proposed id/variant |
-| `s1s status [--json] [--set <status> --locale --sizes --screens]` (lands in W5) | Reconcile table: manifest vs PNGs on disk vs the store; `--set` applies a guarded status transition |
-| `s1s export --locale <l> [--sizes] [--metadata-dir metadata/screenshots] [--prune] [--dry-run] [--no-asc]` (lands in W5) | Refuse on an incomplete or error-level render; copy to `metadata/screenshots/<locale>/<APP_DISPLAY_TYPE>/NN.png` when the hash differs; `--prune` deletes only `NN.png\|jpg` beyond the count; warn on sibling `APP_*` folders with identical dims; run `asc screenshots validate` per size when `asc` is present; print the next `asc screenshots upload` command |
-| `s1s validate [--metadata-dir] [--locale] [--sizes] [--json]` (lands in W5) | Offline check of the export folder: filenames `NN.png\|jpg` contiguous from 01, 1 to 10 per set, dims in `acceptedDims`, no alpha, uniform dims per set, all-or-nothing across locales, duplicate-dims trap; exit 1 on failure |
+| `s1s status [--json] [--set <status> --locale --sizes --screens --from <status>] [--yes]` | Reconcile table: screens.ts vs the manifest vs the PNGs on disk, plus orphaned manifest entries and stray exports (the store is never contacted); `--set` applies a guarded, all-or-nothing status transition, `--from` restricts it to the images at one status, `--yes` confirms a `--set` that covers a whole locale; `--set uploaded` also writes `uploadedAt` and clears `wasUploaded` |
+| `s1s export --locale <l> [--sizes] [--metadata-dir metadata/screenshots] [--prune] [--dry-run] [--no-asc]` | Refuse on an incomplete or error-level render; copy to `metadata/screenshots/<locale>/<APP_DISPLAY_TYPE>/NN.png` when the hash differs; `--prune` deletes every `NN.png\|jpg\|jpeg` in the folder this run did not write (others are listed as `stale`); warn on sibling `APP_*` folders with identical dims; run `asc screenshots validate` per size when `asc` is present; print one `asc screenshots upload --version-localization ... --dry-run` command per display type (plus the fan-out form when no duplicate dims) |
+| `s1s validate [--metadata-dir] [--locale] [--sizes] [--json]` | Offline check of the export folder: filenames `NN.png\|jpg\|jpeg` contiguous from 01, 1 to 10 per set, dims in `acceptedDims`, no alpha, RGB, uniform dims per set, all-or-nothing across locales, duplicate-dims trap; exit 1 on failure. `--locale` narrows the table (`locales`), never the cross-locale rule: every folder in `scanned` is still compared |
 
 Every command accepts `--json`: stdout is exactly one JSON object
 (`{ ok: true, ... }` or `{ ok: false, error: { code, message, hint } }`);

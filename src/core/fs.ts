@@ -55,3 +55,8 @@ export async function writeJsonAtomic(path: string, value: unknown): Promise<voi
 export async function sha256File(path: string): Promise<string> {
   return createHash('sha256').update(await readFile(path)).digest('hex');
 }
+
+/** sha1 of a file's bytes: the hash `ImageState.renderHash` records (src/render/post.ts). */
+export async function sha1File(path: string): Promise<string> {
+  return createHash('sha1').update(await readFile(path)).digest('hex');
+}

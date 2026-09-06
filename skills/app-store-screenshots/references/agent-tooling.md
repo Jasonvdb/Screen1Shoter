@@ -14,8 +14,8 @@ Rules that hold in both columns:
   fields into the manifest by hand.
 - Every command runs from the app repo root. Paths below are relative to it.
 - One live simulator at a time (a paired phone plus watch counts as one).
-- `s1s export`, `s1s validate` and `s1s status` land in W5. Until then,
-  reconcile from `screenshots/manifest.json` as SKILL.md section 4 describes.
+- `s1s status` reconciles locally only: it never contacts App Store Connect,
+  so `asc screenshots list` stays authoritative for what is shipped.
 
 ---
 
@@ -77,8 +77,8 @@ prefix for you, `xcrun simctl launch` does not.
 | Ask the human at a gate | `AskUserQuestion` with the options listed in SKILL.md for that gate | Print the question and the options as the last line of your turn. Stop. Never proceed on silence. |
 | Stop the live gallery | Kill the background Bash shell by its id | `pkill -f 's1s dev' \|\| true` |
 | Shut the simulator down | No tool; use the shell. | `xcrun simctl shutdown "$UDID"` (then `xcrun simctl delete "$UDID"` only when the user agrees) |
-| Reconcile state | `s1s status --json` (lands in W5); until then read the manifest and list files as SKILL.md section 4 shows | Same |
-| Export and validate | `s1s export --locale en-US && s1s validate --locale en-US` (both land in W5) | Same |
+| Reconcile state | `s1s status --json` (local only; pair with `asc screenshots list` for the shipped state) | Same |
+| Export and validate | `s1s export --locale en-US && s1s validate --locale en-US` | Same |
 
 The `s1s` rows are identical on purpose. The tool is the shared surface; the
 MCP tools only replace the Xcode and Simulator interaction around it.
@@ -255,3 +255,16 @@ whatever the watch patch reads; see the capture playbook).
 - `s1s render --json` prints `{ ok, report, sheets }`; `counts` and `items`
   live under `.report`. `screenshots/out/<locale>/report.json` is the raw
   report with `counts` and `items` at the top level.
+- The other `--json` shapes, all under the same `{ ok, ... }` envelope:
+  `s1s status` gives `rows[]`, `orphans[]`, `strayExports[]` and `summary`
+  (status name to count); every row carries `status`, the `capture` / `render`
+  / `export` file states, `renderStale` and `notes[]`.
+  `s1s export` gives the `ExportReport`: `files[]` (each with `action`
+  `written` / `unchanged` / `skipped`), `pruned[]`, `stale[]`, `warnings[]`,
+  `asc`, `uploadCommands[]` and `fanOutCommands[]`.
+  `s1s validate` gives `sets[]` and a flattened `problems[]`, each problem
+  carrying `code`, `level` and often `file`.
+- Failures are `{ ok: false, error: { code, message, hint } }`. The codes the
+  W5 commands raise: `export-blocked` (the render is incomplete or has
+  error-level warnings, so there is nothing safe to export), `validate-failed`,
+  `manifest-invalid` and `usage`.

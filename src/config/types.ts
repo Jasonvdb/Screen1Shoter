@@ -320,7 +320,13 @@ export type WarningCode =
   | 'bezel-fallback'
   | 'font-fallback'
   /** The render item failed (browser error, timeout, post-processing); stored in the manifest. */
-  | 'render-failed';
+  | 'render-failed'
+  /** `s1s export` copied screens the human has not marked image-approved yet. */
+  | 'export-unapproved'
+  /** Two display-type folders hold the same pixel size; an `asc` upload fans out into both. */
+  | 'duplicate-dims'
+  /** A manifest field the upload command needs (app.appId, locales.<l>.versionString) is empty. */
+  | 'manifest-incomplete';
 
 export type WarningLevel = 'info' | 'warn' | 'error';
 

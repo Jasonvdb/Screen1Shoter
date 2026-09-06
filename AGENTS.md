@@ -16,9 +16,15 @@ is about how to work here.
   agent) owns statuses, ratings, notes and capture steps. Change a field in
   all three places in the same commit.
 - Every `s1s` flag the skill names must exist in `s1s <command> --help`.
-  Commands that land later (`status`, `export`, `validate` in W5) are
-  described as the plan specifies and marked "(lands in W5)". Do not invent
-  other flags.
+  `tests/unit/skill.test.ts` enforces it: every `--flag` written after an
+  `s1s <command>` in `skills/` must be registered on that command. `status`,
+  `export` and `validate` shipped in W5, so no command the skill names is
+  unimplemented any more; do not reintroduce a "(lands in W<n>)" marker, and
+  do not invent flags.
+- A registered flag is not the same as a working command. `s1s status --set`
+  refuses a selection covering a whole locale without `--yes`, so every
+  documented `--set` needs `--yes` (or a `--from <status>` that really
+  narrows). Run the command you write down before you commit it.
 
 ## Layout
 

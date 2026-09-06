@@ -20,9 +20,16 @@ export interface RunOptions {
   timeoutMs?: number;
 }
 
-/** Shell-style rendering of a command for messages and logs. */
+/**
+ * Shell-style rendering of a command for messages, logs and the commands
+ * `s1s export` prints for the user to paste. An allowlist, not a blocklist:
+ * a placeholder such as `<APP_ID>` must come out quoted, or pasting the
+ * printed line into a shell reads it as a redirection instead of a hole to
+ * fill in.
+ */
 export function formatCommand(cmd: string, args: readonly string[]): string {
-  const quote = (s: string): string => (s === '' || /[\s"'$`\\]/.test(s) ? `'${s.replace(/'/g, `'\\''`)}'` : s);
+  const safe = /^[A-Za-z0-9_@%+=:,./-]+$/;
+  const quote = (s: string): string => (safe.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`);
   return [cmd, ...args].map(quote).join(' ');
 }
 

@@ -59,13 +59,14 @@ describe('s1s --json contract', () => {
     expect(json.error.hint).toBe('Run `s1s bezels --help`.');
   });
 
-  it('a later-phase stub (status): exit 2 with the same shape', async () => {
-    const run = await s1s(['status', '--json']);
+  it('a flag combination a command refuses (status --set without --locale): exit 2 with the same shape', async () => {
+    const run = await s1s(['status', '--set', 'uploaded', '--json']);
     expect(run.code).toBe(2);
     const json = oneJsonLine(run) as ErrorJson;
     expect(json.ok).toBe(false);
     expect(json.error.code).toBe('usage');
-    expect(json.error.message).toContain('not implemented');
+    expect(json.error.message).toContain('--locale');
+    expect(typeof json.error.hint).toBe('string');
   });
 
   it('render on a missing project: exit 1, project-not-found with a hint', async () => {
