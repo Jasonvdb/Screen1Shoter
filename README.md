@@ -1,11 +1,16 @@
 # Screen1Shoter
 
-App Store screenshots as code. Every frame is a React template: the headline is
-a string in a JSON file, the app UI inside the frame is a real iOS Simulator
-capture, and the device around it is Apple's own product bezel PNG. Headless
-Chromium renders the lot to exact-pixel PNGs (1320x2868 for iPhone 6.9",
-2064x2752 for iPad 13", 416x496 raw for Apple Watch), so a new size, a new
-locale or a one-word copy fix is a re-render, not a new image.
+An agent makes your App Store screenshots, and leaves behind something you can
+still change.
+
+Point it at your app. It works out what to show, drives the iOS Simulator,
+takes the real screenshots, writes the copy, frames each one in an Apple
+device and saves the exact files the App Store asks for.
+
+What it leaves behind is a small project in your repo, not a folder of
+finished pictures. So the next change is cheap. Reword a headline, add a
+language, add the iPad set, or re-shoot everything after a redesign: ask for
+it, and it runs again. Only what you changed changes.
 
 <p align="center">
   <img src="docs/images/motofit-track-map-iphone.png" width="30%" alt="Moto Fit screenshot 1: Log Every Moto">
@@ -13,18 +18,15 @@ locale or a one-word copy fix is a re-render, not a new image.
   <img src="docs/images/motofit-replay-3d-iphone.png" width="30%" alt="Moto Fit screenshot 3: Replay in 3D">
 </p>
 
-Three frames of the [Moto Fit](https://motofit.app) set, the pilot this tool
-was built against. Every word above is a string in a JSON file, every device is
-an Apple bezel PNG, and every app screen inside one is a simulator capture.
+Three frames from the [Moto Fit](https://motofit.app) set, the app this tool
+was built for.
 
-The repo ships two products that share one contract:
+Two parts, one contract:
 
-- the `s1s` CLI (renderer, bezels, simulator helpers, export pipeline), and
-- the `app-store-screenshots` agent skill (`skills/app-store-screenshots/`)
-  that drives `s1s` end to end inside Claude Code, Codex or Cursor.
-
-`AGENTS.md` holds the rules for anyone (human or agent) editing this repo.
-`CONTRACTS.md` fixes the module boundaries and the browser protocol.
+- `app-store-screenshots`, the agent skill. It runs the whole job in Claude
+  Code, Codex or Cursor, and asks you to approve the copy and the images.
+- `s1s`, the command line tool underneath. You can drive it yourself when you
+  want to.
 
 ## Why not an image model
 
