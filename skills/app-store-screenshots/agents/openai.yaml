@@ -1,0 +1,10 @@
+# Codex display metadata for the app-store-screenshots skill.
+# Codex reads this file from ~/.codex/skills/app-store-screenshots/agents/openai.yaml
+# (a symlink created by scripts/install-skills.sh). Claude Code and Cursor ignore it
+# and read the frontmatter in ../SKILL.md instead.
+interface:
+  display_name: "App Store Screenshots"
+  short_description: "Create, localize, export and upload App Store screenshots with s1s"
+  default_prompt: "Use $app-store-screenshots to produce the App Store screenshot set for the app in this repo: reconcile screenshots/manifest.json, resume at the first incomplete phase, and stop at every gate for my approval. Pass 'status' to print the progress table only, a phase name (plan, capture, compose, review, export, upload, cleanup) to jump to it, or a locale such as de-DE to localize."
+policy:
+  allow_implicit_invocation: false
