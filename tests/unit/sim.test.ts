@@ -116,7 +116,7 @@ describe('STATUS_BAR_FLAGS', () => {
       '--wifiBars', '3',
       '--cellularMode', 'active',
       '--cellularBars', '4',
-      '--batteryState', 'charged',
+      '--batteryState', 'discharging',
       '--batteryLevel', '100',
       '--operatorName', '',
     ]);

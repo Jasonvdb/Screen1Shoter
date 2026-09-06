@@ -4,7 +4,7 @@ import type { Command } from 'commander';
 import { run } from '../../core/exec.ts';
 import { bezelDir } from '../../core/paths.ts';
 import { createS1sServer, type S1sServerOptions } from '../../render/server.ts';
-import { emit, emitError, globalsOf, log, parsePositiveInt } from '../output.ts';
+import { defineRawAction, emit, emitError, log, parsePositiveInt, type GlobalOpts } from '../output.ts';
 import { openProject } from './link.ts';
 
 interface DevOptions {
@@ -24,8 +24,7 @@ function waitForShutdown(): Promise<NodeJS.Signals> {
   });
 }
 
-async function devCommand(opts: DevOptions, cmd: Command): Promise<void> {
-  const globals = globalsOf(cmd);
+async function devCommand(globals: GlobalOpts, opts: DevOptions): Promise<void> {
   const json = globals.json ?? false;
   try {
     const project = await openProject(globals);
@@ -52,11 +51,13 @@ async function devCommand(opts: DevOptions, cmd: Command): Promise<void> {
 }
 
 export function registerDev(program: Command): void {
-  program
-    .command('dev')
-    .description('Start the Vite dev server with the gallery (every screen x size, HMR)')
-    .option('--locale <locale>', 'locale to show first (default: the source locale)')
-    .option('--port <n>', 'port (default: Vite picks 5173 or the next free port)', parsePositiveInt)
-    .option('--open', 'open the gallery in the default browser')
-    .action((opts: DevOptions, cmd: Command) => devCommand(opts, cmd));
+  defineRawAction<DevOptions>(
+    program
+      .command('dev')
+      .description('Start the Vite dev server with the gallery (every screen x size, HMR)')
+      .option('--locale <locale>', 'locale to show first (default: the source locale)')
+      .option('--port <n>', 'port (default: Vite picks 5173 or the next free port)', parsePositiveInt)
+      .option('--open', 'open the gallery in the default browser'),
+    ({ globals, opts }) => devCommand(globals, opts),
+  );
 }

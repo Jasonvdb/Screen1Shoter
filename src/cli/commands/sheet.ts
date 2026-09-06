@@ -8,7 +8,7 @@ import { S1sError } from '../../core/errors.ts';
 import type { Project } from '../../core/project.ts';
 import { sheetProject, type SheetOptions, type SheetResult } from '../../render/sheet.ts';
 import { SHEET_DEFAULTS, summaryText } from '../../web/app/sheet-model.ts';
-import { log, parseList, parsePositiveInt, runAction, table, type CommandOutput, type GlobalOpts } from '../output.ts';
+import { defineAction, log, parseList, parsePositiveInt, table, type CommandOutput, type GlobalOpts } from '../output.ts';
 import { openProject } from './link.ts';
 
 interface SheetCliOptions {
@@ -58,12 +58,14 @@ async function sheetCommand(globals: GlobalOpts, opts: SheetCliOptions): Promise
 }
 
 export function registerSheet(program: Command): void {
-  program
-    .command('sheet')
-    .description('Write a contact sheet per size from the last render: out/<locale>/sheet-<sizeId>.png')
-    .option('--locale <locale>', 'locale whose out/<locale>/report.json to lay out (default: the source locale)')
-    .option('--sizes <list>', 'comma-separated size ids (default: every size in the report)', parseList)
-    .option('--scale <fraction>', 'tile size as a fraction of the output PNG', parseScale, SHEET_DEFAULTS.scale)
-    .option('--columns <n>', 'tiles per row', parsePositiveInt, SHEET_DEFAULTS.columns)
-    .action((opts: SheetCliOptions, cmd: Command) => runAction(cmd, (globals) => sheetCommand(globals, opts)));
+  defineAction<SheetCliOptions>(
+    program
+      .command('sheet')
+      .description('Write a contact sheet per size from the last render: out/<locale>/sheet-<sizeId>.png')
+      .option('--locale <locale>', 'locale whose out/<locale>/report.json to lay out (default: the source locale)')
+      .option('--sizes <list>', 'comma-separated size ids (default: every size in the report)', parseList)
+      .option('--scale <fraction>', 'tile size as a fraction of the output PNG', parseScale, SHEET_DEFAULTS.scale)
+      .option('--columns <n>', 'tiles per row', parsePositiveInt, SHEET_DEFAULTS.columns),
+    ({ globals, opts }) => sheetCommand(globals, opts),
+  );
 }

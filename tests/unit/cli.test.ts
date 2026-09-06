@@ -119,6 +119,18 @@ describe('s1s --json contract', () => {
     expect(json.error.message).toContain('iphone-6.9');
   });
 
+  it('sim appearance (two positional args): a real sim error, never an internal TypeError', async () => {
+    // Regression: the handler used to be `(target, mode, cmd)` on a command with
+    // two arguments, so commander passed the options object as `cmd` and
+    // `optsWithGlobals()` threw "cmd.optsWithGlobals is not a function".
+    const run = await s1s(['sim', 'appearance', 'no-such-simulator-for-s1s-tests', 'dark', '--json']);
+    expect(run.code).toBe(1);
+    const json = oneJsonLine(run) as ErrorJson;
+    expect(json.ok).toBe(false);
+    expect(json.error.code).not.toBe('internal');
+    expect(json.error.message).not.toContain('is not a function');
+  });
+
   it('a usage error without --json prints text on stderr and nothing on stdout', async () => {
     const run = await s1s(['render', '--project', '/nonexistent/app']);
     expect(run.code).toBe(1);

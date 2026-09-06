@@ -262,8 +262,14 @@ Per iOS simulator, in this order, one device at a time:
 UDID=$IPHONE                                  # then $IPAD
 xcrun simctl boot "$UDID"
 xcrun simctl bootstatus "$UDID" -b            # blocks until booted
+# Region, ONCE per simulator: the region decides 12- vs 24-hour clock, and the
+# status-bar override is formatted by the region, not by --time. A simulator
+# created on a 24-hour region draws "09:41" and, on iPad, a date beside it.
+xcrun simctl spawn "$UDID" defaults write -g AppleLocale -string en_US
+xcrun simctl spawn "$UDID" defaults write -g AppleICUForce24HourTime -bool false
+xcrun simctl shutdown "$UDID" && xcrun simctl boot "$UDID" && xcrun simctl bootstatus "$UDID" -b
 xcrun simctl ui "$UDID" appearance dark       # or light; one appearance for the whole set
-s1s sim status-bar "$UDID"                    # 9:41, Wi-Fi, full bars, charged
+s1s sim status-bar "$UDID"                    # 9:41, Wi-Fi, full bars, full battery
 xcrun simctl location "$UDID" set 37.3349,-122.0090   # only if a screen shows a map or location
 xcrun simctl privacy "$UDID" grant location <bundle-id>       # per service the app asks for
 xcrun simctl privacy "$UDID" grant photos <bundle-id>
@@ -271,9 +277,18 @@ xcrun simctl privacy "$UDID" grant photos <bundle-id>
 
 Notes:
 
+- REGION IS NOT THE APP'S LOCALE. Launching the app with `-AppleLocale en_US`
+  changes what the app formats; it does not change what SpringBoard draws in
+  the status bar. Check a capture's clock: Apple's marketing status bar reads
+  `9:41` with no leading zero. `09:41` means the simulator region is a
+  24-hour one and the two `defaults write` lines above are missing. It is a
+  per-simulator setting and it survives reboots, so set it once when you
+  create the device.
 - `s1s sim status-bar <udid|name> [--time 9:41] [--clear]` wraps
   `xcrun simctl status_bar override`. Run it after every boot; the override
-  does not survive a shutdown. `s1s sim appearance <udid|name> light|dark`
+  does not survive a shutdown. It passes `--batteryState discharging
+  --batteryLevel 100` on purpose: `charged` draws a lightning bolt through the
+  battery, which is not Apple's marketing status bar. `s1s sim appearance <udid|name> light|dark`
   is the same as the `simctl ui` line.
 - `xcrun simctl privacy` services: `calendar`, `contacts`, `location`,
   `location-always`, `photos`, `photos-add`, `media-library`, `microphone`,
@@ -605,9 +620,25 @@ s1s capture --udid "$WATCH" --name <scene-id> --device watch --locale en-US
 - Pairing is required for iOS screens that show a paired-watch state and
   for the embedded install. The paired phone plus watch counts as one live
   device set.
-- `xcrun simctl status_bar` is unsupported on watchOS; `s1s sim status-bar`
-  reports it and does not fail. Accept the real clock, or render the time
-  inside the scene.
+- THE WATCH CLOCK CANNOT BE PINNED, and rendering it inside the scene does
+  not work either. `xcrun simctl status_bar <watch udid> override --time`
+  answers "Status bar overrides not supported on this platform"
+  (NSPOSIXErrorDomain 45), and watchOS composites its own clock ABOVE the
+  app's window: an in-app `.overlay(alignment: .topTrailing)` that painted an
+  opaque plate plus "10:09" over the measured clock rect (x 297-383, y 38-62
+  at 416 x 496) was still covered by the system digits, and a
+  `ToolbarItem(placement: .topBarTrailing)` never appeared at all. Both were
+  tried and reverted on MotoFit in W4c; do not spend the afternoon again.
+  Until s1s can paint the time onto the passthrough PNG, the mitigation is to
+  shoot every watch scene inside ONE clock minute so at least the set agrees
+  with itself: wait for a minute boundary, then run one shell loop of
+  launch -> `sleep 3.5` -> `s1s capture` per scene, no agent round trips in
+  between. A drag or tap in the middle of that loop makes it impossible, so
+  prefer `.defaultScrollAnchor` in the scene over a scripted drag.
+- No Apple Watch bezel exists in `BEZEL_SOURCES`, and the watch preset is
+  passthrough, so a watch capture cannot be composed inside an iPhone or iPad
+  canvas. If the set needs to show the watch to phone shoppers, the only
+  lever today is a `badge` on a phone screen.
 - Relaunch with a different scene id per capture. Screens in `screens.ts`
   for the watch use template `raw` with `capture: '<scene-id>'`.
 

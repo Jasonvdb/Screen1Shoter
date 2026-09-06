@@ -1,75 +1,12 @@
 // Entry point of the `s1s` CLI (bin/s1s.js runs this through tsx with
-// S1S_ROOT set to the checkout). Builds the commander program, registers the
-// W1 commands plus "not implemented" stubs for later phases, and maps
-// commander usage errors to exit code 2.
+// S1S_ROOT set to the checkout). Parses argv with the program from
+// program.ts and maps commander usage errors to exit code 2.
 //
-// This module runs on import; test the CLI by spawning bin/s1s.js.
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { Command, CommanderError } from 'commander';
-import { S1sError } from '../core/errors.ts';
-import { toolRoot } from '../core/paths.ts';
-import { registerBezels } from './commands/bezels.ts';
-import { registerCapture } from './commands/capture.ts';
-import { registerDev } from './commands/dev.ts';
-import { registerDoctor } from './commands/doctor.ts';
-import { registerInit } from './commands/init.ts';
-import { registerLink } from './commands/link.ts';
-import { registerRender } from './commands/render.ts';
-import { registerSheet } from './commands/sheet.ts';
-import { registerSim } from './commands/sim.ts';
-import { emitError, runAction } from './output.ts';
-
-/** Commands from later phases. Registered so `--help` shows the full surface. */
-const LATER_COMMANDS: ReadonlyArray<{ name: string; description: string; phase: string }> = [
-  { name: 'status', description: 'Reconcile the manifest, files on disk and the store', phase: 'W5' },
-  { name: 'export', description: 'Copy renders into metadata/screenshots/<locale>/<APP_DISPLAY_TYPE>/NN.png', phase: 'W5' },
-  { name: 'validate', description: 'Check an export folder offline against App Store Connect rules', phase: 'W5' },
-];
-
-function registerStub(program: Command, stub: { name: string; description: string; phase: string }): void {
-  program
-    .command(stub.name)
-    .description(`${stub.description} (not implemented yet: ${stub.phase})`)
-    .allowUnknownOption()
-    .allowExcessArguments()
-    .action((_opts: unknown, cmd: Command) =>
-      runAction(cmd, async () => {
-        throw new S1sError('usage', `\`s1s ${stub.name}\` is not implemented yet (planned for ${stub.phase}).`);
-      }),
-    );
-}
-
-function readVersion(): string {
-  try {
-    const pkg = JSON.parse(readFileSync(join(toolRoot(), 'package.json'), 'utf8')) as { version?: string };
-    return pkg.version ?? '0.0.0';
-  } catch {
-    return '0.0.0';
-  }
-}
-
-function buildProgram(): Command {
-  const program = new Command('s1s')
-    .description('App Store screenshots from React templates, rendered by headless Chromium to exact-pixel PNGs.')
-    .version(readVersion(), '-V, --version', 'print the tool version')
-    .option('--project <dir>', 'app repo dir or its screenshots/ dir (default: search up from the cwd)')
-    .option('--json', 'print one JSON object on stdout; progress goes to stderr')
-    .showHelpAfterError('(use --help for usage)')
-    .exitOverride();
-
-  registerInit(program);
-  registerLink(program);
-  registerDoctor(program);
-  registerDev(program);
-  registerRender(program);
-  registerSheet(program);
-  registerCapture(program);
-  registerSim(program);
-  registerBezels(program);
-  for (const stub of LATER_COMMANDS) registerStub(program, stub);
-  return program;
-}
+// This module runs on import; test the CLI by spawning bin/s1s.js, or build
+// the program with `buildProgram()` from program.ts.
+import { CommanderError, type Command } from 'commander';
+import { emitError } from './output.ts';
+import { buildProgram } from './program.ts';
 
 /** `s1s --json` lists the root commands; `s1s bezels --json` lists the group's subcommands. */
 function missingCommandError(program: Command, argv: readonly string[]): { code: string; message: string; hint: string } {

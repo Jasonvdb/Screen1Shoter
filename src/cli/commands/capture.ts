@@ -34,7 +34,7 @@ import { imageState, updateImage, writeManifest } from '../../core/manifest.ts';
 import { capturePath } from '../../core/paths.ts';
 import type { Project } from '../../core/project.ts';
 import { findSim, screenshot } from '../../core/sim.ts';
-import { bullets, runAction, type CommandOutput, type GlobalOpts } from '../output.ts';
+import { bullets, defineAction, type CommandOutput, type GlobalOpts } from '../output.ts';
 import { openProject } from './link.ts';
 
 interface CaptureOptions {
@@ -180,12 +180,14 @@ async function captureCommand(globals: GlobalOpts, opts: CaptureOptions): Promis
 }
 
 export function registerCapture(program: Command): void {
-  program
-    .command('capture')
-    .description('Screenshot a simulator into captures/<locale>/<family>/<name>.png and record it in the manifest')
-    .requiredOption('--udid <udid|name>', 'simulator udid or exact device name')
-    .requiredOption('--name <id>', 'capture name (screen id, or the capture ref used in screens.ts)')
-    .addOption(new Option('--device <family>', 'device family').choices([...FAMILIES]).makeOptionMandatory())
-    .option('--locale <locale>', 'locale folder (default: the source locale)')
-    .action((opts: CaptureOptions, cmd: Command) => runAction(cmd, (globals) => captureCommand(globals, opts)));
+  defineAction<CaptureOptions>(
+    program
+      .command('capture')
+      .description('Screenshot a simulator into captures/<locale>/<family>/<name>.png and record it in the manifest')
+      .requiredOption('--udid <udid|name>', 'simulator udid or exact device name')
+      .requiredOption('--name <id>', 'capture name (screen id, or the capture ref used in screens.ts)')
+      .addOption(new Option('--device <family>', 'device family').choices([...FAMILIES]).makeOptionMandatory())
+      .option('--locale <locale>', 'locale folder (default: the source locale)'),
+    ({ globals, opts }) => captureCommand(globals, opts),
+  );
 }

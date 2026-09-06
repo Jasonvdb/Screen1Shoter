@@ -33,7 +33,7 @@ import {
 import { S1sError } from '../../core/errors.ts';
 import { readManifest } from '../../core/manifest.ts';
 import { toolRoot } from '../../core/paths.ts';
-import { bullets, parseList, runAction, type CommandOutput, type GlobalOpts } from '../output.ts';
+import { bullets, defineAction, parseList, type CommandOutput, type GlobalOpts } from '../output.ts';
 import { linkProject } from './link.ts';
 
 interface InitOptions {
@@ -406,16 +406,18 @@ async function initCommand(globals: GlobalOpts, opts: InitOptions): Promise<Comm
 }
 
 export function registerInit(program: Command): void {
-  program
-    .command('init')
-    .description('Scaffold <app>/screenshots (screens.ts, theme.ts, copy, manifest, captures) and link it')
-    .option('--app-name <name>', 'app display name (default: the app dir name)')
-    .option('--bundle-id <id>', 'bundle identifier (default: com.example.<app>)')
-    .option('--app-id <id>', 'App Store Connect app id')
-    .option('--locales <list>', 'comma-separated locales; the first is the source (default: en-US)', parseList)
-    .option('--sizes <list>', `comma-separated size ids (default: ${DEFAULT_SIZES.join(',')})`, parseList)
-    .option('--watch', 'add watch-s10 and a raw watch example screen')
-    .option('--force', 'update an existing project: merge manifest.json, keep authored files, overwrite the rest')
-    .option('--overwrite-authored', 'with --force: also replace screens.ts, theme.ts, copy/*.json and templates/**')
-    .action((opts: InitOptions, cmd: Command) => runAction(cmd, (globals) => initCommand(globals, opts)));
+  defineAction<InitOptions>(
+    program
+      .command('init')
+      .description('Scaffold <app>/screenshots (screens.ts, theme.ts, copy, manifest, captures) and link it')
+      .option('--app-name <name>', 'app display name (default: the app dir name)')
+      .option('--bundle-id <id>', 'bundle identifier (default: com.example.<app>)')
+      .option('--app-id <id>', 'App Store Connect app id')
+      .option('--locales <list>', 'comma-separated locales; the first is the source (default: en-US)', parseList)
+      .option('--sizes <list>', `comma-separated size ids (default: ${DEFAULT_SIZES.join(',')})`, parseList)
+      .option('--watch', 'add watch-s10 and a raw watch example screen')
+      .option('--force', 'update an existing project: merge manifest.json, keep authored files, overwrite the rest')
+      .option('--overwrite-authored', 'with --force: also replace screens.ts, theme.ts, copy/*.json and templates/**'),
+    ({ globals, opts }) => initCommand(globals, opts),
+  );
 }

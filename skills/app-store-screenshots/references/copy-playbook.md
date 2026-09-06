@@ -447,7 +447,7 @@ The tool enforces most of this for you: one `theme.ts` drives every screen, and 
 - One case (`theme.headlineCase`) and one highlight colour.
 - Headlines of similar length. One 2-word headline next to five 5-word headlines renders at a visibly larger size. Read the contact sheet (`screenshots/out/<locale>/sheet-<size>.png`) and equalise.
 - One highlight word per screen, in the same position style (last word, or the verb) across the set.
-- Same status bar (9:41, full signal, charged) on every capture: `s1s sim status-bar <udid>` before every session.
+- Same status bar (9:41, full signal, full battery, no charging bolt) on every capture: `s1s sim status-bar <udid>` before every session.
 - The same set of screens, in the same order, on iPhone and iPad, minus screens that make no sense on iPad.
 
 ---

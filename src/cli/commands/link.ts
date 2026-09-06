@@ -15,7 +15,11 @@ import type { Command } from 'commander';
 import { S1sError } from '../../core/errors.ts';
 import { toolRoot } from '../../core/paths.ts';
 import { findProjectDir, loadProject, type Project } from '../../core/project.ts';
-import { bullets, runAction, type CommandOutput, type GlobalOpts } from '../output.ts';
+import { bullets, defineAction, type CommandOutput, type GlobalOpts } from '../output.ts';
+
+interface LinkFlags {
+  cli?: boolean;
+}
 
 export type LinkStatus = 'created' | 'updated' | 'unchanged' | 'kept';
 
@@ -152,11 +156,11 @@ async function linkProjectOutput(globals: GlobalOpts): Promise<CommandOutput> {
 }
 
 export function registerLink(program: Command): void {
-  program
-    .command('link')
-    .description('Create symlinks: --cli puts `s1s` on PATH; without it, link the project node_modules to this checkout')
-    .option('--cli', 'create ~/.local/bin/s1s -> <checkout>/bin/s1s.js')
-    .action((opts: { cli?: boolean }, cmd: Command) =>
-      runAction(cmd, (globals) => (opts.cli ? linkCliOutput() : linkProjectOutput(globals))),
-    );
+  defineAction<LinkFlags>(
+    program
+      .command('link')
+      .description('Create symlinks: --cli puts `s1s` on PATH; without it, link the project node_modules to this checkout')
+      .option('--cli', 'create ~/.local/bin/s1s -> <checkout>/bin/s1s.js'),
+    ({ globals, opts }) => (opts.cli ? linkCliOutput() : linkProjectOutput(globals)),
+  );
 }

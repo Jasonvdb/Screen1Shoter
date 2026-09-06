@@ -143,14 +143,22 @@ export async function findSim(nameOrUdid: string): Promise<SimDevice> {
   });
 }
 
-/** Override flags after `--time`: wifi + cellular full, charged, no carrier name. */
+/**
+ * Override flags after `--time`: wifi + cellular full, a full battery, no carrier name.
+ *
+ * `--batteryState discharging --batteryLevel 100` is deliberate. `charged` draws the
+ * green battery with a lightning bolt through it, which is a device-plugged-in state,
+ * not Apple's marketing status bar; `discharging` at level 100 draws the same plain
+ * full battery Apple ships on its own product pages. Do not "fix" this back to
+ * `charged`.
+ */
 export const STATUS_BAR_FLAGS: readonly string[] = [
   '--dataNetwork', 'wifi',
   '--wifiMode', 'active',
   '--wifiBars', '3',
   '--cellularMode', 'active',
   '--cellularBars', '4',
-  '--batteryState', 'charged',
+  '--batteryState', 'discharging',
   '--batteryLevel', '100',
   '--operatorName', '',
 ];

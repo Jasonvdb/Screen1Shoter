@@ -16,7 +16,7 @@ import { S1sError } from '../../core/errors.ts';
 import { reportPath, reviewPath } from '../../core/paths.ts';
 import type { Project } from '../../core/project.ts';
 import { renderProject, type RenderOptions } from '../../render/render.ts';
-import { log, parseList, parsePositiveInt, runAction, table, type CommandOutput, type GlobalOpts } from '../output.ts';
+import { defineAction, log, parseList, parsePositiveInt, table, type CommandOutput, type GlobalOpts } from '../output.ts';
 import { openProject } from './link.ts';
 
 interface RenderCliOptions {
@@ -114,16 +114,18 @@ async function renderCommand(globals: GlobalOpts, opts: RenderCliOptions): Promi
 }
 
 export function registerRender(program: Command): void {
-  program
-    .command('render')
-    .description('Render one locale to out/<locale>/<APP_DISPLAY_TYPE>/NN-<id>.png (plus previews, report.json, review.md)')
-    .option('--locale <locale>', 'locale to render (default: the source locale)')
-    .option('--sizes <list>', 'comma-separated size ids (default: the project sizes)', parseList)
-    .option('--screens <list>', 'comma-separated screen ids or ordinals (default: all)', parseList)
-    .option('--jobs <n>', 'pages rendered in parallel', parsePositiveInt, 4)
-    .option('--dry-run', 'plan the matrix and check inputs; write nothing')
-    .option('--no-sheet', 'skip the contact sheet')
-    .option('--strict', 'treat warn-level warnings as errors')
-    .option('--allow-placeholder', 'render missing captures as placeholders (warn instead of error)')
-    .action((opts: RenderCliOptions, cmd: Command) => runAction(cmd, (globals) => renderCommand(globals, opts)));
+  defineAction<RenderCliOptions>(
+    program
+      .command('render')
+      .description('Render one locale to out/<locale>/<APP_DISPLAY_TYPE>/NN-<id>.png (plus previews, report.json, review.md)')
+      .option('--locale <locale>', 'locale to render (default: the source locale)')
+      .option('--sizes <list>', 'comma-separated size ids (default: the project sizes)', parseList)
+      .option('--screens <list>', 'comma-separated screen ids or ordinals (default: all)', parseList)
+      .option('--jobs <n>', 'pages rendered in parallel', parsePositiveInt, 4)
+      .option('--dry-run', 'plan the matrix and check inputs; write nothing')
+      .option('--no-sheet', 'skip the contact sheet')
+      .option('--strict', 'treat warn-level warnings as errors')
+      .option('--allow-placeholder', 'render missing captures as placeholders (warn instead of error)'),
+    ({ globals, opts }) => renderCommand(globals, opts),
+  );
 }

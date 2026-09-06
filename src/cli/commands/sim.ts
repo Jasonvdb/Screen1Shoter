@@ -1,9 +1,21 @@
 // `s1s sim list | status-bar | appearance`: thin wrappers over src/core/sim.ts.
 import { Argument, type Command } from 'commander';
 import { appearance, findSim, listSims, statusBar } from '../../core/sim.ts';
-import { runAction, table, type CommandOutput } from '../output.ts';
+import { defineAction, table, type CommandOutput, type NoOpts } from '../output.ts';
 
-async function listCommand(opts: { all?: boolean }): Promise<CommandOutput> {
+type Appearance = 'light' | 'dark';
+const APPEARANCES: readonly Appearance[] = ['light', 'dark'];
+
+interface ListFlags {
+  all?: boolean;
+}
+
+interface StatusBarFlags {
+  time: string;
+  clear?: boolean;
+}
+
+async function listCommand(opts: ListFlags): Promise<CommandOutput> {
   const devices = (await listSims()).filter((d) => opts.all === true || d.isAvailable);
   const rows = devices.map((d) => [d.name, d.state, d.runtime, d.udid]);
   return {
@@ -12,7 +24,7 @@ async function listCommand(opts: { all?: boolean }): Promise<CommandOutput> {
   };
 }
 
-async function statusBarCommand(target: string, opts: { time: string; clear?: boolean }): Promise<CommandOutput> {
+async function statusBarCommand(target: string, opts: StatusBarFlags): Promise<CommandOutput> {
   const device = await findSim(target);
   const clear = opts.clear === true;
   const { supported } = await statusBar(device.udid, clear ? { clear: true } : { time: opts.time });
@@ -26,7 +38,7 @@ async function statusBarCommand(target: string, opts: { time: string; clear?: bo
   };
 }
 
-async function appearanceCommand(target: string, mode: 'light' | 'dark'): Promise<CommandOutput> {
+async function appearanceCommand(target: string, mode: Appearance): Promise<CommandOutput> {
   const device = await findSim(target);
   await appearance(device.udid, mode);
   return {
@@ -38,28 +50,30 @@ async function appearanceCommand(target: string, mode: 'light' | 'dark'): Promis
 export function registerSim(program: Command): void {
   const sim = program.command('sim').description('Simulator helpers built on `xcrun simctl`');
 
-  sim
-    .command('list')
-    .description('List simulators (available ones by default)')
-    .option('--all', 'include unavailable devices')
-    .action((opts: { all?: boolean }, cmd: Command) => runAction(cmd, () => listCommand(opts)));
+  defineAction<ListFlags>(
+    sim
+      .command('list')
+      .description('List simulators (available ones by default)')
+      .option('--all', 'include unavailable devices'),
+    ({ opts }) => listCommand(opts),
+  );
 
-  sim
-    .command('status-bar')
-    .description('Set the App Store status bar: 9:41, Wi-Fi, full signal, charged battery')
-    .argument('<udid|name>', 'simulator udid or exact device name')
-    .option('--time <text>', 'clock text', '9:41')
-    .option('--clear', 'remove the override')
-    .action((target: string, opts: { time: string; clear?: boolean }, cmd: Command) =>
-      runAction(cmd, () => statusBarCommand(target, opts)),
-    );
+  defineAction<StatusBarFlags, [string]>(
+    sim
+      .command('status-bar')
+      .description('Set the App Store status bar: 9:41, Wi-Fi, full signal, full battery (no charging bolt)')
+      .argument('<udid|name>', 'simulator udid or exact device name')
+      .option('--time <text>', 'clock text', '9:41')
+      .option('--clear', 'remove the override'),
+    ({ args: [target], opts }) => statusBarCommand(target, opts),
+  );
 
-  sim
-    .command('appearance')
-    .description('Switch the simulator UI to light or dark')
-    .argument('<udid|name>', 'simulator udid or exact device name')
-    .addArgument(new Argument('<mode>', 'light or dark').choices(['light', 'dark']))
-    .action((target: string, mode: 'light' | 'dark', cmd: Command) =>
-      runAction(cmd, () => appearanceCommand(target, mode)),
-    );
+  defineAction<NoOpts, [string, Appearance]>(
+    sim
+      .command('appearance')
+      .description('Switch the simulator UI to light or dark')
+      .argument('<udid|name>', 'simulator udid or exact device name')
+      .addArgument(new Argument('<mode>', 'light or dark').choices([...APPEARANCES])),
+    ({ args: [target, mode] }) => appearanceCommand(target, mode),
+  );
 }

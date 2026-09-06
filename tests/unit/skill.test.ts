@@ -63,6 +63,7 @@ function registeredCommands(): Set<string> {
     .filter((name) => name.endsWith('.ts'))
     .map((name) => read(join(dir, name)));
   sources.push(read(join(REPO_ROOT, 'src', 'cli', 'main.ts')));
+  sources.push(read(join(REPO_ROOT, 'src', 'cli', 'program.ts')));
   const names = new Set<string>();
   for (const source of sources) {
     for (const m of source.matchAll(/\.command\('([a-z][a-z0-9-]*)'\)/g)) names.add(m[1] as string);
@@ -141,11 +142,22 @@ describe('skill markdown hygiene', () => {
 });
 
 describe('skill and CLI stay in step', () => {
+  // Only scan code: fenced blocks and inline code spans. Prose legitimately
+  // says things like "until s1s can paint the time", where "can" is English,
+  // not a subcommand, and matching it produced a false failure.
+  const codeOnly = (markdown: string): string => {
+    const chunks: string[] = [];
+    for (const m of markdown.matchAll(/```[^\n]*\n([\s\S]*?)```/g)) chunks.push(m[1] as string);
+    const prose = markdown.replace(/```[^\n]*\n[\s\S]*?```/g, '');
+    for (const m of prose.matchAll(/`([^`\n]+)`/g)) chunks.push(m[1] as string);
+    return chunks.join('\n');
+  };
+
   it('every `s1s <command>` the skill names is registered in the CLI', () => {
     const registered = registeredCommands();
     const unknown = new Set<string>();
     for (const file of skillMarkdownFiles()) {
-      for (const m of read(file).matchAll(/\bs1s ([a-z][a-z0-9-]*)/g)) {
+      for (const m of codeOnly(read(file)).matchAll(/\bs1s ([a-z][a-z0-9-]*)/g)) {
         const name = m[1] as string;
         if (!registered.has(name)) unknown.add(`${relative(REPO_ROOT, file)}: s1s ${name}`);
       }

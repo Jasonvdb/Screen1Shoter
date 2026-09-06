@@ -25,7 +25,7 @@ export interface CommandOutput {
   exitCode?: number;
 }
 
-export function globalsOf(cmd: Command): GlobalOpts {
+function globalsOf(cmd: Command): GlobalOpts {
   return cmd.optsWithGlobals<GlobalOpts>();
 }
 
@@ -66,7 +66,7 @@ function describeError(err: unknown): { code: string; message: string; hint: str
  * Runs a command handler with the merged global options, prints its output
  * and maps thrown errors to `{ ok: false }` plus an exit code.
  */
-export async function runAction(
+async function runAction(
   cmd: Command,
   handler: (globals: GlobalOpts) => Promise<CommandOutput>,
 ): Promise<void> {
@@ -77,6 +77,62 @@ export async function runAction(
   } catch (err) {
     process.exitCode = emitError(err, { json });
   }
+}
+
+// --- action registration -----------------------------------------------------
+
+/** A command that declares no options of its own. */
+export type NoOpts = Record<string, never>;
+
+/** What a command handler gets: its parsed positionals, its own options, the merged globals. */
+export interface ActionContext<Opts, Args extends readonly unknown[]> {
+  /** Positional arguments, in declaration order (`cmd.processedArgs`). */
+  args: Args;
+  /** This command's own options (`cmd.opts()`), without the globals. */
+  opts: Opts;
+  /** Root options merged with this command's (`--project`, `--json`). */
+  globals: GlobalOpts;
+  /** The command being run. */
+  cmd: Command;
+}
+
+/**
+ * Commander calls an action handler as `(...positionalArgs, options, command)`,
+ * so a handler that declares one parameter too few silently receives the
+ * options object where it expects the Command and any `optsWithGlobals()` on it
+ * throws `cmd.optsWithGlobals is not a function`. Register actions through
+ * `defineAction`/`defineRawAction` instead: the handler takes no positional
+ * parameters, the Command is the one captured at registration, and its
+ * arguments and options are read back off it after commander parsed them.
+ */
+function actionContext<Opts, Args extends readonly unknown[]>(cmd: Command, globals: GlobalOpts): ActionContext<Opts, Args> {
+  return { args: cmd.processedArgs as unknown as Args, opts: cmd.opts() as Opts, globals, cmd };
+}
+
+/** Commands whose action came from `defineAction`/`defineRawAction`; every leaf command must be one (tests/unit/cli-actions.test.ts). */
+const DEFINED_ACTIONS = new WeakSet<Command>();
+
+/** True when this command's action was registered arity-independently. */
+export function hasDefinedAction(cmd: Command): boolean {
+  return DEFINED_ACTIONS.has(cmd);
+}
+
+/** Registers a handler that returns a `CommandOutput`; printing and error mapping are handled here. */
+export function defineAction<Opts = NoOpts, Args extends readonly unknown[] = readonly []>(
+  cmd: Command,
+  handler: (ctx: ActionContext<Opts, Args>) => Promise<CommandOutput>,
+): Command {
+  DEFINED_ACTIONS.add(cmd);
+  return cmd.action(() => runAction(cmd, (globals) => handler(actionContext<Opts, Args>(cmd, globals))));
+}
+
+/** Registers a handler that owns its own output and error handling (`s1s dev` stays up until a signal). */
+export function defineRawAction<Opts = NoOpts, Args extends readonly unknown[] = readonly []>(
+  cmd: Command,
+  handler: (ctx: ActionContext<Opts, Args>) => Promise<void>,
+): Command {
+  DEFINED_ACTIONS.add(cmd);
+  return cmd.action(() => handler(actionContext<Opts, Args>(cmd, globalsOf(cmd))));
 }
 
 /** Progress line on stderr (safe in --json mode). */

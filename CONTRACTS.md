@@ -291,8 +291,16 @@ export async function writeReview(project: Project, report: RenderReport): Promi
 ```
 
 ### src/cli (implementer 4)
-- `src/cli/main.ts` builds the commander program and is the target of
-  `bin/s1s.js`. `process.env.S1S_ROOT` is the checkout root.
+- `src/cli/main.ts` parses argv and is the target of `bin/s1s.js`;
+  `src/cli/program.ts` builds the commander program (`buildProgram()`,
+  `allCommands()`). `process.env.S1S_ROOT` is the checkout root.
+- Every command registers its action with `defineAction` (or `defineRawAction`
+  for `s1s dev`, which owns its own output) from `src/cli/output.ts`. Commander
+  calls an action handler as `(...positionalArgs, options, command)`, so a
+  hand-written callback with one parameter too few silently receives the
+  options object where it expects the Command; `defineAction` closes over the
+  command and reads `args`/`opts`/`globals` off it instead. Never call
+  `.action()` directly (tests/unit/cli-actions.test.ts enforces this).
 - `src/cli/output.ts`: `emit(result, { json })` prints one JSON object
   (`{ ok: true, ...data }`) to stdout in `--json` mode, human text otherwise.
   Progress and logs go to stderr. Errors: `{ ok: false, error: { code,

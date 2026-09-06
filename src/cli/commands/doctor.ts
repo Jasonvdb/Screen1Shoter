@@ -9,7 +9,7 @@ import { isS1sError } from '../../core/errors.ts';
 import { run, which } from '../../core/exec.ts';
 import { S1S_HOME, bezelDir, toolRoot } from '../../core/paths.ts';
 import { ensureDeveloperDir, listSims } from '../../core/sim.ts';
-import { bullets, runAction, table, type CommandOutput } from '../output.ts';
+import { bullets, defineAction, table, type CommandOutput } from '../output.ts';
 import { cliLinkPath } from './link.ts';
 
 export type CheckStatus = 'ok' | 'warn' | 'fail';
@@ -168,8 +168,10 @@ async function doctorCommand(): Promise<CommandOutput> {
 }
 
 export function registerDoctor(program: Command): void {
-  program
-    .command('doctor')
-    .description('Check node, tsx, Playwright + Chromium, sharp, bezels, asc, simctl and the CLI link')
-    .action((_opts: unknown, cmd: Command) => runAction(cmd, () => doctorCommand()));
+  defineAction(
+    program
+      .command('doctor')
+      .description('Check node, tsx, Playwright + Chromium, sharp, bezels, asc, simctl and the CLI link'),
+    () => doctorCommand(),
+  );
 }

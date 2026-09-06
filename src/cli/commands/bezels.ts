@@ -10,7 +10,11 @@ import { bezelIndexPath, findBezel, readBezelIndex } from '../../core/bezels/ind
 import { cacheDirs, downloadDmg, installBezels, listPngs, openSource, type InstallResult } from '../../core/bezels/install.ts';
 import { BEZEL_SOURCE_IDS, isBezelSourceId, normaliseBezelFilename } from '../../core/bezels/sources.ts';
 import { errorMessage } from '../../core/fs.ts';
-import { bullets, log, parseList, runAction, table, type CommandOutput } from '../output.ts';
+import { bullets, defineAction, log, parseList, table, type CommandOutput } from '../output.ts';
+
+interface InspectFlags {
+  keepDmg?: boolean;
+}
 
 interface InstallFlags {
   device?: string[];
@@ -95,7 +99,7 @@ async function inspectPng(path: string, rel: string): Promise<InspectedPng> {
 }
 
 /** A URL is downloaded to S1S_HOME/dmg and, like `install`, deleted afterwards unless --keep-dmg; a local path is never touched. */
-async function inspectCommand(target: string, flags: { keepDmg?: boolean }): Promise<CommandOutput> {
+async function inspectCommand(target: string, flags: InspectFlags): Promise<CommandOutput> {
   const dirs = cacheDirs();
   let source = target;
   let downloaded: string | null = null;
@@ -203,26 +207,30 @@ async function listCommand(): Promise<CommandOutput> {
 export function registerBezels(program: Command): void {
   const bezels = program.command('bezels').description('Install and list Apple product bezels (cached under S1S_HOME/bezels)');
 
-  bezels
-    .command('inspect')
-    .description('Mount a bezel DMG (or read a folder) and print every PNG with its size and proposed id/variant')
-    .argument('<dmg-url|path>', 'Apple DMG URL, a local .dmg, or a directory of PNGs')
-    .option('--keep-dmg', 'keep a downloaded DMG under S1S_HOME/dmg after inspecting')
-    .action((target: string, opts: { keepDmg?: boolean }, cmd: Command) => runAction(cmd, () => inspectCommand(target, opts)));
+  defineAction<InspectFlags, [string]>(
+    bezels
+      .command('inspect')
+      .description('Mount a bezel DMG (or read a folder) and print every PNG with its size and proposed id/variant')
+      .argument('<dmg-url|path>', 'Apple DMG URL, a local .dmg, or a directory of PNGs')
+      .option('--keep-dmg', 'keep a downloaded DMG under S1S_HOME/dmg after inspecting'),
+    ({ args: [target], opts }) => inspectCommand(target, opts),
+  );
 
-  bezels
-    .command('install')
-    .description(`Download, measure and cache bezels (default: the presets' bezels; ids: ${BEZEL_SOURCE_IDS.join(', ')})`)
-    .option('--device <ids>', 'comma-separated bezel ids', parseList)
-    .option('--all', 'every model in the known DMGs')
-    .option('--from <path>', 'a downloaded .dmg or a directory of PNGs instead of downloading')
-    .option('--keep-dmg', 'keep the DMG under S1S_HOME/dmg after installing')
-    .option('--force', 're-measure bezels that are already installed')
-    .option('--landscape', 'also install landscape files')
-    .action((opts: InstallFlags, cmd: Command) => runAction(cmd, () => installCommand(opts)));
+  defineAction<InstallFlags>(
+    bezels
+      .command('install')
+      .description(`Download, measure and cache bezels (default: the presets' bezels; ids: ${BEZEL_SOURCE_IDS.join(', ')})`)
+      .option('--device <ids>', 'comma-separated bezel ids', parseList)
+      .option('--all', 'every model in the known DMGs')
+      .option('--from <path>', 'a downloaded .dmg or a directory of PNGs instead of downloading')
+      .option('--keep-dmg', 'keep the DMG under S1S_HOME/dmg after installing')
+      .option('--force', 're-measure bezels that are already installed')
+      .option('--landscape', 'also install landscape files'),
+    ({ opts }) => installCommand(opts),
+  );
 
-  bezels
-    .command('list')
-    .description('Show the installed bezels and which preset uses each one')
-    .action((_opts: unknown, cmd: Command) => runAction(cmd, () => listCommand()));
+  defineAction(
+    bezels.command('list').description('Show the installed bezels and which preset uses each one'),
+    () => listCommand(),
+  );
 }
