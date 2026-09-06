@@ -1,22 +1,12 @@
-// Picks the bezel for a preset from /bezels/index.json (cached per page).
-// 404 or no matching id -> generic CSS frame geometry plus a bezel-fallback flag.
+// Picks the bezel for a preset from /bezels/index.json (fetched once per page,
+// token held so the renderer waits). 404 or no matching id -> generic CSS
+// frame geometry plus fallback: 'generic'. The pure selection is in bezel.ts.
 import { useEffect, useState } from 'react';
-import type { BezelEntry, BezelIndex, SizePreset, Theme } from '../../config/types.ts';
-import type { FrameGeometry } from '../components/DeviceFrame.tsx';
-import { genericGeometry } from '../components/GenericBezel.tsx';
+import type { BezelIndex, SizePreset, Theme } from '../../config/types.ts';
 import { acquire } from '../runtime/ready.ts';
+import { selectBezel, type BezelOptions, type ReadyBezel } from './bezel.ts';
 
-export interface ReadyBezel {
-  status: 'ready';
-  /** null when no bezel is installed for the preset. */
-  entry: BezelEntry | null;
-  geometry: FrameGeometry;
-  /** '/bezels/<id>/<variant>.png' or null for the generic frame. */
-  url: string | null;
-  /** preset.bezel: the id we wanted (reported by the bezel-fallback warning). */
-  wantedId: string;
-  variant: string | null;
-}
+export type { BezelFallback, BezelOptions, ReadyBezel } from './bezel.ts';
 
 export type BezelLookup = { status: 'loading' } | ReadyBezel;
 
@@ -44,31 +34,12 @@ export function loadBezelIndex(): Promise<BezelIndex | null> {
   return indexPromise;
 }
 
-function bezelUrl(entry: BezelEntry): string {
-  return `/bezels/${entry.file.split('/').map(encodeURIComponent).join('/')}`;
+/** `opts.variant` beats theme.bezelVariant; `opts.bezelId` beats preset.bezel. */
+export function lookupBezel(index: BezelIndex | null, preset: SizePreset, theme: Theme, opts: BezelOptions = {}): ReadyBezel {
+  return selectBezel(index, preset, { bezelId: opts.bezelId, variant: opts.variant ?? theme.bezelVariant });
 }
 
-/** Preferred id first, then the fallbacks; theme variant when installed, else the first variant. */
-export function lookupBezel(index: BezelIndex | null, preset: SizePreset, theme: Theme): ReadyBezel {
-  for (const id of [preset.bezel, ...preset.bezelFallbacks]) {
-    const matches = index?.entries.filter((e) => e.id === id && e.orientation === 'portrait') ?? [];
-    const wanted = theme.bezelVariant === 'auto' ? undefined : matches.find((e) => e.variant === theme.bezelVariant);
-    const entry = wanted ?? matches[0];
-    if (entry) {
-      return { status: 'ready', entry, geometry: entry, url: bezelUrl(entry), wantedId: preset.bezel, variant: entry.variant };
-    }
-  }
-  return {
-    status: 'ready',
-    entry: null,
-    geometry: genericGeometry(preset.family, preset.pt),
-    url: null,
-    wantedId: preset.bezel,
-    variant: null,
-  };
-}
-
-export function useBezel(preset: SizePreset, theme: Theme): BezelLookup {
+export function useBezel(preset: SizePreset, theme: Theme, opts: BezelOptions = {}): BezelLookup {
   const [index, setIndex] = useState<BezelIndex | null | undefined>(indexValue);
   useEffect(() => {
     if (index !== undefined) return;
@@ -83,5 +54,5 @@ export function useBezel(preset: SizePreset, theme: Theme): BezelLookup {
       alive = false;
     };
   }, [index]);
-  return index === undefined ? { status: 'loading' } : lookupBezel(index, preset, theme);
+  return index === undefined ? { status: 'loading' } : lookupBezel(index, preset, theme, opts);
 }

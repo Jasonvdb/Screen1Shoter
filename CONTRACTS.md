@@ -1,4 +1,4 @@
-# Screen1Shoter contracts (W1 Stage A)
+# Screen1Shoter contracts (W1 Stage A, extended in W2)
 
 This file is the boundary the five Stage B implementers build against. The
 files listed under "Frozen" exist and type-check; everything else is described
@@ -97,8 +97,12 @@ resolve.ts
   `renderRoute(locale, sizeId, screenId)`, `sheetRoute(locale, sizeId)`.
 
 template-meta.ts
-: `TemplateMeta`, `BUILTIN_TEMPLATES`, `DEFAULT_TEMPLATE` (iphone/ipad
-  `hero-top-text`, watch `raw`), `templateMeta(id)`, `isBuiltinTemplate(id)`.
+: `TemplateMeta` (`captures?` = captures a screen must list, `callouts?` =
+  most `copy.callouts` shown; `loadProject` rejects a wrong capture count,
+  the renderer and the browser flag extra callouts as `overflow` on
+  `[data-s1s-id="callouts"]`), `BUILTIN_TEMPLATES`, `DEFAULT_TEMPLATE`
+  (iphone/ipad `hero-top-text`, watch `raw`), `templateMeta(id)`,
+  `isBuiltinTemplate(id)`.
 
 warnings.ts
 : `WARNING_LEVELS` (default level per code), `makeWarning(code, message,
@@ -274,7 +278,7 @@ export interface RenderOptions {
   onProgress?: (item: RenderReportItem) => void;
 }
 export async function renderProject(project: Project, opts: RenderOptions): Promise<RenderReport>;
-  // writes PNGs, previews, report.json, review.md, (sheet in W2), updates manifest via updateImage + writeManifest.
+  // writes PNGs, previews, report.json, review.md, contact sheets (sheet.ts, unless sheet === false), updates manifest via updateImage + writeManifest.
   // per item: goto url -> waitForFunction(() => window.__S1S_READY) -> warnings = [...node warnings, ...await page.evaluate(() => window.__S1S.check())]
   //   -> screenshot({ scale: 'device', animations: 'disabled', fullPage: false }) -> postProcess -> write every output -> writePreview.
 
@@ -294,8 +298,8 @@ export async function writeReview(project: Project, report: RenderReport): Promi
   Progress and logs go to stderr. Errors: `{ ok: false, error: { code,
   message, hint } }`, exit `S1sError.exitCode` (1 failure, 2 usage).
 - Exit codes: 0 ok; 1 failure or error-level warnings; 2 usage.
-- Commands in W1: `init`, `link [--cli]`, `doctor`, `dev`, `render`,
-  `capture`, `sim list|status-bar|appearance`. `bezels`, `sheet` (W2) and
+- Commands: `init`, `link [--cli]`, `doctor`, `dev`, `render`, `sheet`,
+  `capture`, `sim list|status-bar|appearance`, `bezels inspect|install|list`.
   `status`, `export`, `validate` (W5) are registered as stubs that print
   "not implemented" with exit 2.
 - `link --cli` creates `~/.local/bin/s1s -> <S1S_ROOT>/bin/s1s.js`
@@ -311,7 +315,8 @@ Routes (hash router, no server routing):
   no other DOM. `sizeId` is always a render target, never an alias.
 - `/#/gallery` — every screen x size as scaled iframes of render routes with
   locale and size switchers (dev only).
-- `/#/sheet/<locale>/<sizeId>` — contact sheet (W2).
+- `/#/sheet/<locale>/<sizeId>?scale=&columns=` — contact sheet: reads
+  `/project/out/<locale>/report.json` and tiles the finished PNGs (see §6b).
 
 Virtual modules (provided by `s1sPlugin`):
 - `virtual:s1s-screens` — default export `ScreensConfig` (`<project>/screens.ts`).
@@ -364,6 +369,10 @@ Data attributes:
 - `data-s1s-allow-bleed` on a container whose overflow is intentional.
 - `data-s1s-noncompliant="<template id>"` on the canvas when the template is
   not guideline-compliant (`bleed-bottom`, `tilted`); review.md lists these.
+- `data-s1s-bezel="<id>/<variant>"` (or `"generic"`) on every `DeviceFrame`
+  root (`data-s1s-id="device"`), `data-s1s-bezel-fallback="<wanted id>"` when
+  a substitute id or the generic frame was used (`checks.ts` -> `bezel-fallback`,
+  message names the substitute), `data-s1s-sheet` on the finished sheet page.
 
 Template module shape (define in `src/runtime/index.ts`):
 ```ts
@@ -380,7 +389,7 @@ screenshots/out/<locale>/
   <APP_DISPLAY_TYPE>/preview/NN-<id>.png    1/3 scale
   report.json                               RenderReport
   review.md                                 human review notes (warnings, non-compliant templates)
-  sheet-<sizeId>.png                        contact sheet (W2)
+  sheet-<sizeId>.png                        contact sheet (every screen of the size, RGB, no alpha)
 screenshots/captures/<locale>/<family>/<ref>.png
 screenshots/copy/<locale>.json              LocaleCopy
 screenshots/manifest.json                   ProjectManifest
@@ -389,20 +398,100 @@ screenshots/manifest.json                   ProjectManifest
 An alias size (`iphone-6.7`) is rendered once and written to both display
 type folders. `NN` is 1-based, two digits, contiguous per size.
 
+## 6a. Bezels (W2)
+
+Cache: `S1S_HOME/bezels/<id>/<variant>[-landscape].png` + `index.json`
+(`BezelIndex`), DMGs under `S1S_HOME/dmg`, mounts under `S1S_HOME/mnt`. Never
+inside the repo. `/bezels/*` serves the cache dir to the browser.
+
+```ts
+// src/core/bezels/sources.ts (Stage A facts; docs/bezels.md is the human record)
+export const BEZEL_DMGS, BEZEL_SOURCES, BEZEL_SOURCE_IDS; export function isBezelSourceId, dmgsFor(ids), normaliseBezelFilename(path), sourceForFile(path);
+  // ids: iphone-17-pro-max iphone-17-pro iphone-17 iphone-air ipad-pro-13-m5 ipad-pro-11-m5; variants[0] is the 'auto' colour
+// src/core/bezels/measure.ts (sharp raw RGBA; unit-tested on a synthetic bezel)
+export function measureBezel(path): Promise<BezelMeasurement>;   // deviceRect (alpha > 12 bbox), screenRect, cornerRadius, islandRect?, pxPerPt (matching preset's scale, else dpi/72)
+export function writeTrimmedBezel(...)                            // deviceRect + TRIM_PAD (2 px)
+// src/core/bezels/install.ts
+export async function installBezels(opts: { devices?, all?, from?, keepDmg?, force?, landscape?, home?, log? }): Promise<InstallResult>;
+  // download (.part + Content-Length skip) -> hdiutil attach -> measure -> trim -> upsert index -> detach -> delete DMG unless keepDmg.
+  // A known id whose measured screen differs from sources.ts by > 1 px is skipped at error level (exit 1).
+// src/core/bezels/index.ts
+export async function readBezelIndex(dir?), writeBezelIndex(index, dir?); export function findBezel(index, preset, variant = 'auto'): BezelMatch | null;
+  // portrait entries only; preset.bezel then preset.bezelFallbacks; entries sorted id, portrait first, then sources.ts variant order so 'auto' = variants[0]
+```
+
+Install robustness: an unreadable `index.json` is moved to `index.json.bak`
+and rebuilt (read-only consumers such as `list` still throw `bezel-missing`
+with that hint); one PNG that fails to measure is an error-level `skipped`
+entry, not an abort, and the index is written in a `finally` so entries
+measured before an abort stay indexed. `mountDmg` detaches on SIGINT/SIGTERM
+and re-raises the signal.
+
+CLI: `s1s bezels inspect <dmg-url|path> [--keep-dmg]` (a URL is downloaded to
+`S1S_HOME/dmg` and deleted afterwards unless `--keep-dmg`), `s1s bezels
+install [--device ids] [--all] [--from dmg|dir] [--keep-dmg] [--force]
+[--landscape]`, `s1s bezels list` (all `--json`; the text table's "used by"
+column marks fallbacks like the `--json` `presets` map). Browser: `src/web/hooks/bezel.ts` (`selectBezel`,
+`frameLayout`, `SCREEN_GROW` = 1 bezel px) is DOM-free and mirrors
+`findBezel`; `useBezel(preset, theme, { bezelId?, variant? })` fetches
+`/bezels/index.json` once per page under a readiness token.
+`DeviceFrame({ captures, preset, theme, bezelId?, variant?, fit?: 'slot' |
+{ width?, height? }, maxWidth?, maxHeight?, align?, crop?, rotate?,
+allowBleed?, captureHint?, style? })` resolves its own bezel: capture box = screenRect
+fractions of deviceRect grown by 1 bezel px, `border-radius` from
+cornerRadius, bezel `<img>` on top (the opaque island covers the capture),
+decoded under a `bezel-image` token. `useCapture` holds its `capture` token
+only while its `<img>` is mounted; a frame whose slot collapsed to zero
+mounts nothing and flags the slot `data-s1s-overflow="overflow"` (with a
+`data-s1s-overflow-why` explanation `checks.ts` prints), so the page still
+becomes ready. Verified on the real iPhone 17 Pro Max
+(screen (56,48) 1320x2868, aspect 0.4603, radius 189, island (529,91)
+374x108, px/pt 3) and iPad Pro 13 M5 ((92,96) 2064x2752, 0.75, radius 58,
+no island, px/pt 2).
+
+## 6b. Contact sheet (W2)
+
+```ts
+// src/render/sheet.ts
+export interface SheetOptions { locale: string; sizes?: string[]; scale?: number /* 0.25 of the OUTPUT px */; columns?: number /* 5 */; serverUrl?: string; report?: RenderReport; onProgress? }
+export async function sheetProject(project, opts: SheetOptions): Promise<SheetResult>;  // one out/<locale>/sheet-<sizeId>.png per size in report.json
+// src/web/app/sheet-model.ts (DOM-free, shared by SheetPage, sheet.ts and tests): SHEET_DEFAULTS, normaliseSheetParams, sheetLayout(preset, params, tileCount) -> exact page dims, sheetTiles, sheetSummary
+```
+
+`SheetPage` (`/#/sheet/<locale>/<sizeId>`) shows the finished PNGs as `<img>`
+tiles with ordinal, id, template and warning summary (red border on
+error/failed, amber on warn/skipped, hatched panel for failed or missing
+files). `sheet.ts` opens it at DSF 1 with the viewport = `sheetLayout()`
+dims, waits for `__S1S_READY` + `[data-s1s-sheet]`, screenshots fullPage,
+flattens, removes alpha and asserts the dims. `renderProject` deletes
+`out/<locale>/sheet-<sizeId>.png` for every size of the run, then calls
+`sheetProject` after `writeReview` unless `sheet === false`; a sheet failure
+is one stderr line and does not fail the render. `RenderReport.sheets`
+(`RenderSheet[]`: sizeId, displayType, path, dims, tiles) lists what this run
+wrote (report.json is rewritten with it); the CLI prints `Sheets:` and the
+`--json` `sheets` field from that list only, never from files on disk.
+A `--screens` render carries the untouched items of the previous
+`out/<locale>/report.json` (same locale, keys not in this run) into the
+report.json, review.md and sheets it writes, so they keep describing the
+whole set while the returned `RenderReport` (and the CLI output) lists this
+run only; sheets are written for this run's sizes only.
+
 ## 7. Tests (implementer 5)
 
 - Unit tests live in `tests/unit/*.test.ts`, import sources relatively with
   `.ts`, and use only `src/config` plus the Node signatures above. Where a
   Stage B module is not yet present, write the test against the signature
   here; the integrator wires it. Fixtures go in `tests/fixtures/`.
-- Smoke test `tests/smoke/render.smoke.test.ts` (present since W1 Stage C):
-  copy `example/screenshots` to a temp dir, generate 1320x2868 and 2064x2752
-  captures with `writeExampleCaptures`, `linkProject`, `loadProject({
-  projectDir })` and `renderProject(project, { locale: 'en-US', sizes:
-  ['iphone-6.9', 'ipad-13'], sheet: false })`, assert exact dims,
-  `hasAlpha === false`, `counts.errors === 0`, `report.ok === true`,
-  `review.md` exists. Until W2 installs bezels every item carries a
-  warn-level `bezel-fallback`, which does not flip `report.ok`.
+- Smoke tests (`pnpm test:smoke`, no network): `render.smoke.test.ts`
+  renders a copy of `example/` for `iphone-6.9` + `ipad-13` with synthetic
+  magenta bezels in a temp `S1S_HOME` (`tests/fixtures/make-bezel.ts`, geometry
+  from `sources.ts`) and asserts exact dims, no alpha, no failures or
+  bezel-fallback, the capture fills the rounded screen (no canvas background
+  inside the screen shape), the island covers the capture, sheets match
+  `sheetLayout()`, identical hashes on re-render; plus watch passthrough
+  (416x496, byte-identical pixels) and a feature-grid iPad render.
+  `bezels.smoke.test.ts` runs `s1s bezels inspect|install|list --json`
+  against a synthetic DMG folder tree.
 - `vitest run --project unit` passes with zero test files (`passWithNoTests`).
 
 ## 8. File ownership (Stage B)
@@ -454,7 +543,43 @@ Decisions taken:
   and exit codes; `s1s init` prints `s1s render --allow-placeholder` as the
   first render step.
 
-Still open (not blocking W1):
+Integrated in W2 Stage C: `pnpm check` (295 unit tests) and `pnpm test:smoke`
+(17 tests) green; real bezels installed from the cached DMGs
+(`s1s bezels install --device iphone-17-pro-max,ipad-pro-13-m5 --keep-dmg`);
+`s1s render` on `example/` yields 10 items (5 screens x 2 sizes) with zero
+warnings, exact px, no alpha, clean screen corners and two contact sheets;
+watch passthrough verified on a temp project. Decisions: `hero-top-text` /
+`text-bottom` render `DeviceFrame` in slot mode (no `FitBox`); the bezel
+index is always rewritten on install so entries follow sources.ts variant
+order; the smoke gap check scans the rounded screen shape, not its bounding
+box (the box corners lie outside the body on a 189 px radius).
+
+W2 review fixes (Stage C review round): `useCapture` holds its token only
+while an `<img>` is mounted and `DeviceFrame` flags a collapsed slot instead
+of deadlocking; `installBezels` rebuilds a corrupt index (`.bak`), skips one
+unmeasurable PNG per file and writes the index in a `finally`; `mountDmg`
+detaches on SIGINT/SIGTERM; `openSource` errors name the argument
+(`<dmg-url|path>` for inspect); index entries sort portrait first;
+`s1s bezels --json` without a subcommand lists `inspect, install, list`;
+`mergeWarnings` also de-duplicates among browser warnings; `two-device`
+stacks on both families (`LAYOUT` in `two-device-layout.ts`, unit-tested
+against sources.ts: island and status bar clear, back device >= 50 %
+visible, pair fills the row; `props.arrangement: 'side'` keeps the old iPad
+layout); `TemplateMeta.captures` / `callouts` drive `loadProject`
+(`needs capture: [a, b] (got 1)`) and an `overflow` warning for extra
+callouts; `RenderReport.sheets` lists the sheets this run wrote and stale
+sheets are deleted first; the scaffold's template example is the
+type-checked `tests/fixtures/scaffold-template.tsx`.
+
+Still open (not blocking W2):
+- A substitute bezel (e.g. `iphone-6.1` framed with the Pro Max bezel) still
+  emits a warn-level `bezel-fallback`; decide whether that should be info.
+- `sheet.ts` starts its own Vite server + Chromium after the render (about
+  1 s); sharing the render's would mean refactoring `renderBrowserItems`.
+- A failed contact sheet does not fail `s1s render` (stderr line only).
+- `templates/init/screens.ts` documents `two-device` / `feature-grid` in a
+  comment only; the scaffold has no live feature-grid screen (init copy has
+  no callouts and `init.test.ts` pins 4 screens / 7 items).
 - (closed) `loadProject({ reload: true })` re-imports `screens.ts` /
   `theme.ts` with an mtime query under tsx; dev mode uses it for every
   `/__s1s/project.json` request and full-reloads the page when either file

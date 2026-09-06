@@ -85,6 +85,17 @@ describe('mergeWarnings', () => {
     const merged = mergeWarnings(base, extra);
     expect(merged.map((w) => w.message)).toEqual(['node', 'browser other', 'no element']);
   });
+
+  it('collapses duplicates among the extras too (two DeviceFrames, one substitute bezel)', () => {
+    const extra: Warning[] = [
+      makeWarning('bezel-fallback', 'first frame', '[data-s1s-id="device"]'),
+      makeWarning('bezel-fallback', 'second frame', '[data-s1s-id="device"]'),
+      makeWarning('overflow', 'a', '[data-s1s-id="text"]'),
+      makeWarning('overflow', 'b'),
+      makeWarning('overflow', 'c'),
+    ];
+    expect(mergeWarnings([], extra).map((w) => w.message)).toEqual(['first frame', 'a', 'b', 'c']);
+  });
 });
 
 describe('listCaptureLocales', () => {

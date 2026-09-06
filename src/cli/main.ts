@@ -9,19 +9,19 @@ import { join } from 'node:path';
 import { Command, CommanderError } from 'commander';
 import { S1sError } from '../core/errors.ts';
 import { toolRoot } from '../core/paths.ts';
+import { registerBezels } from './commands/bezels.ts';
 import { registerCapture } from './commands/capture.ts';
 import { registerDev } from './commands/dev.ts';
 import { registerDoctor } from './commands/doctor.ts';
 import { registerInit } from './commands/init.ts';
 import { registerLink } from './commands/link.ts';
 import { registerRender } from './commands/render.ts';
+import { registerSheet } from './commands/sheet.ts';
 import { registerSim } from './commands/sim.ts';
 import { emitError, runAction } from './output.ts';
 
 /** Commands from later phases. Registered so `--help` shows the full surface. */
 const LATER_COMMANDS: ReadonlyArray<{ name: string; description: string; phase: string }> = [
-  { name: 'bezels', description: 'Install and list Apple product bezels', phase: 'W2' },
-  { name: 'sheet', description: 'Render a contact sheet per size', phase: 'W2' },
   { name: 'status', description: 'Reconcile the manifest, files on disk and the store', phase: 'W5' },
   { name: 'export', description: 'Copy renders into metadata/screenshots/<locale>/<APP_DISPLAY_TYPE>/NN.png', phase: 'W5' },
   { name: 'validate', description: 'Check an export folder offline against App Store Connect rules', phase: 'W5' },
@@ -63,10 +63,23 @@ function buildProgram(): Command {
   registerDoctor(program);
   registerDev(program);
   registerRender(program);
+  registerSheet(program);
   registerCapture(program);
   registerSim(program);
+  registerBezels(program);
   for (const stub of LATER_COMMANDS) registerStub(program, stub);
   return program;
+}
+
+/** `s1s --json` lists the root commands; `s1s bezels --json` lists the group's subcommands. */
+function missingCommandError(program: Command, argv: readonly string[]): { code: string; message: string; hint: string } {
+  const first = argv.slice(2).find((arg) => !arg.startsWith('-'));
+  const group = program.commands.find((c) => c.name() === first && c.commands.length > 0);
+  const names = (cmd: Command): string => cmd.commands.map((c) => c.name()).join(', ');
+  if (group) {
+    return { code: 'usage', message: `No subcommand given for \`s1s ${group.name()}\`. Commands: ${names(group)}.`, hint: `Run \`s1s ${group.name()} --help\`.` };
+  }
+  return { code: 'usage', message: `No command given. Commands: ${names(program)}.`, hint: 'Run `s1s --help`.' };
 }
 
 async function main(argv: readonly string[]): Promise<void> {
@@ -80,12 +93,8 @@ async function main(argv: readonly string[]): Promise<void> {
       if (err.exitCode === 0) return;
       // Usage errors: commander printed the message (or the help) to stderr.
       if (json) {
-        // No subcommand: commander's own message is the opaque "(outputHelp)".
-        const message =
-          err.code === 'commander.help'
-            ? `No command given. Commands: ${program.commands.map((c) => c.name()).join(', ')}.`
-            : err.message.trim();
-        const error = { code: 'usage', message, hint: 'Run `s1s --help`.' };
+        // No (sub)command: commander's own message is the opaque "(outputHelp)".
+        const error = err.code === 'commander.help' ? missingCommandError(program, argv) : { code: 'usage', message: err.message.trim(), hint: 'Run `s1s --help`.' };
         process.stdout.write(`${JSON.stringify({ ok: false, error })}\n`);
       }
       process.exitCode = 2;

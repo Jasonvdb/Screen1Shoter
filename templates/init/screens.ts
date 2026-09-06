@@ -28,6 +28,11 @@ export default defineScreens({
       only: ['iphone', 'ipad'],
       notes: 'A differentiator. Uses the optional badge from the copy.',
     },
+    // More built-in templates (worked examples in example/screenshots/screens.ts):
+    //   two-device:   `template: 'two-device', capture: ['home', 'detail']` (two captures, one frame pair).
+    //   feature-grid: iPad only. Keep an iPhone template as the base and switch per family:
+    //                 `overrides: { ipad: { template: 'feature-grid' } }`; the copy entry needs
+    //                 1-3 `callouts: [{ title, body }]`.
     // {{watch:start}}
     {
       id: 'watch-stats',

@@ -16,5 +16,7 @@
     "tests",
     "example/screenshots/make-captures.ts",
     "vitest.config.ts"
-  ]
+  ],
+  // JSX; type-checked by tsconfig.web.json instead.
+  "exclude": ["tests/fixtures/scaffold-template.tsx"]
 }

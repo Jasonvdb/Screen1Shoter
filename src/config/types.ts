@@ -400,6 +400,19 @@ export interface RenderReport {
   };
   /** false when any item failed or carries an error-level warning. */
   ok: boolean;
+  /** Contact sheets this run wrote (empty for dry runs, --no-sheet, or a failed sheet step). */
+  sheets: RenderSheet[];
+}
+
+/** One out/<locale>/sheet-<sizeId>.png written by the render (or `s1s sheet`). */
+export interface RenderSheet {
+  sizeId: SizeId;
+  displayType: AppDisplayType;
+  /** Absolute path. */
+  path: string;
+  dims: Dims;
+  /** Screens tiled on the sheet. */
+  tiles: number;
 }
 
 // ---------------------------------------------------------------------------

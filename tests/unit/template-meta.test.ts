@@ -33,11 +33,11 @@ describe('loadProject rejects planned templates', () => {
     const tmp = await makeTempDir();
     try {
       const dir = await writeTempProject(join(tmp.dir, 'screenshots'), {
-        screens: { sizes: ['ipad-13'], screens: [{ id: 'grid', template: 'feature-grid' }] },
+        screens: { sizes: ['ipad-13'], screens: [{ id: 'bleed', template: 'bleed-bottom' }] },
       });
       const error = await catchS1sError(loadProject({ projectDir: dir }));
       expect(error.code).toBe('config-invalid');
-      expect(error.message).toContain('template "feature-grid" is planned for W2; available now: hero-top-text, text-bottom, raw');
+      expect(error.message).toContain('template "bleed-bottom" is planned for W6; available now: hero-top-text, text-bottom, two-device, feature-grid, raw');
     } finally {
       await tmp.cleanup();
     }

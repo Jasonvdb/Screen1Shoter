@@ -11,6 +11,7 @@
   "include": [
     "src/web",
     "src/runtime",
-    "src/config"
+    "src/config",
+    "tests/fixtures/scaffold-template.tsx"
   ]
 }

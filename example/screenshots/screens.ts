@@ -28,5 +28,19 @@ export default defineScreens({
       only: ['iphone', 'ipad'],
       notes: 'A differentiator. Uses the optional badge from the copy.',
     },
+    {
+      id: 'features',
+      template: 'hero-top-text',
+      overrides: { ipad: { template: 'feature-grid' } },
+      only: ['iphone', 'ipad'],
+      notes: 'Three benefits at once. iPhone: hero-top-text; iPad: feature-grid with the callout cards from the copy.',
+    },
+    {
+      id: 'compare',
+      template: 'two-device',
+      capture: ['home', 'detail'],
+      only: ['iphone', 'ipad'],
+      notes: 'Two captures in one frame pair (reuses home and detail), overlapped with the front device lower; props.arrangement: "side" would put them side by side.',
+    },
   ],
 });

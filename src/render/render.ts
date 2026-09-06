@@ -5,20 +5,22 @@ import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { Browser, BrowserContext, Page } from 'playwright';
 import { isSizeId, presetsFor } from '../config/presets.ts';
-import type { LocaleCopy, RenderItem, RenderReport, RenderReportItem, SizeId, Warning } from '../config/types.ts';
+import type { LocaleCopy, RenderItem, RenderReport, RenderReportItem, ResolvedScreen, SizeId, Warning } from '../config/types.ts';
+import { templateMeta } from '../config/template-meta.ts';
 import { makeWarning, mergeWarnings, promoteWarnings } from '../config/warnings.ts';
 import { captureWarnings } from '../core/captures.ts';
 import { unusedCopyKeys } from '../core/copy.ts';
 import { S1sError, isS1sError } from '../core/errors.ts';
 import { writeManifest } from '../core/manifest.ts';
 import { buildMatrix, type MatrixOptions } from '../core/matrix.ts';
-import { bezelDir, reportPath } from '../core/paths.ts';
+import { bezelDir, reportPath, sheetPath } from '../core/paths.ts';
 import type { Project } from '../core/project.ts';
 import { contextFor, launchBrowser } from './browser.ts';
 import { applyManifest, buildReport } from './bookkeeping.ts';
 import { postProcess, writePng, writePreview } from './post.ts';
 import { writeReview } from './review.ts';
 import { createS1sServer, type S1sServer } from './server.ts';
+import { readReport, sheetProject } from './sheet.ts';
 
 export interface RenderOptions {
   locale: string;
@@ -30,7 +32,7 @@ export interface RenderOptions {
   jobs?: number;
   /** Build the matrix and node-side warnings only; write nothing. */
   dryRun?: boolean;
-  /** Contact sheet (W2). Accepted, not yet produced. Default true. */
+  /** Write out/<locale>/sheet-<sizeId>.png per rendered size (sheet.ts). Default true. */
   sheet?: boolean;
   /** Promote warn-level warnings to error. */
   strict?: boolean;
@@ -96,7 +98,24 @@ function nodeWarnings(item: RenderItem, allowPlaceholder: boolean): Warning[] {
       ),
     );
   }
+  const overflow = calloutOverflow(item);
+  if (overflow) warnings.push(overflow);
   return warnings;
+}
+
+/** Element the browser flags for the same problem, so mergeWarnings() keeps one warning. */
+export const CALLOUTS_ELEMENT = '[data-s1s-id="callouts"]';
+
+/** More copy.callouts than the template shows: an error here and in the browser (same element). */
+export function calloutOverflow(item: { screen: Pick<ResolvedScreen, 'template' | 'copy' | 'copyKey'>; locale: string }): Warning | null {
+  const max = templateMeta(item.screen.template)?.callouts;
+  const count = item.screen.copy?.callouts?.length ?? 0;
+  if (max === undefined || count <= max) return null;
+  return makeWarning(
+    'overflow',
+    `copy/${item.locale}.json screens.${item.screen.copyKey}.callouts has ${count} entries; ${item.screen.template} shows at most ${max}`,
+    CALLOUTS_ELEMENT,
+  );
 }
 
 function baseReportItem(item: RenderItem): RenderReportItem {
@@ -464,6 +483,29 @@ async function writeReport(project: Project, report: RenderReport): Promise<stri
   return path;
 }
 
+/**
+ * A `--screens` run renders a subset, but its PNGs sit next to the untouched
+ * ones (no pruning), so report.json, review.md and the sheets keep describing
+ * the whole set: items of the previous report.json that this run did not
+ * render are carried over. The returned report still lists this run only.
+ */
+async function withCarriedItems(project: Project, opts: RenderOptions, sizes: SizeId[], run: RenderReport): Promise<RenderReport> {
+  let previous: RenderReport;
+  try {
+    previous = await readReport(project, opts.locale);
+  } catch {
+    return run;
+  }
+  if (previous.dryRun) return run;
+  const rendered = new Set(run.items.map((i) => i.key));
+  const carried = previous.items.filter((i) => !rendered.has(i.key));
+  if (carried.length === 0) return run;
+  const order = new Map(project.sizes.map((id, index) => [id, index]));
+  const rank = (item: RenderReportItem): number => order.get(item.sizeId) ?? project.sizes.length;
+  const items = [...carried, ...run.items].sort((a, b) => rank(a) - rank(b) || a.ordinal - b.ordinal);
+  return buildReport(project, opts, sizes, items);
+}
+
 // ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
@@ -518,8 +560,26 @@ export async function renderProject(project: Project, opts: RenderOptions): Prom
   const report = buildReport(project, opts, sizes, results);
   project.manifest = applyManifest(project, opts, items, results, report, startedAt);
   await writeManifest(project.manifestPath, project.manifest);
-  await writeReport(project, report);
-  await writeReview(project, report);
-  // opts.sheet: contact sheets arrive with sheet.ts in W2.
+  // On disk the report covers the whole set (see withCarriedItems); the
+  // sheet page reads report.json, so it is written before the sheets and
+  // once more with `sheets` filled in.
+  const written = opts.screens && opts.screens.length > 0 ? await withCarriedItems(project, opts, sizes, report) : report;
+  await writeReport(project, written);
+  await writeReview(project, written);
+  // A sheet from an earlier run must never pass for this one.
+  for (const sizeId of sizes) await rm(sheetPath(project, opts.locale, sizeId), { force: true });
+  if (opts.sheet !== false) {
+    // Sheets are a review aid: a failure here must not hide a finished render.
+    try {
+      // Only this run's sizes (their sheets were just deleted); a size whose screens all sat outside the filters has nothing to tile.
+      const sheetSizes = sizes.filter((id) => written.items.some((i) => i.sizeId === id));
+      const result = await sheetProject(project, { locale: opts.locale, sizes: sheetSizes, report: written, ...(opts.serverUrl ? { serverUrl: opts.serverUrl } : {}) });
+      report.sheets = result.sheets.map(({ sizeId, displayType, path, dims, tiles }) => ({ sizeId, displayType, path, dims, tiles }));
+      written.sheets = report.sheets;
+    } catch (error) {
+      process.stderr.write(`s1s: contact sheet skipped: ${errorMessage(error)}\n`);
+    }
+    await writeReport(project, written);
+  }
   return report;
 }

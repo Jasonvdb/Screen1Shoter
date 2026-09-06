@@ -3,7 +3,14 @@
 import { captureRelPath } from '../../config/resolve.ts';
 import type { CaptureSource } from '../../config/types.ts';
 
-export function MissingCapture({ source, failed = false }: { source: CaptureSource; failed?: boolean }) {
+export interface MissingCaptureProps {
+  source: CaptureSource;
+  failed?: boolean | undefined;
+  /** Replaces the default `s1s capture ...` command line. */
+  hint?: string | undefined;
+}
+
+export function MissingCapture({ source, failed = false, hint }: MissingCaptureProps) {
   const expected = captureRelPath(source.locale, source.family, source.requested);
   const title = failed ? 'Capture failed to load' : 'Missing capture';
   return (
@@ -31,7 +38,7 @@ export function MissingCapture({ source, failed = false }: { source: CaptureSour
     >
       <div style={{ fontWeight: 700, fontSize: '1.15em' }}>{title}</div>
       <div>{failed && source.resolvedPath ? source.resolvedPath : expected}</div>
-      <div style={{ opacity: 0.7 }}>{`s1s capture --name ${source.requested} --device ${source.family} --locale ${source.locale}`}</div>
+      <div style={{ opacity: 0.7 }}>{hint ?? `s1s capture --name ${source.requested} --device ${source.family} --locale ${source.locale}`}</div>
     </div>
   );
 }

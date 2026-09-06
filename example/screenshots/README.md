@@ -1,7 +1,9 @@
 # Example screenshots project
 
-A minimal `s1s` project: three screens (`hero-top-text`, `text-bottom`,
-`hero-top-text`) for `iphone-6.9` and `ipad-13`, English copy, dark theme.
+A minimal `s1s` project: five screens (`hero-top-text`, `text-bottom`,
+`hero-top-text`, `hero-top-text` with `feature-grid` on iPad via
+`overrides.ipad`, and `two-device` reusing the `home` + `detail` captures)
+for `iphone-6.9` and `ipad-13`, English copy, dark theme.
 The smoke test copies this directory to a temp dir and renders it; the
 integrator renders it in place. It mirrors what `s1s init` scaffolds.
 

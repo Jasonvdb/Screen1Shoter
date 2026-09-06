@@ -12,7 +12,8 @@ import sharp from 'sharp';
 import { SIZE_PRESETS } from '../../src/config/presets.ts';
 import type { DeviceFamily, Dims } from '../../src/config/types.ts';
 
-export const EXAMPLE_SCREEN_IDS: readonly string[] = ['home', 'detail', 'share'];
+/** Capture names screens.ts references ("compare" reuses home + detail, so it needs none of its own). */
+export const EXAMPLE_SCREEN_IDS: readonly string[] = ['home', 'detail', 'share', 'features'];
 
 const CAPTURE_DIMS: ReadonlyArray<[DeviceFamily, Dims]> = [
   ['iphone', SIZE_PRESETS['iphone-6.9'].captureDims],

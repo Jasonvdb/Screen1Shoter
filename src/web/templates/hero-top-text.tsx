@@ -6,10 +6,7 @@ import { Badge } from '../components/Badge.tsx';
 import { layoutScale } from '../components/Canvas.tsx';
 import { Caption } from '../components/Caption.tsx';
 import { DeviceFrame } from '../components/DeviceFrame.tsx';
-import { FitBox } from '../components/FitBox.tsx';
 import { Headline } from '../components/Headline.tsx';
-import { useBezel } from '../hooks/useBezel.ts';
-import { placeholderCapture } from '../hooks/useCapture.ts';
 
 interface FontRange {
   min: number;
@@ -79,8 +76,6 @@ export function FramedScreen({ props, layout, order }: FramedScreenProps) {
   const { screen, preset, theme, copy } = props;
   const s = layoutScale(preset);
   const px = (value: number) => Math.round(value * s);
-  const bezel = useBezel(preset, theme);
-  const capture = screen.captures[0] ?? placeholderCapture(screen.id, preset.family, screen.locale);
   const align = screen.props['align'] === 'left' ? 'left' : 'center';
   const maxWidthProp = screen.props['deviceMaxWidth'];
   const deviceMaxWidth = typeof maxWidthProp === 'number' && maxWidthProp > 0 && maxWidthProp <= 1 ? maxWidthProp : layout.deviceMaxWidth;
@@ -124,18 +119,16 @@ export function FramedScreen({ props, layout, order }: FramedScreenProps) {
     </div>
   );
 
-  const device =
-    bezel.status === 'ready' ? (
-      <FitBox
-        aspect={bezel.geometry.deviceRect.width / bezel.geometry.deviceRect.height}
-        maxWidth={Math.round(deviceMaxWidth * preset.pt.width)}
-        align={order === 'text-first' ? 'start' : 'end'}
-      >
-        {(size) => <DeviceFrame capture={capture} bezel={bezel} width={size.width} />}
-      </FitBox>
-    ) : (
-      <div style={{ flex: '1 1 0px' }} />
-    );
+  // Slot mode: the frame fills the column left by the text block, capped in width.
+  const device = (
+    <DeviceFrame
+      captures={screen.captures}
+      preset={preset}
+      theme={theme}
+      maxWidth={Math.round(deviceMaxWidth * preset.pt.width)}
+      align={order === 'text-first' ? 'start' : 'end'}
+    />
+  );
 
   return (
     <>

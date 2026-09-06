@@ -2,11 +2,13 @@
 // (virtual:s1s-templates). A project template with a built-in id replaces it.
 import projectTemplates from 'virtual:s1s-templates';
 import type { TemplateModule } from '../../runtime/index.ts';
+import featureGrid from './feature-grid.tsx';
 import heroTopText from './hero-top-text.tsx';
 import raw from './raw.tsx';
 import textBottom from './text-bottom.tsx';
+import twoDevice from './two-device.tsx';
 
-export const BUILTIN_TEMPLATE_MODULES: readonly TemplateModule[] = [heroTopText, textBottom, raw];
+export const BUILTIN_TEMPLATE_MODULES: readonly TemplateModule[] = [heroTopText, textBottom, twoDevice, featureGrid, raw];
 
 export function isTemplateModule(value: unknown): value is TemplateModule {
   if (typeof value !== 'object' || value === null) return false;

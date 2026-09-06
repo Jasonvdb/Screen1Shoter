@@ -78,6 +78,8 @@ export function renderText(project: Project, report: RenderReport): string {
   if (problems.length > 0) lines.push('', 'Problems:', ...problems.map((p) => `  - ${p}`));
   if (!report.dryRun) {
     lines.push('', `Report: ${reportPath(project, report.locale)}`, `Review: ${reviewPath(project, report.locale)}`);
+    // Only what this run wrote: stale sheets are deleted by renderProject.
+    if (report.sheets.length > 0) lines.push(`Sheets: ${report.sheets.map((s) => s.path).join(', ')}`);
   }
   return lines.join('\n');
 }
@@ -105,7 +107,7 @@ async function renderCommand(globals: GlobalOpts, opts: RenderCliOptions): Promi
   const strictFail = opts.strict === true && report.counts.warns > 0;
   const ok = report.ok && !strictFail;
   return {
-    data: { ok, report },
+    data: { ok, report, sheets: report.sheets },
     text: renderText(project, report),
     exitCode: ok ? 0 : 1,
   };

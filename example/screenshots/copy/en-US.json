@@ -24,6 +24,22 @@
       "highlight": "One Tap",
       "subline": "Send it to friends and family",
       "badge": "New"
+    },
+    "features": {
+      "headline": "Built for Every Day",
+      "highlight": "Every Day",
+      "subline": "Three things you will use all the time",
+      "callouts": [
+        { "title": "Quick capture", "body": "Add an item in one tap, right from the home screen." },
+        { "title": "Smart lists", "body": "Items sort themselves by what is due next." },
+        { "title": "Works offline", "body": "Everything syncs when you are back online." }
+      ],
+      "layoutNotes": "feature-grid on iPad shows 1-3 callouts; iPhone falls back to hero-top-text and ignores them."
+    },
+    "compare": {
+      "headline": "From List to Detail",
+      "highlight": "Detail",
+      "subline": "Tap any item to open it"
     }
   }
 }

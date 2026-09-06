@@ -182,7 +182,7 @@ function validateScreens(config: ScreensConfig, screensPath: string, templatesPa
     for (const preset of targets) {
       if (!screenAppliesTo(screen, preset)) continue;
       for (const locale of locales) {
-        const { template } = resolveScreen(screen, preset, locale, undefined, placeholderResolver);
+        const { template, captures } = resolveScreen(screen, preset, locale, undefined, placeholderResolver);
         const meta = templateMeta(template);
         const problemKey = meta ? `${screen.id}/${preset.family}/${template}` : `${screen.id}/${template}`;
         if (seen.has(problemKey)) continue;
@@ -203,6 +203,11 @@ function validateScreens(config: ScreensConfig, screensPath: string, templatesPa
           problems.push(
             `screen "${screen.id}": template "${template}" has no ${preset.family} layout (families: ${meta.families.join(', ')})`,
           );
+        }
+        const wanted = meta.captures ?? 1;
+        if (captures.length !== wanted) {
+          const shape = wanted === 1 ? 'capture: "<name>"' : `capture: [${Array.from({ length: wanted }, (_, i) => String.fromCharCode(97 + i)).join(', ')}]`;
+          problems.push(`screen "${screen.id}": template "${template}" needs ${shape} (got ${captures.length})`);
         }
       }
     }

@@ -49,8 +49,18 @@ describe('s1s --json contract', () => {
     expect(json.error.hint).toBe('Run `s1s --help`.');
   });
 
-  it('a later-phase stub (sheet): exit 2 with the same shape', async () => {
-    const run = await s1s(['sheet', '--json']);
+  it('a command group without a subcommand (bezels): exit 2 listing the subcommands', async () => {
+    const run = await s1s(['bezels', '--json']);
+    expect(run.code).toBe(2);
+    const json = oneJsonLine(run) as ErrorJson;
+    expect(json.ok).toBe(false);
+    expect(json.error.code).toBe('usage');
+    expect(json.error.message).toBe('No subcommand given for `s1s bezels`. Commands: inspect, install, list.');
+    expect(json.error.hint).toBe('Run `s1s bezels --help`.');
+  });
+
+  it('a later-phase stub (status): exit 2 with the same shape', async () => {
+    const run = await s1s(['status', '--json']);
     expect(run.code).toBe(2);
     const json = oneJsonLine(run) as ErrorJson;
     expect(json.ok).toBe(false);
@@ -85,6 +95,30 @@ describe('s1s --json contract', () => {
     expect(run.stdout).toBe(`${pkg.version}\n`);
   });
 
+  it('sheet --scale 2: exit 2 usage (scale must be in (0, 1])', async () => {
+    const run = await s1s(['sheet', '--project', fixtureProjectDir('project-basic'), '--scale', '2', '--json']);
+    expect(run.code).toBe(2);
+    const json = oneJsonLine(run) as ErrorJson;
+    expect(json.ok).toBe(false);
+    expect(json.error.code).toBe('usage');
+    expect(json.error.message).toContain('(0, 1]');
+  });
+
+  it('sheet --columns 0: exit 2 usage', async () => {
+    const run = await s1s(['sheet', '--project', fixtureProjectDir('project-basic'), '--columns', '0', '--json']);
+    expect(run.code).toBe(2);
+    expect((oneJsonLine(run) as ErrorJson).error.code).toBe('usage');
+  });
+
+  it('sheet --sizes bogus: exit 2 naming the known sizes', async () => {
+    const run = await s1s(['sheet', '--project', fixtureProjectDir('project-basic'), '--sizes', 'bogus', '--json']);
+    expect(run.code).toBe(2);
+    const json = oneJsonLine(run) as ErrorJson;
+    expect(json.error.code).toBe('usage');
+    expect(json.error.message).toContain('Unknown size "bogus"');
+    expect(json.error.message).toContain('iphone-6.9');
+  });
+
   it('a usage error without --json prints text on stderr and nothing on stdout', async () => {
     const run = await s1s(['render', '--project', '/nonexistent/app']);
     expect(run.code).toBe(1);
@@ -105,13 +139,23 @@ describe('s1s render --dry-run on a copy of example/', () => {
   });
   afterAll(() => tmp.cleanup());
 
-  it('exit 0, ok true, six planned items and no error-level warnings', async () => {
+  it('exit 0, ok true, ten planned items (5 screens x 2 sizes) and no error-level warnings', async () => {
     const run = await s1s(['render', '--project', dir, '--dry-run', '--json']);
     expect(run.code, run.stderr).toBe(0);
     const json = oneJsonLine(run) as { ok: boolean; report: { dryRun: boolean; items: unknown[]; counts: { errors: number } } };
     expect(json.ok).toBe(true);
     expect(json.report.dryRun).toBe(true);
-    expect(json.report.items).toHaveLength(6);
+    expect(json.report.items).toHaveLength(10);
     expect(json.report.counts.errors).toBe(0);
+  });
+
+  it('sheet before any render: exit 2 usage with the render hint', async () => {
+    const run = await s1s(['sheet', '--project', dir, '--json']);
+    expect(run.code).toBe(2);
+    const json = oneJsonLine(run) as ErrorJson;
+    expect(json.ok).toBe(false);
+    expect(json.error.code).toBe('usage');
+    expect(json.error.message).toContain('No render report at');
+    expect(json.error.hint).toBe('Run `s1s render --locale en-US` first.');
   });
 });

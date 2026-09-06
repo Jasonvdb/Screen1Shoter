@@ -9,7 +9,7 @@ import { imageState, updateImage } from '../../src/core/manifest.ts';
 import { buildMatrix } from '../../src/core/matrix.ts';
 import { loadProject, type Project } from '../../src/core/project.ts';
 import { MAX_MANIFEST_RUNS, applyManifest, buildReport } from '../../src/render/bookkeeping.ts';
-import { renderProject } from '../../src/render/render.ts';
+import { CALLOUTS_ELEMENT, calloutOverflow, renderProject } from '../../src/render/render.ts';
 import { catchS1sError, fixtureProjectDir, makeTempDir, must, writeTempProject, type TempDir } from '../fixtures/helpers.ts';
 
 let basic: Project;
@@ -253,5 +253,20 @@ describe('buildReport', () => {
     const errored = buildReport(basic, { locale: 'en-US' }, ['ipad-13'], [{ ...base, warnings: [makeWarning('overflow', 'e')] }]);
     expect(errored.counts).toMatchObject({ errors: 1 });
     expect(errored.ok).toBe(false);
+  });
+});
+
+describe('calloutOverflow', () => {
+  const callouts = (n: number) => Array.from({ length: n }, (_, i) => ({ title: `t${i}` }));
+  it('is an overflow error on the callouts element when copy lists more callouts than feature-grid shows', () => {
+    const warning = calloutOverflow({ locale: 'de-DE', screen: { template: 'feature-grid', copyKey: 'features', copy: { headline: 'h', callouts: callouts(4) } } });
+    expect(warning).toMatchObject({ code: 'overflow', level: 'error', element: CALLOUTS_ELEMENT });
+    expect(warning?.message).toBe('copy/de-DE.json screens.features.callouts has 4 entries; feature-grid shows at most 3');
+  });
+
+  it('is null for three callouts, for templates without a cap, and for missing copy', () => {
+    expect(calloutOverflow({ locale: 'en-US', screen: { template: 'feature-grid', copyKey: 'f', copy: { headline: 'h', callouts: callouts(3) } } })).toBeNull();
+    expect(calloutOverflow({ locale: 'en-US', screen: { template: 'hero-top-text', copyKey: 'f', copy: { headline: 'h', callouts: callouts(9) } } })).toBeNull();
+    expect(calloutOverflow({ locale: 'en-US', screen: { template: 'feature-grid', copyKey: 'f', copy: undefined } })).toBeNull();
   });
 });

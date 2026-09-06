@@ -20,7 +20,15 @@ export interface TemplateMeta {
   /** Phase that ships (or shipped) the template. */
   phase: TemplatePhase;
   description: string;
+  /** Captures a screen must list (`capture: [a, b]`); default 1. loadProject rejects other counts. */
+  captures?: number;
+  /** Most `copy.callouts` entries the template shows; more is an overflow error (Node and browser). */
+  callouts?: number;
 }
+
+/** Shared with src/web/templates/two-device.tsx so the module and the metadata stay identical. */
+export const TWO_DEVICE_IPAD_VARIANT =
+  'Same stack with iPad proportions: 60%-wide devices, the front one 120 pt lower (iPhone: 56% and 88 pt, clear of the Dynamic Island). props.arrangement: "side" puts them side by side at equal scale.';
 
 export const BUILTIN_TEMPLATES: readonly TemplateMeta[] = [
   {
@@ -43,20 +51,21 @@ export const BUILTIN_TEMPLATES: readonly TemplateMeta[] = [
   {
     id: 'two-device',
     families: ['iphone', 'ipad'],
-    ipadVariant: 'Devices side by side at equal scale; text above.',
+    ipadVariant: TWO_DEVICE_IPAD_VARIANT,
     compliant: true,
-    implemented: false,
+    implemented: true,
     phase: 'W2',
-    description: 'Two captures in two upright devices, text on top.',
+    description: 'Two captures (capture: [a, b]) in two upright devices overlapped, the front one lower; text on top.',
+    captures: 2,
   },
   {
     id: 'feature-grid',
-    families: ['iphone', 'ipad'],
-    ipadVariant: 'Device on the left, up to three callout cards on the right.',
+    families: ['ipad'],
     compliant: true,
-    implemented: false,
+    implemented: true,
     phase: 'W2',
-    description: 'Device plus callout cards listing features.',
+    description: 'iPad only: device on the left, up to three callout cards (copy.callouts) on the right. Use overrides.ipad.',
+    callouts: 3,
   },
   {
     id: 'raw',

@@ -104,7 +104,7 @@ export function reviewMarkdown(project: Project, report: RenderReport): string {
   } else if (!report.ok) {
     lines.push('- Fix every error above (captures, copy, overflow), then run `s1s render` again.');
   } else {
-    lines.push('- Look at the previews listed above (one third scale), then the contact sheet when available.');
+    lines.push(`- Look at the contact sheets (out/${report.locale}/sheet-<sizeId>.png, every screen of a size in one image), then the previews listed above (one third scale).`);
     lines.push('- Mark screens `image-approved` with `s1s status --set image-approved ...` before `s1s export`.');
   }
   lines.push('');

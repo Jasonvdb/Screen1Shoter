@@ -1,11 +1,16 @@
 // Small helpers shared by the unit tests. No vitest import here so the file
 // can also serve the smoke test later.
+import { execFile } from 'node:child_process';
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
+import sharp from 'sharp';
 import type { LocaleCopy, ProjectManifest, ScreensConfig, ThemeInput } from '../../src/config/types.ts';
 import { isS1sError, type S1sError } from '../../src/core/errors.ts';
+
+const execFileAsync = promisify(execFile);
 
 export const FIXTURES_DIR = dirname(fileURLToPath(import.meta.url));
 
@@ -123,4 +128,70 @@ export async function copyExampleProject(destDir: string): Promise<string> {
     filter: (src) => !/(?:^|\/)(?:node_modules|out|captures)(?:\/|$)/.test(src),
   });
   return destDir;
+}
+
+// ---------------------------------------------------------------------------
+// CLI and PNG helpers (smoke tests)
+// ---------------------------------------------------------------------------
+
+export const S1S_BIN = join(REPO_ROOT, 'bin', 's1s.js');
+
+export interface CliRun {
+  code: number;
+  stdout: string;
+  stderr: string;
+}
+
+export interface CliRunOptions {
+  cwd?: string;
+  /** Extra environment on top of process.env (e.g. S1S_HOME). */
+  env?: Record<string, string>;
+  timeoutMs?: number;
+}
+
+/** Spawns `node bin/s1s.js <args>`; never throws, the exit code is in the result. */
+export async function runS1s(args: readonly string[], opts: CliRunOptions = {}): Promise<CliRun> {
+  try {
+    const { stdout, stderr } = await execFileAsync(process.execPath, [S1S_BIN, ...args], {
+      cwd: opts.cwd ?? REPO_ROOT,
+      env: { ...process.env, ...opts.env },
+      maxBuffer: 16 * 1024 * 1024,
+      timeout: opts.timeoutMs ?? 120_000,
+    });
+    return { code: 0, stdout, stderr };
+  } catch (error) {
+    const failed = error as { code?: number | string; stdout?: string; stderr?: string };
+    const code = typeof failed.code === 'number' ? failed.code : -1;
+    return { code, stdout: failed.stdout ?? '', stderr: failed.stderr ?? '' };
+  }
+}
+
+/** Parses `--json` stdout, which must be exactly one line. Throws with stdout/stderr when it is not. */
+export function parseJsonLine<T = Record<string, unknown>>(run: CliRun): T {
+  const lines = run.stdout.split('\n').filter((line) => line.length > 0);
+  if (lines.length !== 1) {
+    throw new Error(`Expected one JSON line on stdout, got ${lines.length}.\nstdout: ${run.stdout}\nstderr: ${run.stderr}`);
+  }
+  return JSON.parse(lines[0] ?? '') as T;
+}
+
+export interface PngInfo {
+  width: number;
+  height: number;
+  channels: number;
+  hasAlpha: boolean;
+}
+
+/** Width, height, channel count and alpha flag of a PNG on disk. */
+export async function pngInfo(path: string): Promise<PngInfo> {
+  const meta = await sharp(path).metadata();
+  return { width: meta.width, height: meta.height, channels: meta.channels, hasAlpha: meta.hasAlpha === true };
+}
+
+/** '#0B0F19' -> [11, 15, 25]. Accepts 3- and 6-digit forms. */
+export function hexToRgb(hex: string): [number, number, number] {
+  const raw = hex.replace('#', '');
+  const full = raw.length === 3 ? raw.split('').map((c) => c + c).join('') : raw;
+  const value = Number.parseInt(full, 16);
+  return [(value >> 16) & 0xff, (value >> 8) & 0xff, value & 0xff];
 }

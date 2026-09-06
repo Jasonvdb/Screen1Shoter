@@ -48,7 +48,9 @@ export function domChecks(root: ParentNode = document): Warning[] {
     const code = overflowCode(el.getAttribute('data-s1s-overflow') ?? undefined);
     const fitted = el.getAttribute('data-s1s-fitted');
     const detail = fitted ? ` at the minimum size ${fitted}pt` : '';
-    out.push(makeWarning(code, `${hint(el)} overflows${detail}: "${snippet(el)}"`, hint(el)));
+    // data-s1s-overflow-why: a component's own explanation (a collapsed slot, too many callouts).
+    const why = el.getAttribute('data-s1s-overflow-why');
+    out.push(makeWarning(code, why ? `${hint(el)}: ${why}` : `${hint(el)} overflows${detail}: "${snippet(el)}"`, hint(el)));
   }
 
   const canvas = root.querySelector<HTMLElement>('[data-s1s-canvas]');
@@ -84,9 +86,9 @@ export function domChecks(root: ParentNode = document): Warning[] {
 
   for (const el of root.querySelectorAll<HTMLElement>('[data-s1s-bezel-fallback]')) {
     const wanted = el.getAttribute('data-s1s-bezel-fallback') ?? '?';
-    out.push(
-      makeWarning('bezel-fallback', `No bezel installed for "${wanted}"; drew a generic CSS frame. Run: s1s bezels install`, hint(el)),
-    );
+    const actual = el.getAttribute('data-s1s-bezel') ?? 'generic';
+    const used = actual === 'generic' ? 'drew a generic CSS frame' : `used ${actual} instead`;
+    out.push(makeWarning('bezel-fallback', `No bezel installed for "${wanted}"; ${used}. Run: s1s bezels install`, hint(el)));
   }
 
   // Defence in depth: whatever the Node side resolved, a placeholder in the

@@ -41,6 +41,8 @@ export { GenericBezel, genericGeometry } from '../web/components/GenericBezel.ts
 export { Headline, applyCase, splitHighlight } from '../web/components/Headline.tsx';
 export { Caption } from '../web/components/Caption.tsx';
 export { Badge, readableOn } from '../web/components/Badge.tsx';
+export { Callout, TITLE_LINES, BODY_LINES } from '../web/components/Callout.tsx';
+export type { CalloutProps, CalloutSizes } from '../web/components/Callout.tsx';
 export { MissingCapture } from '../web/components/MissingCapture.tsx';
 export { useFitText } from '../web/hooks/useFitText.ts';
 export { chooseSize } from '../web/hooks/fit.ts';

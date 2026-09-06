@@ -57,6 +57,7 @@ export function buildReport(
     items,
     counts,
     ok: counts.failed === 0 && counts.errors === 0,
+    sheets: [],
   };
 }
 
