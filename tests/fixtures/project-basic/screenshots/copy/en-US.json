@@ -1,0 +1,35 @@
+{
+  "locale": "en-US",
+  "approved": true,
+  "screens": {
+    "home": {
+      "headline": "See Every Ride",
+      "highlight": "Every",
+      "subline": "Your whole season on one map"
+    },
+    "details": {
+      "headline": ["Time Every Lap", "Automatically"],
+      "highlight": "Automatically",
+      "subline": "GPS start line, zero taps",
+      "badge": "New"
+    },
+    "pocket": {
+      "headline": "Ride With Your Phone",
+      "subline": "No watch needed"
+    },
+    "tablet-split": {
+      "headline": "Compare Sessions Side by Side",
+      "subline": "Laps, speed and heart rate",
+      "callouts": [
+        { "title": "Best lap", "body": "Highlighted in every list" },
+        { "title": "Consistency", "body": "Lap-to-lap spread" }
+      ]
+    },
+    "glance": {
+      "headline": "Glance at Your Pace"
+    }
+  },
+  "shared": {
+    "appName": "Basic"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  // Editor support for screens.ts, theme.ts and custom templates.
+  // `s1s link` puts screen1shoter, react and @types/react into node_modules.
+  "compilerOptions": {
+    "target": "ES2024",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "types": []
+  },
+  "include": ["screens.ts", "theme.ts", "templates"]
+}

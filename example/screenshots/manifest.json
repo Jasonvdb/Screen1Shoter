@@ -1,0 +1,182 @@
+{
+  "version": 1,
+  "app": {
+    "name": "Example",
+    "bundleId": "com.example.example",
+    "deviceFamilies": [
+      "iphone",
+      "ipad"
+    ],
+    "sourceLocale": "en-US",
+    "appLocales": [
+      "en-US"
+    ],
+    "metadataDir": "metadata/screenshots"
+  },
+  "sizes": {
+    "iphone-6.9": {
+      "displayType": "APP_IPHONE_69",
+      "token": "IPHONE_69",
+      "px": {
+        "width": 1320,
+        "height": 2868
+      },
+      "simulator": "iPhone 17 Pro Max",
+      "framed": true
+    },
+    "ipad-13": {
+      "displayType": "APP_IPAD_PRO_3GEN_129",
+      "token": "IPAD_PRO_3GEN_129",
+      "px": {
+        "width": 2064,
+        "height": 2752
+      },
+      "simulator": "iPad Pro 13-inch (M5)",
+      "framed": true
+    }
+  },
+  "screens": [
+    {
+      "id": "home",
+      "order": 1,
+      "template": "hero-top-text",
+      "sizes": [
+        "iphone-6.9",
+        "ipad-13"
+      ]
+    },
+    {
+      "id": "detail",
+      "order": 2,
+      "template": "text-bottom",
+      "sizes": [
+        "iphone-6.9",
+        "ipad-13"
+      ]
+    },
+    {
+      "id": "share",
+      "order": 3,
+      "template": "hero-top-text",
+      "sizes": [
+        "iphone-6.9",
+        "ipad-13"
+      ]
+    }
+  ],
+  "locales": {
+    "en-US": {
+      "copyStatus": "draft",
+      "captureSource": "own",
+      "devices": {
+        "iphone-6.9": {
+          "screens": {
+            "home": {
+              "status": "generated",
+              "render": "out/en-US/APP_IPHONE_69/01-home.png",
+              "renderWarnings": [
+                {
+                  "code": "bezel-fallback",
+                  "level": "warn",
+                  "message": "No bezel installed for \"iphone-17-pro-max\"; drew a generic CSS frame. Run: s1s bezels install",
+                  "element": "[data-s1s-id=\"device\"]"
+                }
+              ],
+              "renderHash": "f77e961d53713aed9e22ce547f493ac118627160",
+              "renderedAt": "2026-09-02T12:24:37.121Z"
+            },
+            "detail": {
+              "status": "generated",
+              "render": "out/en-US/APP_IPHONE_69/02-detail.png",
+              "renderWarnings": [
+                {
+                  "code": "bezel-fallback",
+                  "level": "warn",
+                  "message": "No bezel installed for \"iphone-17-pro-max\"; drew a generic CSS frame. Run: s1s bezels install",
+                  "element": "[data-s1s-id=\"device\"]"
+                }
+              ],
+              "renderHash": "b4fa039dbf4d60ba1c59d69e21fe1efdc41d5574",
+              "renderedAt": "2026-09-02T12:24:37.121Z"
+            },
+            "share": {
+              "status": "generated",
+              "render": "out/en-US/APP_IPHONE_69/03-share.png",
+              "renderWarnings": [
+                {
+                  "code": "bezel-fallback",
+                  "level": "warn",
+                  "message": "No bezel installed for \"iphone-17-pro-max\"; drew a generic CSS frame. Run: s1s bezels install",
+                  "element": "[data-s1s-id=\"device\"]"
+                }
+              ],
+              "renderHash": "3bfa3dda5f59324a7d6c3a088b3711813a1dee50",
+              "renderedAt": "2026-09-02T12:24:37.121Z"
+            }
+          }
+        },
+        "ipad-13": {
+          "screens": {
+            "home": {
+              "status": "generated",
+              "render": "out/en-US/APP_IPAD_PRO_3GEN_129/01-home.png",
+              "renderWarnings": [
+                {
+                  "code": "bezel-fallback",
+                  "level": "warn",
+                  "message": "No bezel installed for \"ipad-pro-13-m5\"; drew a generic CSS frame. Run: s1s bezels install",
+                  "element": "[data-s1s-id=\"device\"]"
+                }
+              ],
+              "renderHash": "d83c8df6b836e5e6f17fbe9232eea4904896d50d",
+              "renderedAt": "2026-09-02T12:24:37.121Z"
+            },
+            "detail": {
+              "status": "generated",
+              "render": "out/en-US/APP_IPAD_PRO_3GEN_129/02-detail.png",
+              "renderWarnings": [
+                {
+                  "code": "bezel-fallback",
+                  "level": "warn",
+                  "message": "No bezel installed for \"ipad-pro-13-m5\"; drew a generic CSS frame. Run: s1s bezels install",
+                  "element": "[data-s1s-id=\"device\"]"
+                }
+              ],
+              "renderHash": "bc90b7e135ff80c55ca587454038fe582853dd57",
+              "renderedAt": "2026-09-02T12:24:37.121Z"
+            },
+            "share": {
+              "status": "generated",
+              "render": "out/en-US/APP_IPAD_PRO_3GEN_129/03-share.png",
+              "renderWarnings": [
+                {
+                  "code": "bezel-fallback",
+                  "level": "warn",
+                  "message": "No bezel installed for \"ipad-pro-13-m5\"; drew a generic CSS frame. Run: s1s bezels install",
+                  "element": "[data-s1s-id=\"device\"]"
+                }
+              ],
+              "renderHash": "0bb152954855af0f7fe04b3784a614df857f28fb",
+              "renderedAt": "2026-09-02T12:24:37.121Z"
+            }
+          }
+        }
+      }
+    }
+  },
+  "runs": [
+    {
+      "command": "s1s init",
+      "startedAt": "2026-09-02T00:00:00.000Z",
+      "finishedAt": "2026-09-02T00:00:00.000Z",
+      "ok": true
+    },
+    {
+      "command": "render --locale en-US --sizes iphone-6.9,ipad-13",
+      "startedAt": "2026-09-02T12:24:35.968Z",
+      "finishedAt": "2026-09-02T12:24:37.121Z",
+      "ok": true,
+      "notes": "6 rendered, 0 failed, 0 errors"
+    }
+  ]
+}

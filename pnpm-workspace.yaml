@@ -1,0 +1,6 @@
+# pnpm 10 skips dependency lifecycle scripts unless they are listed here.
+# esbuild (used by vite/tsx/vitest) needs its postinstall; sharp is listed so a
+# fallback source build is allowed when no prebuilt binary matches.
+onlyBuiltDependencies:
+  - esbuild
+  - sharp

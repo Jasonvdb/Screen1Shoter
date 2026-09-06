@@ -1,0 +1,21 @@
+/*
+ * Fonts.
+ *
+ * The bundled Inter variable font comes from @fontsource-variable/inter
+ * (imported in main.tsx; family name "Inter Variable", weights 100-900).
+ * The renderer force-loads it through document.fonts.load() before it
+ * declares the page ready, so its font-display value never affects output.
+ *
+ * Project fonts under <project>/fonts/ (served at /project/fonts/*) are
+ * registered in a later phase.
+ */
+:root {
+  --s1s-inter: 'Inter Variable', 'Inter', system-ui, sans-serif;
+}
+
+[data-s1s-canvas] {
+  font-kerning: normal;
+  font-optical-sizing: auto;
+  font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1;
+  font-variant-ligatures: common-ligatures contextual;
+}

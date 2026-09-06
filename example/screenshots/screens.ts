@@ -1,0 +1,32 @@
+// Screens of this App Store set. Data only: Node reads it for the render
+// matrix, the browser reads it for the templates.
+//
+// Each screen needs a capture at captures/<locale>/<family>/<id>.png (or the
+// name given in `capture`) and copy in copy/<locale>.json under `screens.<id>`.
+// The order here is the App Store order (the NN prefix of the output files).
+import { defineScreens } from 'screen1shoter/config';
+
+export default defineScreens({
+  sizes: ['iphone-6.9', 'ipad-13'],
+  locales: ['en-US'],
+  screens: [
+    {
+      id: 'home',
+      template: 'hero-top-text',
+      only: ['iphone', 'ipad'],
+      notes: 'The biggest reason to download. Headline on top, whole device below.',
+    },
+    {
+      id: 'detail',
+      template: 'text-bottom',
+      only: ['iphone', 'ipad'],
+      notes: 'The core loop. Device on top, headline below.',
+    },
+    {
+      id: 'share',
+      template: 'hero-top-text',
+      only: ['iphone', 'ipad'],
+      notes: 'A differentiator. Uses the optional badge from the copy.',
+    },
+  ],
+});

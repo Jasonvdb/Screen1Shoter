@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark light" />
+    <title>Screen1Shoter</title>
+    <!-- The Vite plugin injects window.__S1S_MODE ahead of this; 'dev' is the fallback. -->
+    <script>
+      window.__S1S_MODE ??= 'dev';
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/main.tsx"></script>
+  </body>
+</html>

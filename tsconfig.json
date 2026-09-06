@@ -1,0 +1,20 @@
+{
+  // Node side: CLI, core, renderer, shared config, tests. Runs from source via
+  // tsx (bin/s1s.js) and Vitest; tsc only type-checks.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2024"],
+    "types": ["node"]
+  },
+  "include": [
+    "src/cli",
+    "src/core",
+    "src/render",
+    "src/config",
+    "tests",
+    "example/screenshots/make-captures.ts",
+    "vitest.config.ts"
+  ]
+}

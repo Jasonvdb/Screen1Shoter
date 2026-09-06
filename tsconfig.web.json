@@ -1,0 +1,16 @@
+{
+  // Browser side: React runtime, components, templates, pages. Served by Vite.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["vite/client"]
+  },
+  "include": [
+    "src/web",
+    "src/runtime",
+    "src/config"
+  ]
+}

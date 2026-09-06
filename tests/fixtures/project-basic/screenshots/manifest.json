@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "app": {
+    "name": "Basic",
+    "bundleId": "com.example.basic",
+    "watchBundleId": "com.example.basic.watchkitapp",
+    "deviceFamilies": ["iphone", "ipad", "watch"],
+    "sourceLocale": "en-US",
+    "appLocales": ["en-US"],
+    "metadataDir": "metadata/screenshots"
+  },
+  "sizes": {
+    "iphone-6.9": {
+      "displayType": "APP_IPHONE_69",
+      "token": "IPHONE_69",
+      "px": { "width": 1320, "height": 2868 },
+      "simulator": "iPhone 17 Pro Max",
+      "framed": true
+    },
+    "ipad-13": {
+      "displayType": "APP_IPAD_PRO_3GEN_129",
+      "token": "IPAD_PRO_3GEN_129",
+      "px": { "width": 2064, "height": 2752 },
+      "simulator": "iPad Pro 13-inch (M5)",
+      "framed": true
+    },
+    "watch-s10": {
+      "displayType": "APP_WATCH_SERIES_10",
+      "token": "WATCH_SERIES_10",
+      "px": { "width": 416, "height": 496 },
+      "simulator": "Apple Watch Series 11 (46mm)",
+      "framed": false
+    }
+  },
+  "screens": [
+    { "id": "home", "order": 1, "benefit": "Every ride on one map", "template": "hero-top-text", "sizes": ["iphone-6.9", "iphone-6.7", "ipad-13"] },
+    { "id": "detail", "order": 2, "benefit": "Automatic lap timing", "template": "text-bottom", "sizes": ["iphone-6.9", "iphone-6.7", "ipad-13"], "capture": { "steps": ["Open Rides", "Tap the first row"] } },
+    { "id": "pocket", "order": 3, "template": "hero-top-text", "sizes": ["iphone-6.9", "iphone-6.7"] },
+    { "id": "tablet-split", "order": 3, "template": "text-bottom", "sizes": ["ipad-13"] },
+    { "id": "glance", "order": 1, "template": "raw", "sizes": ["watch-s10"] }
+  ],
+  "locales": {
+    "en-US": {
+      "copyStatus": "approved",
+      "captureSource": "own",
+      "devices": {
+        "iphone-6.9": {
+          "screens": {
+            "home": { "status": "captured", "capture": "captures/en-US/iphone/home.png", "captureRating": "great" },
+            "detail": { "status": "copy-approved" }
+          }
+        }
+      }
+    }
+  },
+  "runs": []
+}

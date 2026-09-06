@@ -1,0 +1,46 @@
+{
+  "name": "screen1shoter",
+  "version": "0.1.0",
+  "private": true,
+  "description": "HTML/JSX App Store screenshot generator: React templates rendered by headless Chromium to exact-pixel PNGs.",
+  "type": "module",
+  "bin": {
+    "s1s": "bin/s1s.js"
+  },
+  "exports": {
+    ".": "./src/runtime/index.ts",
+    "./config": "./src/config/index.ts",
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": "24.x"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.web.json",
+    "test": "vitest run --project unit",
+    "test:smoke": "vitest run --project smoke",
+    "check": "pnpm typecheck && pnpm test",
+    "link-cli": "node bin/s1s.js link --cli",
+    "s1s": "node bin/s1s.js"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "5.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "commander": "15.0.0",
+    "playwright": "1.62.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "sharp": "0.35.4",
+    "tsx": "4.23.13",
+    "vite": "8.2.2",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "typescript": "7.0.2",
+    "vitest": "4.1.11"
+  }
+}

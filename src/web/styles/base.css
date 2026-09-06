@@ -1,0 +1,105 @@
+/* Base reset for the render canvas and the dev pages. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
+}
+
+body {
+  font-family: -apple-system, system-ui, sans-serif;
+  background: #111;
+  color: #e5e5e5;
+}
+
+img {
+  display: block;
+  max-width: none;
+}
+
+/* Render mode: the canvas is the viewport; nothing may scroll. */
+html[data-s1s-mode='render'],
+html[data-s1s-mode='render'] body {
+  overflow: hidden;
+}
+
+html[data-s1s-mode='render'] ::-webkit-scrollbar {
+  display: none;
+}
+
+.s1s-render-root {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* Dev pages (gallery, sheet). */
+.s1s-shell {
+  padding: 12px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.s1s-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding: 4px 0 12px;
+}
+
+.s1s-toolbar select {
+  font: inherit;
+}
+
+/* Gallery: content-sized cells that wrap. The sheet overrides this with an explicit grid. */
+.s1s-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.s1s-cell {
+  margin: 0;
+  border: 2px solid #27272a;
+  border-radius: 6px;
+  background: #18181b;
+  overflow: hidden;
+}
+
+.s1s-cell figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.s1s-cell a {
+  color: #93c5fd;
+  margin-left: auto;
+}
+
+.s1s-muted {
+  color: #a1a1aa;
+}
+
+.s1s-warn {
+  color: #fbbf24;
+}
+
+.s1s-error {
+  color: #f87171;
+}

@@ -1,0 +1,30 @@
+{
+  "locale": "en-US",
+  "approved": false,
+  "shared": {
+    "appName": "{{appName}}"
+  },
+  "screens": {
+    "home": {
+      "headline": "Start in Seconds",
+      "highlight": "Seconds",
+      "subline": "Everything you need on one screen",
+      "layoutNotes": "Verb-first, 2-5 words, one highlight word. Subline 8 words or fewer."
+    },
+    "detail": {
+      "headline": ["See Every", "Detail"],
+      "highlight": "Detail",
+      "subline": "An array headline fixes the line breaks"
+    },
+    "share": {
+      "headline": "Share in One Tap",
+      "highlight": "One Tap",
+      "subline": "Send it to friends and family",
+      "badge": "New"
+    },
+    "watch-stats": {
+      "headline": "On Your Wrist",
+      "layoutNotes": "The raw template renders no text; kept for the watch-caption template."
+    }
+  }
+}

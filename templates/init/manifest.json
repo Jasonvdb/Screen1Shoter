@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "app": {
+    "name": "{{appName}}",
+    "bundleId": "{{bundleId}}",
+    "deviceFamilies": [],
+    "sourceLocale": "en-US",
+    "appLocales": [],
+    "metadataDir": "metadata/screenshots"
+  },
+  "sizes": {},
+  "screens": [],
+  "locales": {},
+  "runs": []
+}

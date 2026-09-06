@@ -1,0 +1,7 @@
+{
+  "locale": "en-US",
+  "screens": {
+    "home": { "headline": "Start Here" },
+    "detail": { "headline": "Then Go Deeper" }
+  }
+}
