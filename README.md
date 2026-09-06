@@ -65,6 +65,14 @@ s1s doctor           # node, tsx, Playwright + Chromium, sharp, bezels, asc, sim
 No build step: `s1s` runs the TypeScript sources through tsx, and the browser
 side is served by Vite. Editing the tool takes effect on the next call.
 
+One exception, and it is easy to trip over: a **running** `s1s dev` keeps the
+Node modules it loaded at startup. Vite reloads the browser half, and the
+watcher picks up changes to the project's copy, captures and manifest, but a
+change to the tool's own source is invisible to a server already running.
+Restart `s1s dev` after touching `src/`. The symptom is a stale rule applied
+to a current config, such as `GET /__s1s/project.json -> 500` with a
+`config-invalid` message about a file you just made valid.
+
 ## Use in an app repo
 
 ```sh

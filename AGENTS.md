@@ -57,7 +57,13 @@ Every file under `docs/` belongs in that list; add a line when you add one.
 ## Tool rules
 
 - No build step. Node runs from TS source through tsx; the browser side is
-  served by Vite. Never add `dist/`, never import through it.
+  served by Vite. Never add `dist/`, never import through it. This holds per
+  `s1s` call, not for a `s1s dev` that is already running: that process keeps
+  the Node modules it loaded at startup, so a change under `src/` needs a
+  restart. Only the project's own files (copy, captures, manifest) are
+  watched. Restart the server before you trust a `dev` gallery after editing
+  the tool, and read a `config-invalid` 500 on `/__s1s/project.json` as a
+  stale server first.
 - Exact version pins in `package.json`. No `^` or `~`. `playwright 1.62.1`
   matches the cached `chromium-1234`; do not bump it alone.
 - Relative imports carry the `.ts` / `.tsx` extension. Type-only imports use

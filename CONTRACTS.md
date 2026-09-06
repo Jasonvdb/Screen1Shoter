@@ -14,7 +14,9 @@ Plan: `~/.claude/plans/i-want-to-build-transient-rabbit.md` (Part A, W1).
   `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`,
   `noPropertyAccessFromIndexSignature`, `verbatimModuleSyntax`).
 - No build step. Node code runs from source through tsx (`bin/s1s.js`);
-  browser code is served by Vite; tests run through Vitest.
+  browser code is served by Vite; tests run through Vitest. Per call: a
+  long-running `s1s dev` holds the Node modules it started with, so changing
+  `src/` needs a restart before that server agrees with it.
 - Exact pins only. `playwright 1.62.1` is fixed (matches the cached
   `chromium-1234`); do not bump it.
 - Design unit: CSS px = Apple points. Playwright `viewport = preset.pt`,
