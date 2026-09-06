@@ -435,6 +435,15 @@ s1s capture --udid "$WATCH" --name <scene-id> --device watch --locale en-US
 - `--name` is the capture name: the screen id, or the capture ref set in
   `screens.ts` (`capture: 'detail-top'`, or an array for two-device
   templates). Names are file-safe: letters, digits, `.`, `_`, `-`.
+- A ref may carry a size prefix, exactly as `screens.ts` writes it:
+  `--name 'watch-ultra:watch-lap-ultra'`. The prefix names the device, so
+  `--device` may be dropped, and the shot is checked against that size instead
+  of the project's sizes. This is the only way to capture a device the project
+  does not export: a `phone-watch` screen draws a watch on an iPhone canvas, so
+  its 422x514 Ultra shot would be rejected by every iPhone and iPad size. The
+  file is reported as "drawn as a second device on" the screens that show it,
+  and their own `capture` entry is left alone, because that field belongs to the
+  screen's own device. Re-render those screens to pick the new file up.
 - `--locale` defaults to the source locale. Own-locale captures for a
   localized set go to `captures/<locale>/...`; the renderer falls back to the
   source locale's file when a locale has none and reports `capture-fallback-locale`

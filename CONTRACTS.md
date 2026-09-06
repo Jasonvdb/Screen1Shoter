@@ -261,6 +261,22 @@ size whose `preset.bezel` is drawn, so `'watch-ultra:lap'` asks for both a
 disagree. A ref with no prefix, an unknown one, or one naming a phone size
 falls back to `DEFAULT_WATCH_SIZE_ID` (`watch-s10`).
 
+`s1s capture --name` takes the same two spellings, which is what makes a
+prefixed ref shootable: the ref's own preset decides the family directory and
+the pixel size the shot is checked against, so a 422x514 Ultra capture is
+accepted by a project whose `sizes` hold no watch-ultra at all (`--device` is
+then optional, and must agree with the prefix if given). Which size checks the
+file and which screens reference it are separate questions:
+`screensUsingFile(project, locale, family, name)` scans every size in
+`project.sizes`, matching on family plus file name so `watch-lap` and
+`watch-s10:watch-lap` count as one file, and marks `primary` where the file is
+the rendered family's own. Only `primary` uses write `capture`,
+`captureSha256` and `capturePx`, because an `ImageState` has one capture field
+and a phone-watch screen has two captures: the watch shot is reported as
+"drawn as a second device on" those screens and leaves their entry alone.
+`manifest.sizes` is a partial map, so a prefixed shot records its simulator
+under its own size id even when the project never exports that size.
+
 ### src/core/matrix.ts
 ```ts
 export interface MatrixOptions { locale: string; sizes?: string[]; screens?: string[] /* ids or ordinals '3' */; }

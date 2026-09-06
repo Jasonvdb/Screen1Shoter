@@ -136,7 +136,7 @@ the layout `asc screenshots upload` reads.
 | `s1s dev [--locale] [--port] [--open]` | Vite dev server with the `/#/gallery` page |
 | `s1s render [--locale] [--sizes] [--screens] [--jobs 4] [--dry-run] [--no-sheet] [--strict] [--allow-placeholder]` | Render one locale: PNGs, previews, report.json (with `sheets`), review.md, contact sheets, manifest render fields |
 | `s1s sheet [--locale] [--sizes] [--scale 0.25] [--columns 5]` | Contact sheet per size from the last render (`render` runs it automatically; `--no-sheet` skips it) |
-| `s1s capture --udid <udid\|name> --name <id> --device iphone\|ipad\|watch [--locale]` | Screenshot a simulator into `captures/<locale>/<family>/<name>.png`, verify its pixel size and record it in the manifest |
+| `s1s capture --udid <udid\|name> --name <ref> [--device iphone\|ipad\|watch] [--locale]` | Screenshot a simulator into `captures/<locale>/<family>/<name>.png`, verify its pixel size and record it in the manifest. `--name` takes a `<sizeId>:<name>` ref, which names the device itself and checks the shot against that size, so a `phone-watch` screen's 422x514 watch capture can be shot in an iPhone-only project |
 | `s1s sim list [--all]` | List simulators over `xcrun simctl` |
 | `s1s sim status-bar <udid\|name> [--time 9:41] [--clear]` | App Store status bar: 9:41, Wi-Fi, full signal, charged battery (watchOS: reported as unsupported, not an error) |
 | `s1s sim appearance <udid\|name> light\|dark` | Switch the simulator UI appearance |
