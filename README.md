@@ -1,10 +1,21 @@
 # Screen1Shoter
 
-App Store screenshots from React templates. Screens are TSX, previewed in a
-browser and rendered by headless Chromium to exact-pixel PNGs (1320x2868 for
-iPhone 6.9", 2064x2752 for iPad 13", 416x496 raw for Apple Watch). Real iOS
-Simulator captures sit in Apple's product bezels; text is real text, so a new
-size or locale is a re-render, not a new image.
+App Store screenshots as code. Every frame is a React template: the headline is
+a string in a JSON file, the app UI inside the frame is a real iOS Simulator
+capture, and the device around it is Apple's own product bezel PNG. Headless
+Chromium renders the lot to exact-pixel PNGs (1320x2868 for iPhone 6.9",
+2064x2752 for iPad 13", 416x496 raw for Apple Watch), so a new size, a new
+locale or a one-word copy fix is a re-render, not a new image.
+
+<p align="center">
+  <img src="docs/images/motofit-track-map-iphone.png" width="30%" alt="Moto Fit screenshot 1: Log Every Moto">
+  <img src="docs/images/motofit-lap-times-iphone.png" width="30%" alt="Moto Fit screenshot 2: Time Every Lap, with an Apple Watch Ultra in front of the phone">
+  <img src="docs/images/motofit-replay-3d-iphone.png" width="30%" alt="Moto Fit screenshot 3: Replay in 3D">
+</p>
+
+Three frames of the [Moto Fit](https://motofit.app) set, the pilot this tool
+was built against. Every word above is a string in a JSON file, every device is
+an Apple bezel PNG, and every app screen inside one is a simulator capture.
 
 The repo ships two products that share one contract:
 
@@ -13,57 +24,236 @@ The repo ships two products that share one contract:
   that drives `s1s` end to end inside Claude Code, Codex or Cursor.
 
 `AGENTS.md` holds the rules for anyone (human or agent) editing this repo.
+`CONTRACTS.md` fixes the module boundaries and the browser protocol.
 
-## Status
+## Why not an image model
 
-| Phase | Scope | State |
-|---|---|---|
-| W1 | Renderer, CLI, core render loop (`init`, `link`, `doctor`, `dev`, `render`, `capture`, `sim`) | done |
-| W2 | Apple bezels, contact sheets, iPad and watch sizes, `two-device` and `feature-grid` templates | done |
-| W3 | Agent skill `app-store-screenshots`, `scripts/install-skills.sh`, repo docs | done |
-| W4 | MotoFit pilot: demo-data patch, captures, first complete en-US set | done (in the MotoFit repo, commit `8f7e240`) |
-| W5 | `s1s export`, `s1s validate`, `s1s status`, `asc` integration | done |
-| W6 | Opt-in templates (`bleed-bottom`, `tilted`, `watch-caption`), panorama backgrounds, project fonts, de-DE localization dry run | done |
-| W7 | Apple Watch bezels, cross-size capture refs, `phone-watch` template | done |
-| W8 | Apple Watch Ultra 3 bezel, `watch-ultra` size, a choosable watch model in `phone-watch` | done |
+An image model draws a picture of a screenshot. This draws the screenshot. The
+difference shows up in six places.
 
-The W4 pilot and the W5 export ran against MotoFit, whose repo holds the
-result: 14 upload-ready PNGs under `metadata/screenshots/en-US/` that pass
-`asc screenshots validate` for all three device types. Nothing has been
-uploaded to App Store Connect.
+**The words are text.** `headline`, `subline` and `highlight` are strings in
+`copy/<locale>.json` that Chromium lays out as a DOM text node. They render
+exactly as written, every time. A diffusion model redraws every glyph on every
+roll, so a lap time of `1:47.24` comes back `1:47.21`, a product name loses a
+letter, and you find out at review, or you do not and the store does.
 
-W7 answered a gap the pilot's own copy notes had recorded: MotoFit ships a
-watch app, but the watch set only shows on the Watch tab of the listing, so no
-iPhone or iPad shopper ever saw it. `phone-watch` stands a real Apple Watch
-bezel in front of the phone on one frame of the iPhone and iPad sets, keeping
-`hero-top-text`'s text block and device box so the rest of the carousel still
-lines up.
+**The frame is Apple's file, not a drawing of one.** Apple's marketing
+guidelines require its official product bezels used as-is: no crops, tilts,
+shadows or reflections. `s1s bezels install` mounts Apple's DMG, measures each
+portrait PNG (device box, screen cut-out, corner radius, Dynamic Island) and
+caches the trimmed result. The bezel in the render is that file, positioned
+from those measurements. A model-drawn iPhone is a slightly different device
+on every frame of the carousel and complies with nothing.
 
-W8 made the watch model a choice, because the right watch depends on the app:
-a training or outdoor app wants the Ultra's rugged titanium case, not a
-Series 11. Two knobs, each with one job.
+**The app UI is the app.** The pixels inside the cut-out come from
+`xcrun simctl io <udid> screenshot`, checked against the preset's capture size
+before they are accepted. Apple asks for screenshots of the app in use, and an
+invented UI that merely looks plausible is the thing reviewers reject.
 
-- `capture: [<phone>, 'watch-ultra:<watch>']` picks the size. The prefix
-  already decided where the capture is read from and what pixel size it must
-  be; now it also decides which watch is drawn, so the two can never disagree.
-  Use it when the app has a real Ultra capture (422x514, from the
-  "Apple Watch Ultra 3 (49mm)" simulator).
-- `props: { watchBezel: 'apple-watch-ultra-3' }` changes only the frame and
-  leaves the capture size alone. Use it to put one 416x496 watch capture in
-  another model's frame; the capture is drawn `object-fit: cover`, so the
-  small aspect difference crops a couple of percent instead of stretching the
-  app UI. `s1s bezels list` prints the installed frames, and
-  `props.watchVariant` names the case and band inside one.
+**The output is the size the store asks for.** Playwright renders at
+`viewport = points, deviceScaleFactor = scale`; sharp then verifies the file.
+Wrong dimensions are a hard error, never a silent resize, and alpha is
+flattened onto the theme background so nothing ships with a transparent
+channel. An image model returns whatever resolution it returns, and resampling
+it up to 1320x2868 softens the text you were trying to keep sharp.
 
-The Ultra frame is not part of the default bezel install, because nothing but
-a screen that asks for it ever draws it. Fetch it once with
-`s1s bezels install --device apple-watch-ultra-3` (314 MB).
+**Re-running changes only what you changed.** The clock is pinned to 9:41,
+animations and transitions are off, the colour profile is sRGB, and fonts must
+load before the shot is taken. Render twice and the hash is identical, so
+`s1s render` leaves a screen at `image-approved` or `uploaded` when its hash
+has not moved, and flags it only when it has. A re-roll from an image model
+changes every frame it touches, so every frame needs approving again.
 
-Still open: retiring the three old screenshot skills
-(`scripts/install-skills.sh --retire`) needs the user's word, because it
-archives skills they may still be using. The de-DE dry run recorded the human
-gates instead of asking them, so its copy is unreviewed German. Its report,
-including the tool defects it found, is `docs/w6-de-de-dryrun.md`.
+**A copy fix costs a copy edit.** Screen 2's subline used to read
+`Automatic motocross timing, best lap marked`: two labels rather than a
+sentence, and the only line in the set that broke the voice of the other five.
+The fix was one string and one command:
+
+```jsonc
+// screenshots/copy/en-US.json
+"subline": "Timed at the start line, best lap highlighted"
+```
+
+```sh
+s1s render --locale en-US --screens lap-times
+```
+
+Two PNGs changed, the iPhone and iPad frames of that one screen. The other
+twelve kept their hashes and their status. Nothing was re-shot, no other
+headline moved, and what a reviewer reads is one line of a diff.
+
+None of this says image models are useless. They are fine for a background
+plate or a piece of concept art that no one has to read. They are the wrong
+tool for a surface whose whole job is to state, accurately, what your app does.
+
+## Why this stays maintainable
+
+**Screenshots are source.** `screens.ts`, `theme.ts` and `copy/<locale>.json`
+live in the app repo under git. Reviewing a change is `git diff`, not opening
+two PNGs side by side and squinting at them.
+
+**The reasoning lives beside the copy.** Every screen carries `notes` (in
+`screens.ts`) and `layoutNotes` (in the copy file). They answer, six months
+later, the question a PNG cannot. Moto Fit's screen 5, in full:
+
+> The headline said 'Start Gate' until W4c; the visible UI in the same frame
+> reads 'Edit Start Line' and 'LAP TIMING', and the app model is StartLine, so
+> the reader's eye travelled from headline to button and found a different
+> noun. 'Start Line' keeps the verb, the word count and the two-word highlight
+> and now matches the image. Do not change the app UI to match the copy, and
+> do not reintroduce 'gate' for motocross flavour.
+
+**A locale is a copy file, not a new image set.** Add `copy/de-DE.json` and
+render. German runs about 30 % longer than English; the auto-fitter shrinks the
+headline inside its budget and reports `text-min-size` when it cannot, so
+overflow is a warning in `report.json` rather than something you have to spot.
+If the app does not ship that language the captures fall back to the source
+locale with an info-level warning, which is recorded rather than hidden.
+`docs/w6-de-de-dryrun.md` is the write-up of that run.
+
+**A size is a preset entry.** `iphone-6.7` is an alias of `iphone-6.9`:
+rendered once, exported to both store folders. Adding an iPad set to an
+iPhone-only project is a `--sizes` flag and a capture pass, not a design pass.
+
+**Problems are machine-readable.** `report.json` records every warning with a
+code (`text-clipped`, `capture-missing`, `capture-dims`, `bezel-fallback`,
+`copy-unused`, ...). Error-level warnings exit 1, so a broken set cannot be
+exported by accident. `review.md` and one contact sheet per size make the same
+thing readable by a human in a single glance.
+
+**Adding to a shipped set does not disturb it.** Moto Fit ships a watch app,
+but a watch set only appears on the Watch tab of a listing, so no iPhone or
+iPad shopper ever saw it. The fix was to give screen 2 the `phone-watch`
+template and a second capture ref; a later pass swapped the Series 11 for an
+Ultra 3 by changing one size prefix and shooting one 422x514 capture. Both
+times the other five iPhone frames kept their bytes, their hashes and their
+approval.
+
+**State is in a file, not in someone's head.** `screenshots/manifest.json`
+holds the status of every locale x size x screen, so any session resumes where
+the last one stopped. `s1s status` reconciles it against `screens.ts` and
+against the PNGs on disk, and says so when they disagree:
+
+```
+locale  size        NN  screen         status    capture  render   export
+en-US   iphone-6.9  01  track-map      uploaded  present  present  present
+en-US   iphone-6.9  02  lap-times      uploaded  present  present  present
+...
+Orphans (in the manifest, not in screens.ts):
+  - en-US iphone-6.9 phone-or-watch (captured): screen "phone-or-watch" is not in screens.ts
+  - en-US ipad-13 start-line (generated): screen "start-line" no longer applies to ipad-13 (see its `only` list)
+```
+
+**Captures are reproducible.** The temporary demo-data changes that put the app
+into a photogenic state are kept as `screenshots/captures/demo-data.patch`, so
+a re-shoot a year later starts from the same fixtures rather than from
+whatever the simulator happens to contain.
+
+## The Moto Fit set
+
+Moto Fit is a motocross lap-timing app for iPhone, iPad and Apple Watch. Its
+complete App Store set is 14 PNGs produced from three text files and the
+captures beside them.
+
+`screenshots/screens.ts` is the matrix. Data only, so Node reads it for the
+render plan and the browser reads it for the templates (comments trimmed here;
+the real file carries a paragraph of reasoning per screen):
+
+```ts
+import { defineScreens } from 'screen1shoter/config';
+
+export default defineScreens({
+  sizes: ['iphone-6.9', 'ipad-13', 'watch-s10'],
+  locales: ['en-US'],
+  screens: [
+    { id: 'track-map', template: 'hero-top-text', only: ['iphone', 'ipad'] },
+    {
+      id: 'lap-times',
+      template: 'phone-watch',
+      capture: ['lap-times', 'watch-ultra:watch-lap-ultra'],
+      props: { watchVariant: 'natural-trail-loop-green-neon' },
+      only: ['iphone', 'ipad'],
+    },
+    { id: 'replay-3d', template: 'hero-top-text', only: ['iphone', 'ipad'] },
+    { id: 'track-history', template: 'hero-top-text', only: ['iphone', 'ipad'] },
+    { id: 'start-line', template: 'hero-top-text', only: ['iphone'] },
+    { id: 'share-moto', template: 'hero-top-text', only: ['iphone'] },
+    { id: 'watch-lap', template: 'raw', only: ['watch-s10'] },
+    // ... three more watch scenes
+  ],
+});
+```
+
+`screenshots/copy/en-US.json` holds the words. One entry per screen, plus the
+`layoutNotes` that explain them:
+
+```json
+"lap-times": {
+  "headline": "Time Every Lap",
+  "highlight": "Lap",
+  "subline": "Timed at the start line, best lap highlighted"
+}
+```
+
+`screenshots/theme.ts` is the brand, once, for the whole set:
+
+```ts
+import { defineTheme } from 'screen1shoter/config';
+
+export default defineTheme({
+  background: '#101012',   // just off the app's near-black, so the bezel edge stays visible
+  accent: '#99E361',       // Theme.accentRGB, the app's lime
+  text: '#FFFFFF',
+  textMuted: '#8E8E93',
+  highlight: '#99E361',
+  headlineWeight: 800,
+  headlineCase: 'title',
+  bezelVariant: 'silver',
+});
+```
+
+That produces:
+
+| Size | Store folder | Frames | Template |
+|---|---|---|---|
+| `iphone-6.9` | `APP_IPHONE_69` | 6 | `hero-top-text`, one `phone-watch` |
+| `ipad-13` | `APP_IPAD_PRO_3GEN_129` | 4 | same screens, iPad layout branch |
+| `watch-s10` | `APP_WATCH_SERIES_10` | 4 | `raw` passthrough, unframed |
+
+`s1s render` reports 14 rendered, 0 failed, 0 warnings; `s1s export` copies
+them to `metadata/screenshots/en-US/<folder>/NN.png`, and
+`asc screenshots validate` passes for all three device types.
+
+<p align="center">
+  <img src="docs/images/motofit-track-map-ipad.png" width="46%" alt="Moto Fit iPad screenshot 1">
+  <img src="docs/images/motofit-watch-lap.png" width="16%" alt="Moto Fit Apple Watch screenshot 2, unframed 416x496">
+</p>
+
+The same `track-map` screen on iPad (2064x2752, the iPad layout branch of the
+same template) and an unframed watch capture (416x496), which passes straight
+through without the browser.
+
+Two things in that set are worth pointing at, because they are what a template
+buys you over a picture:
+
+- Screen 2 is the whole reason `phone-watch` exists. The watch stands in front
+  of the phone's lower right corner, over the lap deltas, which are the least
+  load-bearing pixels in the capture. It keeps `hero-top-text`'s text block and
+  device box, so the copy band and the phone still sit exactly where they do on
+  the other five frames and the bezels line up across the carousel.
+- Two frames are iPhone-only. `start-line` and `share-moto` were dropped from
+  iPad after both candidates were shot and measured: `TrackDetailView` leaves
+  41.7 % of a 13-inch frame black, and the share sheet renders as a small
+  centred form sheet whose stats vanish at carousel thumbnail scale. Those
+  numbers are in `screens.ts` beside the `only: ['iphone']` that acts on them.
+
+After every render, `s1s render` writes one contact sheet per size: the whole
+carousel in a single image, labelled with each screen's id, template and
+warning count, so a review is one look rather than six file opens:
+
+<p align="center">
+  <img src="docs/images/motofit-iphone-set.png" width="90%" alt="Contact sheet: all six Moto Fit iPhone screenshots with ids, templates and warning counts">
+</p>
 
 ## Prerequisites
 
@@ -153,6 +343,44 @@ progress and logs go to stderr. `--project <dir>` points at an app repo or its
 `screenshots/` dir; the default is a search up from the cwd. Exit codes: 0 ok,
 1 failure or error-level warnings, 2 usage.
 
+## Templates
+
+A screen names a template; the template switches on the device family, so one
+`screens.ts` entry renders an iPhone layout and an iPad layout without a
+second definition. Custom templates go in `<app>/screenshots/templates/`.
+
+| id | Families | Does |
+|---|---|---|
+| `hero-top-text` | iphone, ipad | Headline and subline on top, whole upright device below. Default. |
+| `text-bottom` | iphone, ipad | Whole upright device on top, headline and subline below. |
+| `two-device` | iphone, ipad | Two captures in two overlapped upright devices, the front one lower; text on top. |
+| `feature-grid` | ipad | Device on the left, up to three callout cards on the right. |
+| `phone-watch` | iphone, ipad | `hero-top-text` plus an Apple Watch in front of the device's lower right corner. Two captures. |
+| `raw` | iphone, ipad, watch | Unframed capture filling the canvas. Default for watch. |
+| `watch-caption` | watch | Watch capture with a short caption. Opt-in. |
+| `bleed-bottom` | iphone, ipad | Device cropped at the canvas bottom edge. Opt-in, outside Apple's guidelines. |
+| `tilted` | iphone, ipad | Device rotated a few degrees. Opt-in, outside Apple's guidelines. |
+
+The two opt-in templates tag their canvas `data-s1s-noncompliant` and say so in
+`review.md`, so nothing leaves the guideline path by accident.
+
+### Choosing the watch in `phone-watch`
+
+The right watch depends on the app: an outdoor or training app wants the
+Ultra's rugged titanium case, not a Series 11. Two knobs, each with one job.
+
+- `capture: [<phone>, 'watch-ultra:<watch>']` picks the size. The prefix
+  already decided where the capture is read from and what pixel size it must
+  be; it also decides which watch is drawn, so the two can never disagree. Use
+  it when the app has a real Ultra capture (422x514, from the "Apple Watch
+  Ultra 3 (49mm)" simulator).
+- `props: { watchBezel: 'apple-watch-ultra-3' }` changes only the frame and
+  leaves the capture size alone. Use it to put one 416x496 watch capture in
+  another model's frame; the capture is drawn `object-fit: cover`, so the small
+  aspect difference crops a couple of percent instead of stretching the app UI.
+  `s1s bezels list` prints the installed frames, and `props.watchVariant` names
+  the case and band inside one.
+
 ## Sizes
 
 | id | displayType | px | capture simulator | notes |
@@ -226,3 +454,22 @@ Run `pnpm check && pnpm test:smoke` before every commit. See
 `example/screenshots/README.md` for the example project, `CONTRACTS.md` for
 the module boundaries and the browser protocol, and `AGENTS.md` for the repo
 rules.
+
+## Project status
+
+| Phase | Scope | State |
+|---|---|---|
+| W1 | Renderer, CLI, core render loop (`init`, `link`, `doctor`, `dev`, `render`, `capture`, `sim`) | done |
+| W2 | Apple bezels, contact sheets, iPad and watch sizes, `two-device` and `feature-grid` templates | done |
+| W3 | Agent skill `app-store-screenshots`, `scripts/install-skills.sh`, repo docs | done |
+| W4 | Moto Fit pilot: demo-data patch, captures, first complete en-US set | done (in the MotoFit repo) |
+| W5 | `s1s export`, `s1s validate`, `s1s status`, `asc` integration | done |
+| W6 | Opt-in templates (`bleed-bottom`, `tilted`, `watch-caption`), panorama backgrounds, project fonts, de-DE localization dry run | done |
+| W7 | Apple Watch bezels, cross-size capture refs, `phone-watch` template | done |
+| W8 | Apple Watch Ultra 3 bezel, `watch-ultra` size, a choosable watch model in `phone-watch` | done |
+
+Still open: retiring the three old screenshot skills
+(`scripts/install-skills.sh --retire`) needs the user's word, because it
+archives skills they may still be using. The de-DE dry run recorded the human
+gates instead of asking them, so its copy is unreviewed German; its report,
+including the tool defects it found, is `docs/w6-de-de-dryrun.md`.
