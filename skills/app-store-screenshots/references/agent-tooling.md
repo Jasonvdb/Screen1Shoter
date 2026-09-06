@@ -154,8 +154,12 @@ jq -r '.items[] | select(.status == "failed") | "\(.key): \(.error)"' screenshot
    Exit 0 with `counts.errors == 0` means every screen fits and every capture
    was found. `text-min-size`, `text-clipped` and `overflow` mean copy or
    layout must change; `capture-missing`, `capture-dims` mean a capture must
-   be redone; `bezel-fallback` and `font-fallback` mean the machine setup is
-   incomplete (`s1s bezels install`, project fonts).
+   be redone; `image-missing` means a `background` or `panorama` file is
+   absent; a warn-level `capture-fallback-locale` means the locale has no
+   capture of its own and nobody declared a `reuse:` (an info-level one is a
+   declared reuse and is expected); `bezel-fallback` means `s1s bezels install` has not run and
+   `font-fallback` means the theme's font stack resolves to nothing on this
+   machine (install the family, or ship the files in `screenshots/fonts/`).
 2. Check pixel facts with `sips`, which needs no image viewer:
 
 ```sh
@@ -179,7 +183,57 @@ previews. Never open a full-size render; a 1320 x 2868 PNG wastes context.
 
 ---
 
-## 5. XcodeBuildMCP parameter cheat sheet
+## 5. Exit codes
+
+Every `s1s` command uses the same three codes: **0** ok, **1** the work ran
+but the result is not ok, **2** the command refused and did nothing (usage).
+Always `echo "exit $?"` and read the code with the output; several commands
+print a full, healthy-looking table and still exit 1.
+
+| Command | 0 | 1 | 2 |
+|---|---|---|---|
+| `s1s status` | the reconcile is OK: every row has the files its status claims | the reconcile is NOT OK (a row claims `generated` with no render, `exported` with no export file, a stale render hash). Orphans and stray exports do not flip it | bad flag, unknown size, unknown status, `--set` without `--locale`, `--from` without `--set` |
+| `s1s status --set` | the write happened (or `--from` matched nothing) and the resulting reconcile is OK | **the write happened** and the reconcile that follows it is NOT OK | refused, nothing written: a transition no image may make, a `--set` covering the whole locale without `--yes`, a selection that matches no image |
+| `s1s export` | files copied (or nothing to copy); warnings may still be present | `export-blocked`, a failed `asc screenshots validate`, or an error-level warning | bad flag or unknown size |
+| `s1s validate` | every set passes; the text ends `Ready to upload.` | any error-level problem, including "no export folder" and the cross-locale all-or-nothing rule | bad flag or unknown size |
+| `s1s render` | rendered with no error-level warning | an item failed or any error-level warning (`--strict` promotes warn to error) | bad flag or unknown size |
+
+The `status --set` row is the trap. The command re-reconciles after the write
+and reports the state the write produced, so `--set exported` before the files
+exist writes the manifest, prints `NOT OK` and exits 1. The stderr line
+`set N image(s) to <status> in screenshots/manifest.json` is the only proof
+the write landed; a refusal prints `Nothing was written.` instead. Never
+retry a `--set` on exit 1 without reading `s1s status` first.
+
+`--json` shapes, all under one envelope:
+
+- Success is `{ ok: true, ... }`; failure is
+  `{ ok: false, error: { code, message, hint } }`. The codes these commands
+  raise: `export-blocked` (no render report, a dry-run report, an incomplete
+  set, a failed item or an error-level warning), `validate-failed`,
+  `config-invalid`, `copy-missing`, `manifest-invalid` and `usage`.
+- `s1s render --json` prints `{ ok, report, sheets }`; `counts` and `items`
+  live under `.report`. `screenshots/out/<locale>/report.json` is the raw
+  report with `counts` and `items` at the top level.
+- `s1s status` gives `rows[]`, `orphans[]`, `strayExports[]` and `summary`
+  (status name to count); every row carries `status`, the `capture` / `render`
+  / `export` file states, `renderStale` and `notes[]`. A `--set` run adds
+  `set: "<status>"`.
+- `s1s export` gives the `ExportReport`: `files[]` (each with `action`
+  `written` / `unchanged` / `skipped`), `pruned[]`, `stale[]`, `warnings[]`,
+  `asc`, `uploadCommands[]` and `fanOutCommands[]`.
+- `s1s validate` gives `sets[]` and a flattened `problems[]`, each problem
+  carrying `code`, `level` and often `file`, plus `metadataDir`, `locales`
+  and `scanned`.
+
+Both `s1s export` and `s1s validate` take `--metadata-dir <dir>` to work on
+an export root other than `manifest.app.metadataDir`. It is absolute or
+relative to the app repo root, and the two commands must be given the same
+value or `validate` checks a folder the export never wrote.
+
+---
+
+## 6. XcodeBuildMCP parameter cheat sheet
 
 Exact parameter names, so calls succeed on the first try.
 
@@ -209,7 +263,7 @@ whatever the watch patch reads; see the capture playbook).
 
 ---
 
-## 6. Gotchas
+## 7. Gotchas
 
 - Stale UDIDs. `.xcodebuildmcp/config.yaml` stores `simulatorId`; it goes
   stale when Xcode updates runtimes, and the file may be committed. Check
@@ -252,19 +306,10 @@ whatever the watch patch reads; see the capture playbook).
   are right.
 - Shell variables do not survive between Bash calls. Resolve `$UDID` by sim
   name at the start of every chain (section 3).
-- `s1s render --json` prints `{ ok, report, sheets }`; `counts` and `items`
-  live under `.report`. `screenshots/out/<locale>/report.json` is the raw
-  report with `counts` and `items` at the top level.
-- The other `--json` shapes, all under the same `{ ok, ... }` envelope:
-  `s1s status` gives `rows[]`, `orphans[]`, `strayExports[]` and `summary`
-  (status name to count); every row carries `status`, the `capture` / `render`
-  / `export` file states, `renderStale` and `notes[]`.
-  `s1s export` gives the `ExportReport`: `files[]` (each with `action`
-  `written` / `unchanged` / `skipped`), `pruned[]`, `stale[]`, `warnings[]`,
-  `asc`, `uploadCommands[]` and `fanOutCommands[]`.
-  `s1s validate` gives `sets[]` and a flattened `problems[]`, each problem
-  carrying `code`, `level` and often `file`.
-- Failures are `{ ok: false, error: { code, message, hint } }`. The codes the
-  W5 commands raise: `export-blocked` (the render is incomplete or has
-  error-level warnings, so there is nothing safe to export), `validate-failed`,
-  `manifest-invalid` and `usage`.
+- Exit codes and the `--json` shapes are in section 5. The one to remember:
+  `s1s status --set` can write the manifest and still exit 1, because it
+  reports the reconcile the write produced.
+- Project fonts are per project, not per machine. A `font-fallback` on a
+  theme that names a brand family means the files are not in
+  `screenshots/fonts/` (or are misnamed), not that the machine is missing a
+  system font.

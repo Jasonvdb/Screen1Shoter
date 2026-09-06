@@ -158,7 +158,7 @@ async function writeOutputs(item: RenderItem, png: Buffer): Promise<void> {
   for (const output of item.outputs) await writePreview(png, output.previewPath);
 }
 
-/** Watch (passthrough): copy the capture through postProcess, no browser. */
+/** `raw` on a watch preset: copy the capture through postProcess, no browser. */
 async function renderPassthrough(project: Project, item: RenderItem, warnings: Warning[]): Promise<RenderReportItem> {
   const startedAt = performance.now();
   const source = item.screen.captures[0];
@@ -238,6 +238,10 @@ const READY_EXPR = (key: string): string =>
 const ERROR_EXPR = `document.querySelector('[data-s1s-id="error"]')?.textContent ?? null`;
 
 const CHECK_EXPR = `(typeof window.__S1S === 'object' && window.__S1S && typeof window.__S1S.check === 'function') ? window.__S1S.check() : []`;
+
+// The registry, not the built-in metadata, decides compliance: a project
+// template may declare `compliant: false` under a built-in id.
+const NONCOMPLIANT_EXPR = `(typeof window.__S1S === 'object' && window.__S1S && typeof window.__S1S.noncompliant === 'function') ? window.__S1S.noncompliant() : null`;
 
 const DIAG_EXPR = `JSON.stringify({
   ready: window.__S1S_READY,
@@ -321,6 +325,8 @@ async function renderOne(
     const browserWarnings = (isWarningList(checked) ? checked : []).map((w) =>
       w.code === 'capture-missing' && run.allowPlaceholder ? { ...w, level: 'warn' as const } : w,
     );
+    const tagged: unknown = await page.evaluate(NONCOMPLIANT_EXPR);
+    const noncompliant = typeof tagged === 'string' && tagged.length > 0 ? tagged : undefined;
     const shot = await page.screenshot({
       type: 'png',
       fullPage: false,
@@ -340,6 +346,7 @@ async function renderOne(
       dims: processed.dims,
       warnings: promoteWarnings(mergeWarnings(warnings, browserWarnings), run.strict),
       durationMs: Math.round(performance.now() - startedAt),
+      ...(noncompliant === undefined ? {} : { noncompliant }),
     };
   } catch (error) {
     const consoleTail = slot.log.length ? ` Console: ${slot.log.join(' | ')}` : '';

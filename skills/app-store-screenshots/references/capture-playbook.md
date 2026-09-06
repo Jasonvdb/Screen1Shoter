@@ -437,7 +437,8 @@ s1s capture --udid "$WATCH" --name <scene-id> --device watch --locale en-US
   templates). Names are file-safe: letters, digits, `.`, `_`, `-`.
 - `--locale` defaults to the source locale. Own-locale captures for a
   localized set go to `captures/<locale>/...`; the renderer falls back to the
-  source locale's file when a locale has none and reports `capture-fallback-locale`.
+  source locale's file when a locale has none and reports `capture-fallback-locale`
+  (info when `locales.<locale>.captureSource` declares the reuse, warn when it does not).
 - Add `--json` for a machine-readable result (`dims`, `sha256`, `screens`
   updated, `warnings`).
 - The screenshot lands in a temp file first. A wrong size never overwrites a

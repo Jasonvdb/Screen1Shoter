@@ -18,18 +18,21 @@ All paths in this file are relative to the app repo. The CLI is `s1s`.
 | `two-device` | iphone, ipad | 2 (`capture: [a, b]`) | headline, highlight, subline, badge | compliant | built |
 | `feature-grid` | ipad only | 1 | headline, highlight, subline, badge, callouts (1-3) | compliant | built |
 | `raw` | iphone, ipad, watch | 1 | none | compliant (plain UI, no bezel) | built (default for watch) |
-| `bleed-bottom` | iphone, ipad | 1 | headline, subline | NOT compliant | planned (W6), opt-in |
-| `tilted` | iphone, ipad | 1 | headline, subline | NOT compliant | planned (W6), opt-in |
-| `watch-caption` | watch | 1 | headline | compliant | planned (W6), opt-in |
+| `bleed-bottom` | iphone, ipad | 1 | headline, highlight, subline, badge | NOT compliant | built, opt-in |
+| `tilted` | iphone, ipad | 1 | headline, highlight, subline, badge | NOT compliant | built, opt-in |
+| `watch-caption` | watch | 1 | headline, highlight | compliant | built, opt-in |
 
-Check the list on the machine before you rely on it:
+Every built-in template above is implemented and renders today. Check the list
+on the machine before you rely on it:
 
 ```sh
-s1s render --dry-run --allow-placeholder --json   # validates screens.ts, theme.ts and copy; names planned templates
+s1s render --dry-run --allow-placeholder --json   # validates screens.ts, theme.ts and copy
 ```
 
-A `screens.ts` that names a planned template fails with `config-invalid` and
-the message `template "<id>" is planned for W6; available now: ...`.
+A `screens.ts` that names an id no built-in and no `templates/index.ts` module
+provides fails with `config-invalid` (`unknown template "<id>" and no
+templates/index.ts / templates/index.tsx`). A built-in used on a family it has
+no layout for fails the same way (`has no <family> layout (families: ...)`).
 
 ## How every built-in template works
 
@@ -65,19 +68,22 @@ Read this section once. Each template section below only lists what differs.
   warn-level `capture-dims`, anything else an error that names the right
   simulator. A missing capture renders a hatched panel that prints the
   `s1s capture ...` command and fails the render unless you pass
-  `--allow-placeholder`. The passthrough size `watch-s10` has no placeholder:
-  it fails even with the flag, so exclude it with `--sizes` until the watch
-  capture exists. Without an installed bezel a generic CSS frame is
+  `--allow-placeholder`. A passthrough item (`raw` on `watch-s10`) has no
+  placeholder: it fails even with the flag, so exclude it with `--sizes` until
+  the watch capture exists. Without an installed bezel a generic CSS frame is
   drawn and a warn-level `bezel-fallback` is reported: run
   `s1s bezels install`.
 - Props shared by every framed template (`hero-top-text`, `text-bottom`,
-  `two-device`, `feature-grid`):
+  `two-device`, `feature-grid`, `bleed-bottom`, `tilted`):
   - `align: 'center' | 'left'` (default `center`): alignment of the text block.
   - `background`: a hex string, `{ type: 'gradient', from, to, angle? }`
     (angle in degrees, default 180) or `{ type: 'image', src, fit?, position? }`
     (`src` relative to `screenshots/`, for example `assets/bg.png`). Default:
     `theme.background`. Anything unrecognised falls back to the solid theme
-    colour.
+    colour. `raw` and `watch-caption` take `background` too, except on a
+    passthrough watch screen, where no template runs at all. A project-level
+    `panorama` fills `background` for you ("Panorama backgrounds" below); an
+    explicit `background` on the screen wins over it.
 - Props resolve base < `overrides.<family>` < `overrides.<sizeId>` <
   `locales.<locale>`. `template` and `capture` replace; `props` shallow-merge.
 - Copy resolves from `copy.screens[copyKey ?? id]`. No entry is an error-level
@@ -244,13 +250,16 @@ screenshot mode, not from a template.
 
 Required captures: one (default name = screen id).
 
-Copy fields: none. `raw` never emits `copy-missing`; keep a copy entry only if a
-later `watch-caption` needs it.
+Copy fields: none. `raw` never emits `copy-missing`; keep a copy entry only
+when the same key feeds a `watch-caption` screen (switching a watch screen to
+`watch-caption` needs one).
 
 Props:
 - `fit: 'cover' | 'contain'` (default `cover`). `contain` letterboxes a capture
   that does not match the canvas aspect; the gaps show `background`.
-- `background`.
+- `background`. Neither prop reaches the watch: `raw` on `watch-s10` is a
+  passthrough, so the capture is copied and no template runs. Use
+  `watch-caption` if a watch screen needs a background.
 
 iPhone and iPad: the capture (1320x2868 or 2064x2752) equals the canvas, so it
 fills it exactly with no scaling.
@@ -258,23 +267,176 @@ fills it exactly with no scaling.
 Apple rules: compliant. A plain screenshot has no bezel to misuse; Apple's
 bezel rules apply only to framed images.
 
-## Planned templates (W6): opt-in
+## bleed-bottom
 
-These templates exist in the metadata only. `s1s render --dry-run` rejects a
-`screens.ts` that names them until W6 ships them. Do not choose them by
-default. Ask the user before you plan a set around them.
+Opt-in. NOT compliant with Apple's marketing guidelines: the device is cropped
+at the bottom canvas edge. Never choose it yourself; ask the user first and
+record the answer in `screenshots/plan.md`.
 
-| Template | Families | What it will do | Apple rules |
-|---|---|---|---|
-| `bleed-bottom` | iphone, ipad | Text on top; the device keeps its width and is cropped at the bottom canvas edge, so the UI is larger. | NOT compliant: Apple's marketing guidelines forbid cropping the product bezel. |
-| `tilted` | iphone, ipad | The device is rotated a few degrees. | NOT compliant: Apple forbids tilting the bezel. |
-| `watch-caption` | watch | A 416x496 watch capture with a short caption. Requires a browser render for the watch size instead of the passthrough. | compliant, opt-in. |
+When to use: only when the user asks for the app UI to read larger than
+`hero-top-text` allows, and accepts the guideline risk. Use it for the whole
+set or not at all; one cropped device between five whole ones looks like a
+render bug.
 
-Non-compliant templates tag the canvas `data-s1s-noncompliant="<id>"`, and
-`screenshots/out/<locale>/review.md` lists them under "Non-compliant
-templates". Apple reviews marketing images against its guidelines; a
-non-compliant set is the user's risk, so record the decision in
+Layout: text block on top; below it the device at the full canvas width,
+running off both sides and off the bottom edge. There is no bottom or side
+padding around the device. The frame is clipped at the canvas edge
+(`DeviceFrame crop="bottom" allowBleed`), so the bleed is not an `overflow`
+error.
+
+| Family | Padding (top / text sides) | Text slot | Headline | Subline | Badge | Gap text to device |
+|---|---|---|---|---|---|---|
+| iphone | 54 / 30 pt | 172 pt | 28-46 pt, 2 lines | 15-21 pt, 2 lines | 12 pt | 24 pt |
+| ipad | 76 / 80 pt | 258 pt | 40-72 pt, 2 lines | 22-32 pt, 2 lines | 17 pt | 34 pt |
+
+Required captures: one (default name = screen id).
+
+Copy fields: `headline`, `highlight`, `subline`, `badge`.
+
+Props:
+- `deviceWidth` (fraction of the canvas width, greater than 0 and at most 1;
+  default 1 = edge to edge). Anything outside that range falls back to 1.
+  Keep one value across the set.
+- `align`, `background`.
+
+iPad: same layout with iPad proportions and the larger text ranges.
+
+## tilted
+
+Opt-in. NOT compliant: Apple asks for upright devices. Same rule as
+`bleed-bottom` - ask the user, record it in `plan.md`.
+
+When to use: only on request, for a set that wants a magazine look. The whole
+device stays inside the canvas: the renderer shrinks it until its rotated
+bounding box fits the slot, so a bigger tilt means a smaller device.
+
+Layout: text block on top; the whole device below, rotated around its centre.
+
+| Family | Padding (top / sides / bottom) | Text slot | Headline | Subline | Badge | Device width before the tilt |
+|---|---|---|---|---|---|---|
+| iphone | 54 / 30 / 30 pt | 172 pt | 28-46 pt, 2 lines | 15-21 pt, 2 lines | 12 pt | up to 82 % of the canvas |
+| ipad | 76 / 80 / 44 pt | 258 pt | 40-72 pt, 2 lines | 22-32 pt, 2 lines | 17 pt | up to 84 % of the canvas |
+
+Required captures: one (default name = screen id).
+
+Copy fields: `headline`, `highlight`, `subline`, `badge`.
+
+Props:
+- `rotate` (degrees, default -8; negative leans the device to the left).
+  Clamped to -20..20; a non-number falls back to -8. Past about 12 degrees
+  the shrink is obvious, so keep it small and identical across the set.
+- `align`, `background`. There is no `deviceMaxWidth` prop here; the tilt
+  drives the size.
+
+Example:
+
+```ts
+{ id: 'replay', template: 'tilted', props: { rotate: -6 } }
+```
+
+## watch-caption
+
+Opt-in, and the only compliant one of the three. It is the alternative to
+`raw` for the watch set when the watch screens need words.
+
+When to use: a watch set whose captures do not explain themselves. Ask first:
+`raw` is the default and Apple's own watch screenshots carry no marketing
+copy. Use it for every watch screen of the set or for none.
+
+Layout: the unframed 416x496 capture (there is no watch bezel) in a rounded
+box, with a fixed-height caption slot above or below it. The canvas is a
+46 mm watch face, so the caption budget is two to four words.
+
+| Family | Padding (top / sides / bottom) | Caption slot | Headline | Capture corner radius | Gap |
+|---|---|---|---|---|---|
+| watch | 14 / 14 / 16 pt | 92 pt | 16-34 pt, 2 lines | 40 pt | 12 pt |
+
+Required captures: one, exactly 416x496 (default name = screen id).
+
+Copy fields: `headline` and `highlight` only. `subline`, `badge` and
+`callouts` are ignored: nothing else survives at this size. A screen with no
+copy entry renders `[copy missing: <copyKey>]`, so give every
+`watch-caption` screen an entry.
+
+Props:
+- `captionSide: 'top' | 'bottom'` (default `bottom`).
+- `fit: 'cover' | 'contain'` (default `cover`). The capture box is wider than
+  a 416x496 capture, so the default scales the capture to the box width and
+  cuts roughly the bottom fifth of the watch screen away. Use `contain` when
+  the bottom of the screen carries a button row or a number; the capture is
+  then letterboxed inside the box instead.
+- `background`.
+
+This template is NOT a passthrough. `raw` on `watch-s10` copies the capture
+and never opens the browser; `watch-caption` has copy to paint, so the watch
+screen goes through Chromium like every other size. One consequence is
+useful: a passthrough item has no placeholder and fails even with
+`--allow-placeholder`, while a `watch-caption` screen renders a hatched
+placeholder like any iPhone screen, so watch layout work can start before the
+watch capture exists.
+
+Example:
+
+```ts
+{ id: 'watch-stats', template: 'watch-caption', only: ['watch'], props: { captionSide: 'top' } }
+```
+
+## Non-compliant templates: what the tool does
+
+`bleed-bottom` and `tilted` tag the canvas `data-s1s-noncompliant="<id>"`, and
+`screenshots/out/<locale>/review.md` gets a "Non-compliant templates" section
+naming every such template the run used. Nothing is blocked: the render still
+exits 0 and the export still runs. Apple reviews marketing images against its
+guidelines, so a non-compliant set is the user's risk. Never switch a screen
+to one of them without the user's approval, and write the decision into
 `screenshots/plan.md`.
+
+## Panorama backgrounds
+
+One wide image cut into a slice per screen, so consecutive screenshots join up
+in the App Store carousel. It is a project-level setting in `screens.ts`, not
+a per-screen prop:
+
+```ts
+export default defineScreens({
+  panorama: { image: 'assets/pano.png', screens: ['map', 'laps', 'replay'] },
+  screens: [ /* ... */ ],
+});
+```
+
+- `image` is a path relative to `screenshots/` (the project dir). Put the file
+  under `screenshots/assets/`.
+- `screens` lists the ids that take a slice, in carousel order. Omit it and
+  every screen in `screens.ts` order takes one. An id `screens.ts` does not
+  define is dropped from the list, because counting it would shift every later
+  slice.
+- The slice count is the length of that list. Screen `i` shows the strip from
+  `i / count` to `(i + 1) / count` of the image width.
+- The image is `cover`-cropped into a strip `count` canvases wide, then slid
+  left by `i` canvases. Make it `count` times as wide as one canvas and the
+  same height, so nothing is cropped: `count x 1320` by `2868` for iPhone 6.9".
+  One image serves every size, so pick an aspect that survives both an iPhone
+  and an iPad crop, or give the iPad set its own screens.
+- Precedence: the panorama is a project-wide default for `props.background`.
+  An explicit `props.background` on the screen, or on any `overrides.<family>`
+  / `overrides.<sizeId>` / `locales.<locale>` layer, wins, and that screen
+  drops out of the seam. This is how you exclude one screen without touching
+  `panorama.screens`.
+- Sizes are cut independently but from the same list, so the slice order is
+  identical on iPhone and iPad. A screen the panorama would list but `only`
+  keeps off a family, or that the watch copies through as a passthrough,
+  would consume its index without ever being drawn there. `s1s render`
+  refuses that config (`config-invalid`) instead of shipping a broken seam:
+  list `panorama.screens` explicitly, or give that family its own list.
+- `panorama.screens` ids are checked too. An id `screens.ts` does not define,
+  or one listed twice, is `config-invalid`: either would silently re-cut every
+  slice.
+- A missing or unreadable image file is an error-level `image-missing` on
+  every screen of the panorama (the render exits 1) and the theme background
+  shows through. Check the contact sheet: the seam is the only thing that
+  proves the slices line up.
+
+Every template that draws a `Background` honours it (all the built-ins do).
 
 ## Writing screens.ts and theme.ts
 
@@ -358,19 +520,21 @@ Rules the example shows:
   ordinal sequence, so dropping a screen on iPad renumbers the iPad set only.
 - `capture` is a name, an array of names (`two-device`), or a map per family.
   Omit it to use the id. Names resolve to
-  `captures/<locale>/<family>/<name>.png`, then to the source locale's file
-  (info-level `capture-fallback-locale`), then to a placeholder.
+  `captures/<locale>/<family>/<name>.png`, then to the `reuse:<l>` locale's
+  file (info-level `capture-fallback-locale`), then to the source locale's
+  (warn-level: nobody declared that reuse), then to a placeholder.
 - `overrides` keys are families (`iphone`, `ipad`, `watch`) or size ids
   (`iphone-6.5`). `locales` keys are locale codes and apply last.
 - `props` shallow-merge across layers; `template` and `capture` replace.
 - `notes` is for people and agents; it is never rendered.
-- `panorama` (a wide background sliced across screens) is accepted by the
-  schema but not rendered yet; do not use it.
+- `panorama` (a wide background sliced across the listed screens) is a
+  sibling of `screens`, not a screen field. It fills `props.background` for
+  every screen it lists; see "Panorama backgrounds" above.
 
 Validate after every edit:
 
 ```sh
-s1s render --dry-run --allow-placeholder --json   # config errors, capture counts, planned templates
+s1s render --dry-run --allow-placeholder --json   # config errors, capture counts, unknown templates
 s1s render --allow-placeholder       # layout work before captures exist (hatched panels)
 ```
 
@@ -405,15 +569,18 @@ Field notes:
   3- or 6-digit hex; `rgb()` and names fail validation.
 - `headlineCase: 'title'` capitalises every word except small words mid-line
   (a, an, the, of, to, in, on, at, by, with, ...) and never lowercases, so
-  "GPS" stays "GPS". `'sentence'` capitalises the first character only.
+  "GPS" stays "GPS". That list is English, so outside an English render locale
+  `'title'` renders as `'sentence'`. `'sentence'` capitalises the first character only.
   `'upper'` uppercases everything. Write the copy in the case you want to see
   for `sentence`; `title` and `upper` transform it. Choose one for the set;
   it is a theme field, not a per-screen one.
 - `fonts`: the default stacks use SF Pro on a Mac and the bundled Inter
   elsewhere. Set `portable: true` when renders must be byte-identical across
-  machines or CI. A named family that is not installed produces a warn-level
-  `font-fallback`. Fonts under `screenshots/fonts/` are not auto-registered
-  yet; do not depend on them.
+  machines or CI (it replaces both stacks with the bundled Inter and so
+  overrides any project font). A named family that is not installed and is not
+  a project font produces a warn-level `font-fallback`. Drop the font files
+  into `screenshots/fonts/` to ship a brand face with the repo; see "Project
+  fonts" below.
 - `bezelVariant`: the colour slug of the installed bezel. Installed variants:
   `s1s bezels list`. Known slugs: iPhone 17 Pro Max and Pro `deep-blue`,
   `cosmic-orange`, `silver`; iPhone 17 `black`, `white`, `lavender`,
@@ -422,6 +589,68 @@ Field notes:
   every family; a slug the iPad does not have falls back to its first colour.
   Pick a variant that contrasts with `background` (a black iPad on `#000` has
   no edge).
+
+### Project fonts: screenshots/fonts/
+
+Font files the app repo ships are registered automatically. There is no field
+to fill in: put the files in `screenshots/fonts/` and name them well.
+
+```
+screenshots/fonts/
+  Satoshi-Regular.woff2
+  Satoshi-Bold.woff2
+  Satoshi-BoldItalic.woff2
+  OFL.txt                      # ignored, not a font
+  sources/Satoshi-Black.woff2  # ignored: subdirectories are not scanned
+```
+
+Rules the scan follows:
+
+- Only files directly under `screenshots/fonts/`. Subdirectories are ignored.
+  A missing `fonts/` directory (or a file of that name) is simply "no project
+  fonts", never an error.
+- Extensions: `.woff2`, `.woff`, `.ttf`, `.otf` (case-insensitive). Anything
+  else is skipped.
+- The file name is the whole face description. `Family-Weight[Italic].ext`:
+  the scan splits at the first `-` or `_` whose remainder names a weight, so
+  `SF-Pro-Display-Bold.woff2` is family `SF-Pro-Display` at 700, and
+  `Satoshi-Bold-Italic.woff2` is `Satoshi` 700 italic.
+- Weight words, in any case: `thin`/`hairline` 100, `extralight`/`ultralight`
+  200, `light` 300, `regular`/`normal`/`book` 400, `medium` 500,
+  `semibold`/`demibold` 600, `bold` 700, `extrabold`/`ultrabold` 800,
+  `black`/`heavy` 900. A bare `Italic` suffix is 400 italic.
+- A variable font is `Family[-|_ ]Variable[-Italic].ext`
+  (`InterVariable.woff2`, `Inter-Variable.ttf`): the family is what precedes
+  `Variable`, and the weight becomes the range `100 900`.
+- A name that describes no face is the family itself at 400 normal, so
+  `Cabinet-Grotesk.woff2` registers family `Cabinet-Grotesk` and
+  `Satoshi.woff` registers `Satoshi`. Nothing is ever rejected for its name.
+- Files are read in sorted order and one `@font-face` is written per file, so
+  a `.woff` next to its `.woff2` both register and the `.woff2` rule wins.
+
+Then name the family in the theme, exactly as the file name spells it:
+
+```ts
+fonts: {
+  headline: '"Satoshi", -apple-system, system-ui, sans-serif',
+  body: '"Satoshi", -apple-system, system-ui, sans-serif',
+},
+```
+
+- `theme.fonts.headline` and `theme.fonts.body` are plain CSS stacks; a
+  project font is just another family name in them. Keep a real fallback after
+  it.
+- `theme.headlineWeight` must be a weight the files provide (or any value
+  inside a variable font's range). A weight with no file is synthesised by the
+  browser and looks wrong.
+- `portable: true` overrides both stacks with the bundled Inter, so it and a
+  project font are mutually exclusive. Project fonts are the portable option
+  when the files are committed: every machine then renders the same pixels.
+- The renderer force-loads every project family before it declares the page
+  ready, so no render can catch a fallback mid-swap. A file that fails to load
+  still declares its family, and the render reports the warn-level
+  `font-fallback` for that stack.
+- `s1s dev` reloads the page when anything under `screenshots/fonts/` changes.
 
 ### copy/<locale>.json: the fields templates read
 
@@ -577,8 +806,12 @@ with a warning.
   panels, no `capture-dims` warning, no personal data.
 - iPad set mirrors the iPhone order. Drop a screen with `only`, never reorder.
   `feature-grid` callouts exist (1-3) wherever the iPad override uses it.
-- Watch set: `raw`, 416x496 captures, marketing-grade values from the app's
-  screenshot mode, no text template.
+- Watch set: `raw` (or `watch-caption` on every watch screen when the user
+  asked for captions, never a mix), 416x496 captures, marketing-grade values
+  from the app's screenshot mode.
+- Panorama, when the set uses one: the seam lines up on the contact sheet, no
+  screen of the run silently kept its own `background`, and the slice order
+  matches the export order (`NN`).
 - No non-compliant template unless `plan.md` records the user's decision.
 - `report.json` says `ok: true`; `review.md` lists no failures and no
   "Non-compliant templates" section you did not expect.

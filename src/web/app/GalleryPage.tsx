@@ -62,7 +62,12 @@ export function warningBadge(warnings: Warning[]): string {
   return parts.join(', ');
 }
 
-export function GalleryPage() {
+export interface GalleryPageProps {
+  /** Query of `#/gallery?...`; `locale` is what `s1s dev --locale` writes. */
+  params: URLSearchParams;
+}
+
+export function GalleryPage({ params }: GalleryPageProps) {
   const project = useProjectData();
   const [locale, setLocale] = useState<string | null>(null);
   const [sizeId, setSizeId] = useState<string | null>(null);
@@ -73,7 +78,10 @@ export function GalleryPage() {
 
   const locales = localesOf(data);
   const presets = renderPresets(data);
-  const activeLocale = locale ?? data.json.sourceLocale;
+  // `s1s dev --locale de-DE` opens the gallery on that locale; the switcher
+  // still overrides it, and an unknown one falls back to the source locale.
+  const wanted = params.get('locale');
+  const activeLocale = locale ?? (wanted !== null && locales.includes(wanted) ? wanted : data.json.sourceLocale);
   const preset = presets.find((p) => p.id === sizeId) ?? presets[0];
   if (!preset) return <div className="s1s-shell s1s-error">No sizes configured.</div>;
 

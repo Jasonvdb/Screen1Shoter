@@ -35,12 +35,15 @@ Run the install script from this checkout once per machine:
 ```sh
 scripts/install-skills.sh            # create or refresh the symlinks
 scripts/install-skills.sh --check    # report link state, change nothing
-scripts/install-skills.sh --retire   # archive the three old skills (asks y/N; run it in W6)
+scripts/install-skills.sh --retire   # archive the three old skills (asks y/N)
 scripts/install-skills.sh --uninstall
 ```
 
-Run `--retire` in W6, after the pilot proves the replacement. The three old
-skills stay installed until then, so the fallback is still there.
+`--retire` has not been run. Run it once a real end-to-end pilot (captures,
+human gates, an actual upload) proves the replacement; the de-DE dry run in
+`docs/w6-de-de-dryrun.md` recorded the gates rather than asking them, so it is
+not that proof. The three old skills stay installed until then, so the
+fallback is still there.
 
 It creates these links and never overwrites a real directory:
 

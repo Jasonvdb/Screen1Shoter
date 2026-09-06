@@ -1,20 +1,21 @@
 // Vite plugin that connects the browser runtime to one app project:
 //   - virtual:s1s-screens / -theme / -templates -> the project's TS files
-//   - GET /__s1s/project.json                    -> ProjectJson
+//   - GET /__s1s/project.json                    -> ProjectJson (fonts/ included)
 //   - /project/* and /bezels/*                   -> static files, no caching
 //   - window.__S1S_MODE (+ animation kill switch in render mode) in index.html
 //   - dev mode: full reload when copy, captures, fonts or the manifest change
 import { createReadStream } from 'node:fs';
-import { readFile, stat } from 'node:fs/promises';
+import { readdir, readFile, stat } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { extname, join, resolve, sep } from 'node:path';
 import type { HtmlTagDescriptor, Plugin, ViteDevServer } from 'vite';
 import { ALL_SIZE_IDS, presetsFor } from '../config/presets.ts';
-import type { BezelIndex, LocaleCopy, ProjectJson } from '../config/types.ts';
+import type { BezelIndex, LocaleCopy, ProjectFont, ProjectJson } from '../config/types.ts';
 import { captureMap, listCaptureLocales } from '../core/captures.ts';
 import { listCopyLocales, loadCopy } from '../core/copy.ts';
 import { isS1sError } from '../core/errors.ts';
 import { findTemplatesEntry, loadProject, type Project } from '../core/project.ts';
+import { FONT_EXTENSIONS, parseFontFile } from '../web/runtime/fonts.ts';
 import type { S1sServerOptions } from './server.ts';
 
 const VIRTUAL_FILES: Record<string, string> = {
@@ -144,6 +145,25 @@ async function readBezelIndex(bezelDir: string): Promise<BezelIndex | null> {
   return null;
 }
 
+/**
+ * Font files directly under `<project>/fonts/`, sorted by name. A missing or
+ * unreadable directory is simply "no project fonts", never an error: the
+ * browser then keeps the theme's own stacks.
+ */
+export async function listProjectFonts(projectDir: string): Promise<ProjectFont[]> {
+  let names: string[];
+  try {
+    const entries = await readdir(join(projectDir, 'fonts'), { withFileTypes: true });
+    names = entries
+      .filter((e) => e.isFile() && FONT_EXTENSIONS.includes(extname(e.name).toLowerCase()))
+      .map((e) => e.name)
+      .sort();
+  } catch {
+    return [];
+  }
+  return names.flatMap((name) => parseFontFile(name) ?? []);
+}
+
 async function buildProjectJson(project: Project, opts: S1sServerOptions, bezelDir: string): Promise<ProjectJson> {
   const copyLocales = await listCopyLocales(project.dir);
   const copies: Record<string, LocaleCopy> = {};
@@ -178,6 +198,7 @@ async function buildProjectJson(project: Project, opts: S1sServerOptions, bezelD
     // family the project does not list, and the map is keyed by family.
     captures: captureMap(project, captureLocales, presetsFor(ALL_SIZE_IDS)),
     bezels: await readBezelIndex(bezelDir),
+    fonts: await listProjectFonts(project.dir),
   };
 }
 

@@ -260,9 +260,12 @@ does not come from `order`. Keep the two equal so the manifest reads right.
 | `versionLocalizationId?` | string | agent | ASC version localization id for this locale (`asc screenshots list --version-localization`) |
 | `devices` | map by size id | mixed | `devices.<sizeId>.screens.<screenId>` is an `ImageState` |
 
-Capture fallback chain used by the render, in order: `reuse:<l>` locale,
-own locale, source locale (info warning `capture-fallback-locale`), placeholder
-(`capture-missing`: error, or warn with `--allow-placeholder`).
+Capture fallback chain used by the render, in order: the `reuse:<l>` locale
+(fallback `reuse`, info warning `capture-fallback-locale`), the own locale
+(fallback `none`), the source locale (fallback `source-locale`, warn-level
+`capture-fallback-locale`: nobody asked for those pixels, so the capture step
+was skipped for this locale), placeholder (fallback `placeholder`,
+`capture-missing`: error, or warn with `--allow-placeholder`).
 
 ### `ImageState` (`locales.<l>.devices.<size>.screens.<id>`)
 
@@ -285,7 +288,8 @@ own locale, source locale (info warning `capture-fallback-locale`), placeholder
 | `wasUploaded?` | boolean | CLI | `s1s render` sets `true` when the hash changes on an `uploaded` image; `s1s export` sets it when it repoints one (new store file name or new bytes). `s1s status --set uploaded` clears it |
 
 Warning codes and default levels: `capture-missing` error,
-`capture-fallback-locale` info, `capture-dims` error (warn when only the
+`capture-fallback-locale` info for a declared `reuse:<l>` and warn for an
+undeclared fall back to the source locale, `capture-dims` error (warn when only the
 scale differs), `text-min-size` error, `text-clipped` error, `overflow`
 error, `image-missing` error, `copy-missing` error, `copy-unused` info,
 `bezel-fallback` warn, `font-fallback` warn, `render-failed` error,

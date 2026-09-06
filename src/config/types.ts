@@ -234,7 +234,12 @@ export interface LocaleCopy {
 // Resolution (screens.ts x preset x locale x copy)
 // ---------------------------------------------------------------------------
 
-export type CaptureFallback = 'none' | 'source-locale' | 'placeholder';
+/**
+ * Where the pixels came from: 'reuse' = the locale declares
+ * `captureSource: 'reuse:<l>'` and that locale's file was used; 'source-locale'
+ * = no own file, so the source locale's was.
+ */
+export type CaptureFallback = 'none' | 'reuse' | 'source-locale' | 'placeholder';
 
 export interface CaptureSource {
   requested: CaptureRef;
@@ -361,7 +366,7 @@ export interface RenderItem {
   /** Hash route, path only: `/#/render/<locale>/<sizeId>/<screenId>`. */
   url: string;
   outputs: RenderOutput[];
-  /** Watch: copy the capture, skip the browser. */
+  /** `raw` on a passthrough preset (watch): copy the capture, skip the browser. */
   passthrough: boolean;
 }
 
@@ -384,6 +389,14 @@ export interface RenderReportItem {
   dims: Dims | null;
   warnings: Warning[];
   durationMs: number;
+  /**
+   * Template id when the rendered canvas was tagged data-s1s-noncompliant.
+   * Read from the browser registry, so a project template that declares
+   * `compliant: false` is reported too. Absent for passthrough and dry-run
+   * items, which never open a browser; review.md falls back to the built-in
+   * metadata for those.
+   */
+  noncompliant?: string;
   /** Failure reason; present only when status is 'failed'. */
   error?: string;
 }
@@ -556,6 +569,19 @@ export interface ProjectManifest {
 // /__s1s/project.json (served by the Vite plugin to the browser)
 // ---------------------------------------------------------------------------
 
+/** One font file under `<project>/fonts/`, described by its name (src/web/runtime/fonts.ts). */
+export interface ProjectFont {
+  /** Path relative to `<project>/fonts/`, posix; served at `/project/fonts/<file>`. */
+  file: string;
+  /** CSS font-family the @font-face declares. */
+  family: string;
+  /** CSS font-weight: '700', or a variable range such as '100 900'. */
+  weight: string;
+  style: 'normal' | 'italic';
+  /** `format()` hint for the src url. */
+  format: 'woff2' | 'woff' | 'truetype' | 'opentype';
+}
+
 export interface ProjectJson {
   version: 1;
   mode: 'render' | 'dev';
@@ -569,4 +595,6 @@ export interface ProjectJson {
   /** Keyed by captureKey(locale, family, ref). */
   captures: Record<string, CaptureSource>;
   bezels: BezelIndex | null;
+  /** Every font file under `<project>/fonts/`, sorted by file name; empty when there is none. */
+  fonts: ProjectFont[];
 }

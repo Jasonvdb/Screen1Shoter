@@ -27,6 +27,8 @@ interface Window {
   __S1S: {
     /** Warnings derived from the DOM (data-s1s-* attributes). */
     check(): import('../config/types.ts').Warning[];
+    /** Template id of a canvas tagged data-s1s-noncompliant, else null. */
+    noncompliant(): string | null;
   };
   /** Render mode only (context init script): re-seeds Math.random from a route key. */
   __s1sSeed?: (route: string) => void;

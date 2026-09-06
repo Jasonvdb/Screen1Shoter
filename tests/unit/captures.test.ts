@@ -157,7 +157,10 @@ describe('resolveCapture fallback chain (temp copy of project-bare)', () => {
     expect(captureWarnings(source, iphone69, { allowPlaceholder: false })).toEqual([]);
   });
 
-  it('2) no de-DE file: the source-locale file is used with one info warning', async () => {
+  // Nobody declared this reuse: de-DE is captured in its own right and its
+  // capture step simply never ran, so English pixels would ship inside a
+  // German set. That is a warn, not the info a declared reuse gets.
+  it('2) no de-DE file: the source-locale file is used with one warn-level warning', async () => {
     await makeProjectCaptures(project.dir, 'en-US', { iphone: ['home'] });
     const source = resolveCapture(project, 'home', iphone69, 'de-DE');
     expect(source).toMatchObject({
@@ -168,11 +171,12 @@ describe('resolveCapture fallback chain (temp copy of project-bare)', () => {
       dims: iphone69.captureDims,
     });
     const warnings = captureWarnings(source, iphone69, { allowPlaceholder: false });
-    expect(warnings.map((w) => [w.code, w.level])).toEqual([['capture-fallback-locale', 'info']]);
-    expect(warnings[0]?.message).toContain('uses the en-US file captures/en-US/iphone/home.png');
+    expect(warnings.map((w) => [w.code, w.level])).toEqual([['capture-fallback-locale', 'warn']]);
+    expect(warnings[0]?.message).toContain('has no file at captures/de-DE/iphone/home.png');
+    expect(warnings[0]?.message).toContain('captures/en-US/iphone/home.png');
   });
 
-  it('3) manifest reuse:en-US wins over a de-DE file that exists', async () => {
+  it('3) manifest reuse:en-US wins over a de-DE file that exists and is recorded as `reuse`', async () => {
     await makeProjectCaptures(project.dir, 'en-US', { iphone: ['home'] });
     await makeProjectCaptures(project.dir, 'de-DE', { iphone: ['home'] });
     // Without reuse the own file wins.
@@ -184,10 +188,31 @@ describe('resolveCapture fallback chain (temp copy of project-bare)', () => {
       ...project.manifest,
       locales: { ...project.manifest.locales, 'de-DE': { copyStatus: 'draft', captureSource: 'reuse:en-US', devices: {} } },
     };
-    expect(resolveCapture({ ...project, manifest }, 'home', iphone69, 'de-DE')).toMatchObject({
+    const source = resolveCapture({ ...project, manifest }, 'home', iphone69, 'de-DE');
+    expect(source).toMatchObject({
       resolvedPath: 'captures/en-US/iphone/home.png',
       usedLocale: 'en-US',
-      fallback: 'source-locale',
+      fallback: 'reuse',
+    });
+    // A deliberate reuse stays info: the human asked for these pixels.
+    expect(captureWarnings(source, iphone69, { allowPlaceholder: false }).map((w) => [w.code, w.level])).toEqual([
+      ['capture-fallback-locale', 'info'],
+    ]);
+  });
+
+  // `reuse:de-DE` for de-AT never touches the source locale, so recording
+  // 'source-locale' would name a locale nobody read a pixel from.
+  it('3b) reuse:<locale> that is not the source locale is recorded as `reuse`, naming that locale', async () => {
+    await makeProjectCaptures(project.dir, 'de-DE', { iphone: ['home'] });
+    const manifest: ProjectManifest = {
+      ...project.manifest,
+      locales: { ...project.manifest.locales, 'de-AT': { copyStatus: 'draft', captureSource: 'reuse:de-DE', devices: {} } },
+    };
+    const source = resolveCapture({ ...project, manifest }, 'home', iphone69, 'de-AT');
+    expect(source).toMatchObject({
+      resolvedPath: 'captures/de-DE/iphone/home.png',
+      usedLocale: 'de-DE',
+      fallback: 'reuse',
     });
   });
 

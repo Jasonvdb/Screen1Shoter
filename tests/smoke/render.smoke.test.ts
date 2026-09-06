@@ -3,14 +3,16 @@
 // installed bezel drawn around every capture (no bezel-fallback), previews,
 // contact sheets, report.json, review.md and manifest render fields. Two
 // smaller projects follow: a watch set (passthrough, no browser) and an
-// iPad feature-grid set with callouts. Needs Playwright's Chromium
-// (`s1s doctor`); never touches the network.
+// iPad feature-grid set with callouts, and the W6 opt-in set (panorama
+// background, bleed-bottom, tilted, watch-caption). Needs Playwright's
+// Chromium (`s1s doctor`); never touches the network.
 import { existsSync } from 'node:fs';
-import { readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { writeExampleCaptures } from '../../example/screenshots/make-captures.ts';
+import { galleryUrl } from '../../src/cli/commands/dev.ts';
 import { linkProject } from '../../src/cli/commands/link.ts';
 import { getPreset } from '../../src/config/presets.ts';
 import { captureRelPath, screenAppliesTo } from '../../src/config/resolve.ts';
@@ -19,8 +21,12 @@ import { bezelIndexPath } from '../../src/core/bezels/index.ts';
 import { imageState, readManifest } from '../../src/core/manifest.ts';
 import { bezelDir, reportPath, reviewPath, sheetPath, sizeOutDir } from '../../src/core/paths.ts';
 import { loadProject, type Project } from '../../src/core/project.ts';
+import { launchBrowser } from '../../src/render/browser.ts';
+import { exportProject } from '../../src/render/export.ts';
 import { PREVIEW_SCALE } from '../../src/render/post.ts';
 import { renderProject } from '../../src/render/render.ts';
+import { createS1sServer } from '../../src/render/server.ts';
+import { validateExport } from '../../src/render/validate.ts';
 import { normaliseSheetParams, sheetLayout } from '../../src/web/app/sheet-model.ts';
 import { LAYOUT } from '../../src/web/templates/two-device-layout.ts';
 import { copyExampleProject, hexToRgb, makeTempDir, must, parseJsonLine, pngInfo, runS1s, writeTempProject, type TempDir } from '../fixtures/helpers.ts';
@@ -244,6 +250,50 @@ describe('render example/ with bezels (smoke)', () => {
     expect(written.sheets).toEqual([]);
   });
 
+  // Export and validate are unit-tested against synthetic flat PNGs. This is
+  // the only place the real Chromium renders cross the render -> export ->
+  // validate seam, which is where a dims, alpha or channel-count regression
+  // would actually surface.
+  it('exports the rendered PNGs into metadata/screenshots and `s1s validate` passes on them', async () => {
+    const root = join(tmp.dir, 'metadata-export');
+    const exported = await exportProject(project, { locale: 'en-US', metadataDir: root, asc: false });
+    expect(exported.ok, JSON.stringify(exported.warnings)).toBe(true);
+    // The only things left to warn about are the human's: image approval and
+    // the App Store Connect ids the example project has never filled in.
+    const ADVISORY = new Set(['export-unapproved', 'manifest-incomplete']);
+    expect(exported.warnings.filter((w) => !ADVISORY.has(w.code) || w.level !== 'warn')).toEqual([]);
+    expect(exported.metadataDir).toBe(root);
+
+    for (const sizeId of SIZES) {
+      const displayType = getPreset(sizeId).displayType;
+      const items = report.items.filter((i) => i.sizeId === sizeId);
+      const files = exported.files.filter((f) => f.displayType === displayType);
+      expect(files.map((f) => f.to), displayType).toEqual(
+        items.map((item) => join(root, 'en-US', displayType, `${NN(item.ordinal)}.png`)),
+      );
+      for (const [index, file] of files.entries()) {
+        // The exported bytes are the rendered bytes, at the preset's size.
+        expect(file.from, file.to).toBe(must(items[index]).outputs[0]);
+        expect(await pngInfo(file.to), file.to).toEqual({
+          width: getPreset(sizeId).px.width,
+          height: getPreset(sizeId).px.height,
+          channels: 3,
+          hasAlpha: false,
+        });
+      }
+    }
+
+    const validated = await validateExport(project, { locale: 'en-US', metadataDir: root });
+    expect(validated.problems.filter((p) => p.level === 'error')).toEqual([]);
+    expect(validated.ok).toBe(true);
+    // validate walks the tree, so its sets come out in folder-name order.
+    expect(validated.sets.map((s) => [s.displayType, s.count])).toEqual(
+      SIZES.map((sizeId) => [getPreset(sizeId).displayType, report.items.filter((i) => i.sizeId === sizeId).length]).sort(
+        (a, b) => String(a[0]).localeCompare(String(b[0])),
+      ),
+    );
+  });
+
   it('`s1s sheet --scale 0.1 --columns 2 --json` re-lays out every size from report.json', async () => {
     const run = await runS1s(['sheet', '--project', project.dir, '--scale', '0.1', '--columns', '2', '--json'], { timeoutMs: 240_000 });
     expect(run.code, run.stderr).toBe(0);
@@ -405,5 +455,307 @@ describe('feature-grid on ipad-13 (smoke)', () => {
     expect(accentPixels, 'accent marker pixels right of the device').toBeGreaterThan(CALLOUTS.length * markerArea * 0.6);
     // Nothing accent-coloured leaks into the device column below the text block.
     expect(countColor(raw, accent, inset(body, 4), 2)).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// W6 opt-in set: a panorama across two screens, and watch-caption in the browser
+// ---------------------------------------------------------------------------
+
+describe('panorama and the W6 templates (smoke)', () => {
+  const LEFT: [number, number, number] = [255, 0, 0];
+  const RIGHT: [number, number, number] = [0, 255, 0];
+  /** Bottom fifth of the watch capture; only a `contain` fit keeps it. */
+  const CAPTURE_FOOT: [number, number, number] = [0, 255, 255];
+
+  /** A capture whose bottom fifth is one flat colour, so a crop is countable. */
+  async function writeBandedCapture(path: string, dims: { width: number; height: number }): Promise<void> {
+    const foot = Math.round(dims.height * 0.2);
+    const svg =
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${dims.width}" height="${dims.height}">` +
+      `<rect x="0" y="0" width="${dims.width}" height="${dims.height}" fill="#1c1c1e"/>` +
+      `<rect x="0" y="${dims.height - foot}" width="${dims.width}" height="${foot}" fill="rgb(${CAPTURE_FOOT.join(',')})"/>` +
+      `</svg>`;
+    await mkdir(join(path, '..'), { recursive: true });
+    await sharp(Buffer.from(svg)).removeAlpha().png().toFile(path);
+  }
+
+  let tmp: TempDir;
+  let project: Project;
+  let report: RenderReport;
+
+  beforeAll(async () => {
+    await writeSyntheticBezelHome(HOME, BEZEL_IDS);
+    tmp = await makeTempDir('s1s-smoke-w6-');
+    const dir = await copyExampleProject(join(tmp.dir, 'Example', 'screenshots'));
+    const screens: ScreensConfig = {
+      sizes: ['iphone-6.9', 'watch-s10'],
+      locales: ['en-US'],
+      panorama: { image: 'assets/pano.png', screens: ['bleed', 'tilt'] },
+      screens: [
+        { id: 'bleed', template: 'bleed-bottom', only: ['iphone'] },
+        { id: 'tilt', template: 'tilted', capture: 'bleed', props: { rotate: -10 }, only: ['iphone'] },
+        { id: 'narrow', template: 'bleed-bottom', capture: 'bleed', props: { deviceWidth: 0.6 }, only: ['iphone'] },
+        { id: 'glance', template: 'watch-caption', only: ['watch'] },
+        { id: 'glance-fit', template: 'watch-caption', capture: 'glance', props: { fit: 'contain' }, only: ['watch'] },
+      ],
+    };
+    await writeFile(
+      join(dir, 'screens.ts'),
+      `import { defineScreens } from 'screen1shoter/config';\nexport default defineScreens(${JSON.stringify(screens)});\n`,
+    );
+    const copy: LocaleCopy = {
+      locale: 'en-US',
+      screens: {
+        bleed: { headline: ['Every Ride', 'On One Map'], subline: 'Cropped at the bottom edge' },
+        tilt: { headline: ['Tilted', 'And Whole'], subline: 'Rotated, never clipped' },
+        narrow: { headline: ['Still', 'Cropped'], subline: 'A narrower device still meets the edge' },
+        glance: { headline: ['On Your', 'Wrist'] },
+        'glance-fit': { headline: ['Whole', 'Screen'] },
+      },
+    };
+    await writeFile(join(dir, 'copy', 'en-US.json'), `${JSON.stringify(copy, null, 2)}\n`);
+    const iphone = getPreset('iphone-6.9');
+    await makeCapture(join(dir, captureRelPath('en-US', 'iphone', 'bleed')), iphone.captureDims, { label: 'bleed' });
+    // A banded watch capture: the caption box is wider than 416x496, so
+    // `cover` scales to the width and cuts the bottom fifth away. The bottom
+    // band is what `props.fit: 'contain'` has to bring back.
+    await writeBandedCapture(join(dir, captureRelPath('en-US', 'watch', 'glance')), getPreset('watch-s10').captureDims);
+    // Two halves at exactly the strip aspect (2 canvases wide), so `cover`
+    // crops nothing and each screen must show one flat colour.
+    const width = iphone.px.width * 2;
+    const height = iphone.px.height;
+    const svg =
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
+      `<rect x="0" y="0" width="${width / 2}" height="${height}" fill="rgb(${LEFT.join(',')})"/>` +
+      `<rect x="${width / 2}" y="0" width="${width / 2}" height="${height}" fill="rgb(${RIGHT.join(',')})"/>` +
+      `</svg>`;
+    await mkdir(join(dir, 'assets'), { recursive: true });
+    await sharp(Buffer.from(svg)).removeAlpha().png().toFile(join(dir, 'assets', 'pano.png'));
+    await linkProject(dir);
+    project = await loadProject({ projectDir: dir });
+    report = await renderProject(project, { locale: 'en-US', sheet: false });
+  });
+  afterAll(async () => {
+    await tmp.cleanup();
+    await rm(HOME, { recursive: true, force: true });
+  });
+
+  it('renders all three opt-in templates at their exact size, warning-free', async () => {
+    expect(report.items.filter((i) => i.status === 'failed').map((i) => `${i.key}: ${i.error ?? ''}`)).toEqual([]);
+    expect(report.ok).toBe(true);
+    expect(report.items.map((i) => [i.key, i.template])).toEqual([
+      ['en-US/iphone-6.9/bleed', 'bleed-bottom'],
+      ['en-US/iphone-6.9/tilt', 'tilted'],
+      ['en-US/iphone-6.9/narrow', 'bleed-bottom'],
+      ['en-US/watch-s10/glance', 'watch-caption'],
+      ['en-US/watch-s10/glance-fit', 'watch-caption'],
+    ]);
+    for (const item of report.items) {
+      expect(unexpectedWarnings(item), item.key).toEqual([]);
+      expect(codes(item), item.key).not.toContain('bezel-fallback');
+      expect(await pngInfo(must(item.outputs[0])), item.key).toMatchObject({ channels: 3, hasAlpha: false });
+    }
+  });
+
+  it('sends a watch-caption screen through the browser instead of copying the capture', () => {
+    const glance = find(report, 'en-US/watch-s10/glance');
+    // The preset is passthrough; only `raw` may take that route, because every
+    // other template has copy to paint over the capture.
+    expect(glance.status).toBe('rendered');
+    expect(glance.dims).toEqual(getPreset('watch-s10').px);
+  });
+
+  // The template's contract is that the device runs off the bottom edge. Below
+  // about deviceWidth 0.78 the frame fits inside its slot, so only a
+  // bottom-aligned frame still reaches the edge; a top-pinned one leaves a
+  // band of flat theme background that no check would ever report.
+  it('bleed-bottom still meets the bottom canvas edge at a deviceWidth that fits the slot', async () => {
+    const raw = await readRaw(must(find(report, 'en-US/iphone-6.9/narrow').outputs[0]));
+    const body = must(colorBounds(raw, BEZEL_BODY_RGB), 'the bezel body (magenta) in the narrow bleed-bottom render');
+    // Within the anti-aliased last row of the bezel edge; the top-pinned
+    // version left 478 px of flat background here.
+    expect(raw.height - (body.y + body.height), 'gap below the device').toBeLessThanOrEqual(2);
+    // deviceWidth really applied: the device no longer spans the canvas.
+    expect(body.width).toBeLessThan(raw.width * 0.7);
+    // And it is not merely a full-width frame: it starts below the text block.
+    expect(body.y).toBeGreaterThan(0);
+  });
+
+  it('watch-caption crops the capture bottom by default and keeps it with props.fit "contain"', async () => {
+    const [cover, contain] = await Promise.all(
+      ['glance', 'glance-fit'].map(async (id) => readRaw(must(find(report, `en-US/watch-s10/${id}`).outputs[0]))),
+    );
+    // The capture box is wider than a 416x496 capture, so 'cover' scales to
+    // the width and the bottom band never reaches the canvas.
+    expect(countColor(must(cover), CAPTURE_FOOT, undefined, 8), 'cover keeps the bottom band').toBe(0);
+    const kept = countColor(must(contain), CAPTURE_FOOT, undefined, 8);
+    expect(kept, 'contain drops the bottom band').toBeGreaterThan(1000);
+  });
+
+  it('cuts the panorama into one slice per screen, in screens.ts order', async () => {
+    const [first, second] = await Promise.all(
+      ['bleed', 'tilt'].map(async (id) => readRaw(must(find(report, `en-US/iphone-6.9/${id}`).outputs[0]))),
+    );
+    // The top corners are background on both templates (bleed-bottom runs its
+    // device off the bottom edge, so only the top is safe to sample): the first
+    // screen shows the left half of the image, the second the right half, so the
+    // two join with no seam.
+    for (const [raw, colour] of [[must(first), LEFT], [must(second), RIGHT]] as const) {
+      const corners = [[4, 4], [raw.width - 5, 4]] as const;
+      for (const [x, y] of corners) expect(pixelAt(raw, x, y), `${x},${y}`).toEqual(colour);
+    }
+  });
+
+  it('names the non-compliant templates in review.md', async () => {
+    const review = await readFile(reviewPath(project, 'en-US'), 'utf8');
+    expect(review).toContain('## Non-compliant templates');
+    expect(review).toContain('bleed-bottom, tilted');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The dev server's own routes: `s1s dev --locale <l>` and <html lang>
+// ---------------------------------------------------------------------------
+
+describe('dev routes in a real browser (smoke)', () => {
+  const LOCALES = ['en-US', 'de-DE'] as const;
+  let tmp: TempDir;
+  let server: Awaited<ReturnType<typeof createS1sServer>>;
+  let browser: Awaited<ReturnType<typeof launchBrowser>>;
+  let url: string;
+
+  beforeAll(async () => {
+    await writeSyntheticBezelHome(HOME, BEZEL_IDS);
+    tmp = await makeTempDir('s1s-smoke-dev-');
+    const screens: ScreensConfig = { sizes: ['iphone-6.9'], locales: [...LOCALES], screens: [{ id: 'home' }] };
+    const copies: Record<string, LocaleCopy> = {
+      'en-US': { locale: 'en-US', screens: { home: { headline: 'Every ride on the map' } } },
+      'de-DE': { locale: 'de-DE', screens: { home: { headline: 'Jede Runde auf der Karte' } } },
+    };
+    const dir = await writeTempProject(join(tmp.dir, 'screenshots'), { screens, copies });
+    for (const locale of LOCALES) {
+      await makeCapture(join(dir, captureRelPath(locale, 'iphone', 'home')), getPreset('iphone-6.9').captureDims, { label: locale });
+    }
+    await linkProject(dir);
+    server = await createS1sServer({ projectDir: dir, bezelDir: bezelDir(), mode: 'dev' });
+    url = server.url.replace(/\/+$/, '');
+    browser = await launchBrowser();
+  });
+  afterAll(async () => {
+    await browser?.close().catch(() => {});
+    await server?.close().catch(() => {});
+    await tmp.cleanup();
+    await rm(HOME, { recursive: true, force: true });
+  });
+
+  it('opens the gallery on the locale `s1s dev --locale` names', async () => {
+    const page = await browser.newPage();
+    try {
+      // The exact URL src/cli/commands/dev.ts prints for `--locale de-DE`.
+      await page.goto(galleryUrl(server.url, 'de-DE'), { waitUntil: 'load' });
+      await page.waitForFunction('document.querySelector("select") !== null', undefined, { timeout: 60_000 });
+      expect(await page.evaluate<string>('document.querySelector("select").value')).toBe('de-DE');
+    } finally {
+      await page.close();
+    }
+  });
+
+  it('gives the render route the locale it renders as the document language', async () => {
+    const page = await browser.newPage();
+    try {
+      for (const locale of LOCALES) {
+        await page.goto(`${url}/#/render/${locale}/iphone-6.9/home`, { waitUntil: 'load' });
+        await page.waitForFunction(
+          `document.querySelector('[data-s1s-canvas]')?.getAttribute('data-s1s-canvas') === ${JSON.stringify(`${locale}/iphone-6.9/home`)}`,
+          undefined,
+          { timeout: 60_000 },
+        );
+        // Chromium cases (text-transform) and breaks lines (text-wrap: balance)
+        // per document language, so lang="en" would case Turkish and German wrong.
+        expect(await page.evaluate<string>('document.documentElement.lang'), locale).toBe(locale);
+      }
+    } finally {
+      await page.close();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Project templates: the registry, not the built-in metadata, decides what a
+// screen renders and whether it is guideline-compliant
+// ---------------------------------------------------------------------------
+
+describe('project templates/index.tsx (smoke)', () => {
+  const OVERRIDE_RGB: [number, number, number] = [0, 255, 0];
+  let tmp: TempDir;
+  let project: Project;
+  let report: RenderReport;
+
+  beforeAll(async () => {
+    await writeSyntheticBezelHome(HOME, BEZEL_IDS);
+    tmp = await makeTempDir('s1s-smoke-templates-');
+    const screens: ScreensConfig = {
+      sizes: ['iphone-6.9', 'watch-s10'],
+      locales: ['en-US'],
+      screens: [
+        { id: 'wild', template: 'wild', only: ['iphone'] },
+        { id: 'glance', template: 'raw', only: ['watch'] },
+      ],
+    };
+    const copies: Record<string, LocaleCopy> = {
+      'en-US': { locale: 'en-US', screens: { wild: { headline: 'Wild' }, glance: { headline: 'Glance' } } },
+    };
+    const dir = await writeTempProject(join(tmp.dir, 'screenshots'), { screens, copies });
+    // `wild` is a project template nothing in src/config knows about; `raw`
+    // replaces the built-in of the same id, which is exactly what the watch
+    // passthrough shortcut used to skip.
+    const fill = (rgb: readonly number[]) =>
+      `{ position: 'absolute', inset: 0, background: 'rgb(${rgb.join(',')})' }`;
+    await mkdir(join(dir, 'templates'), { recursive: true });
+    await writeFile(
+      join(dir, 'templates', 'index.tsx'),
+      [
+        "import { defineTemplate } from 'screen1shoter';",
+        'export default [',
+        "  defineTemplate({ id: 'wild', families: ['iphone'], compliant: false, Component: () => <div style={" + fill([255, 0, 0]) + '} /> }),',
+        "  defineTemplate({ id: 'raw', families: ['iphone', 'ipad', 'watch'], Component: () => <div style={" + fill(OVERRIDE_RGB) + '} /> }),',
+        '];',
+        '',
+      ].join('\n'),
+    );
+    for (const [family, sizeId] of [['iphone', 'iphone-6.9'], ['watch', 'watch-s10']] as const) {
+      const ref = family === 'iphone' ? 'wild' : 'glance';
+      await makeCapture(join(dir, captureRelPath('en-US', family, ref)), getPreset(sizeId).captureDims, { label: ref });
+    }
+    await linkProject(dir);
+    project = await loadProject({ projectDir: dir });
+    expect(project.templatesPath).toBe(join(dir, 'templates', 'index.tsx'));
+    report = await renderProject(project, { locale: 'en-US', sheet: false });
+  });
+  afterAll(async () => {
+    await tmp.cleanup();
+    await rm(HOME, { recursive: true, force: true });
+  });
+
+  it('renders a project template that replaces the built-in `raw` on the watch instead of copying the capture', async () => {
+    const glance = find(report, 'en-US/watch-s10/glance');
+    expect(report.items.filter((i) => i.status === 'failed').map((i) => `${i.key}: ${i.error ?? ''}`)).toEqual([]);
+    expect(glance.status).toBe('rendered');
+    expect(glance.dims).toEqual(getPreset('watch-s10').px);
+    const raw = await readRaw(must(glance.outputs[0]));
+    const centre = pixelAt(raw, Math.floor(raw.width / 2), Math.floor(raw.height / 2));
+    expect(centre, 'the project module painted the watch canvas, not the capture').toEqual(OVERRIDE_RGB);
+  });
+
+  it('reports and names a project template that declares `compliant: false`', async () => {
+    const wild = find(report, 'en-US/iphone-6.9/wild');
+    expect(wild.template).toBe('wild');
+    expect(wild.noncompliant).toBe('wild');
+    // The built-in metadata knows nothing about `wild`, so review.md can only
+    // name it if the fact came back from the browser registry.
+    const review = await readFile(reviewPath(project, 'en-US'), 'utf8');
+    expect(review).toContain('## Non-compliant templates');
+    expect(review).toContain('wild');
   });
 });

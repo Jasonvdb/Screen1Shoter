@@ -20,11 +20,18 @@ is about how to work here.
   `s1s <command>` in `skills/` must be registered on that command. `status`,
   `export` and `validate` shipped in W5, so no command the skill names is
   unimplemented any more; do not reintroduce a "(lands in W<n>)" marker, and
-  do not invent flags.
+  do not invent flags. The same now holds for templates: W6 shipped
+  `bleed-bottom`, `tilted` and `watch-caption`, so every entry of
+  `BUILTIN_TEMPLATES` has `implemented: true` and the docs describe all eight
+  as built. `TemplateMeta.phase` is history, not a promise.
 - A registered flag is not the same as a working command. `s1s status --set`
   refuses a selection covering a whole locale without `--yes`, so every
   documented `--set` needs `--yes` (or a `--from <status>` that really
   narrows). Run the command you write down before you commit it.
+- Exit codes are part of the contract the skill documents: 0 ok, 1 the work
+  ran but the result is not ok, 2 refused with nothing written. `s1s status
+  --set` can write the manifest and still exit 1, because it re-reconciles
+  after the write. Never document an exit code you have not observed.
 
 ## Layout
 
@@ -42,7 +49,10 @@ skills/app-store-screenshots/   SKILL.md, agents/openai.yaml, references/*.md
 scripts/install-skills.sh symlinks the skill into ~/.agents, ~/.claude, ~/.codex
 tests/unit  tests/smoke  tests/fixtures
 docs/bezels.md            measured bezel facts and licence summary
+docs/w6-de-de-dryrun.md   W6 de-DE localization dry run: what ran, tool and playbook defects
 ```
+
+Every file under `docs/` belongs in that list; add a line when you add one.
 
 ## Tool rules
 
@@ -81,9 +91,10 @@ docs/bezels.md            measured bezel facts and licence summary
   therefore widened to every command the skill's own chains run (`s1s`,
   `xcrun simctl`, `xcodebuild`, `asc`, the nine `git` verbs, `node`, `jq`,
   `sips`, `find`, `grep`, `mkdir`, `ls`, `cat`, `sleep`, `pkill`), which is
-  correct under either reading. If a W4 pilot run shows the field blocking a
-  command the skill needs, delete the field rather than trimming the chains,
-  and record what you saw here.
+  correct under either reading. The W4 pilot ran without the field
+  blocking anything. If a future run on a machine that does prompt shows it
+  blocking a command the skill needs, delete the field rather than trimming
+  the chains, and record what you saw here.
 - Skill prose addresses an agent: imperative, concrete commands in fenced
   blocks, one idea per sentence. Name the task first, the tool second.
 - Every step has a shell path. Claude Code tools (XcodeBuildMCP,
@@ -123,9 +134,9 @@ pnpm check && pnpm test:smoke
 ```
 
 Both must be green (`pnpm check` includes `tests/unit/skill.test.ts`). For
-skill changes also run `scripts/install-skills.sh --check` and confirm every
-`s1s` flag named in `skills/` exists in `--help`; the test checks command
-names, not flags.
+skill changes also run `scripts/install-skills.sh --check`; `skill.test.ts`
+already checks both the command names and the flags, so no hand-check of
+`--help` is needed.
 
 ## Commit style
 

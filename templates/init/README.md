@@ -13,6 +13,8 @@ real simulator captures in Apple's product bezels.
 | `copy/<locale>.json` | Headline, highlight word, subline, badge per screen |
 | `captures/<locale>/<family>/<id>.png` | Simulator screenshots (`s1s capture`) |
 | `templates/` | Optional custom templates (TSX) |
+| `fonts/*.woff2` | Brand font files; each becomes an @font-face named from the file name (`Satoshi-Bold.woff2` -> family Satoshi, weight 700) |
+| `assets/*.png` | Background and panorama images, referenced from `props.background` or `panorama.image` |
 | `manifest.json` | State per locale x size x screen; the CLI and the agent share it |
 | `out/` | Renders, previews, `report.json`, `review.md`, contact sheets (ignored) |
 

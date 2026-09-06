@@ -8,7 +8,7 @@ import { renderRoute } from '../../src/config/resolve.ts';
 import type { RenderItem, ScreenDef, SizeId } from '../../src/config/types.ts';
 import { buildMatrix } from '../../src/core/matrix.ts';
 import { findProjectDir, loadProject, type Project } from '../../src/core/project.ts';
-import { fixtureAppDir, fixtureProjectDir, makeTempDir, must } from '../fixtures/helpers.ts';
+import { fixtureAppDir, fixtureProjectDir, makeTempDir, must, writeTempProject } from '../fixtures/helpers.ts';
 
 const appDir = fixtureAppDir('project-basic');
 const projectDir = fixtureProjectDir('project-basic');
@@ -230,5 +230,30 @@ describe('buildMatrix: resolved screens', () => {
       resolvedPath: null,
       dims: null,
     });
+  });
+});
+
+describe('buildMatrix: panorama', () => {
+  // The browser resolves the screen it draws with the whole config in hand, so
+  // the item Node reports has to carry the same slice or the two disagree
+  // about what the page shows.
+  it('carries the slice of a project-level panorama into props.background', async () => {
+    const tmp = await makeTempDir();
+    try {
+      const dir = await writeTempProject(join(tmp.dir, 'screenshots'), {
+        screens: {
+          sizes: ['iphone-6.9'],
+          panorama: { image: 'assets/wide.png' },
+          screens: [{ id: 'home' }, { id: 'track' }],
+        },
+      });
+      const items = buildMatrix(await loadProject({ projectDir: dir }), { locale: 'en-US' });
+      expect(items.map((item) => item.screen.props['background'])).toEqual([
+        { type: 'panorama', src: 'assets/wide.png', index: 0, count: 2, offset: 0, width: 0.5 },
+        { type: 'panorama', src: 'assets/wide.png', index: 1, count: 2, offset: 0.5, width: 0.5 },
+      ]);
+    } finally {
+      await tmp.cleanup();
+    }
   });
 });

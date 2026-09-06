@@ -50,6 +50,7 @@ screenshots/                      # source of truth, committed
   templates/index.ts              # optional custom TSX templates
   copy/<locale>.json              # headline, highlight, subline, badge, callouts, layoutNotes
   copy/brief.md                   # localization brief and glossary (P6)
+  fonts/*.woff2  assets/*.png     # optional: auto-registered @font-face files; background/panorama images
   captures/<locale>/<family>/<name>.png   # Simulator captures (iphone | ipad | watch)
   captures/demo-data.patch        # temporary demo-data diff for re-shoots
   captures/git-status-before.txt  # git status recorded before the demo-data branch (P2, P7)
@@ -314,9 +315,11 @@ G2: list every capture with rating and notes. Ask for approval or retakes. Offer
 
 ## 8. P3 Compose and render
 
-Edit `screenshots/screens.ts` (template per screen, `overrides` per family, `capture` names,
-`only`) and `screenshots/theme.ts` (background, accent, text, highlight, fonts, headlineCase,
-bezelVariant). Render one size at a time and fix before moving on:
+Edit `screenshots/screens.ts` (template per screen, `overrides` per family, `capture` names, `only`,
+and the project-level `panorama` when the user asked for one) and `screenshots/theme.ts` (background,
+accent, text, highlight, fonts, headlineCase, bezelVariant). All eight built-in templates render
+today; `bleed-bottom`, `tilted` and `watch-caption` are opt-in and need the user's yes. Brand font
+files in `screenshots/fonts/` register themselves. Render one size at a time and fix before moving on:
 
 ```sh
 s1s render --locale en-US --sizes iphone-6.9; echo "exit $?"
@@ -328,9 +331,11 @@ Then look, in this order:
 1. Look at the sheet `screenshots/out/en-US/sheet-iphone-6.9.png` (one image, every screen):
    Read in Claude Code, `view_image` in Codex; otherwise `cat screenshots/out/en-US/review.md`
    and the jq lines in [references/agent-tooling.md](references/agent-tooling.md) section 4.
-2. Read `screenshots/out/en-US/review.md`; the warnings there are authoritative
-   (`text-min-size`, `text-clipped`, `overflow`, `capture-missing`, `capture-dims`,
-   `copy-missing`, `bezel-fallback`, `font-fallback`).
+2. Read `screenshots/out/en-US/review.md`; the warnings there are authoritative. The codes
+   you will see most: `text-min-size`, `text-clipped`, `overflow`, `capture-missing`,
+   `capture-dims`, `image-missing` (a `background` or `panorama` file), `copy-missing`,
+   `bezel-fallback`, `font-fallback`, plus `capture-fallback-locale` and `copy-unused`.
+   [references/agent-tooling.md](references/agent-tooling.md) section 4 carries the full list.
 3. Look only at warned or suspicious previews: `screenshots/out/en-US/APP_IPHONE_69/preview/NN-<id>.png`.
 
 Checklist: no overflow, good line breaks, contrast, bezel alignment, 9:41 status bar, one
@@ -361,8 +366,9 @@ ls screenshots/out/en-US/sheet-*.png screenshots/out/en-US/review.md
 
 G3: ask for approval per size, or for changes. On changes go back to P3. On approval run
 `s1s status --set image-approved --locale en-US --sizes iphone-6.9,ipad-13 --yes`. The write is
-all-or-nothing: one image that cannot make the transition refuses the whole command and leaves
-the manifest untouched; `--yes` confirms a selection that covers the whole locale.
+all-or-nothing: one image that cannot make the transition refuses the whole command (exit 2) and
+leaves the manifest untouched; `--yes` confirms a selection that covers the whole locale. Exit 1
+means the write landed but the reconcile after it is NOT OK; read the table, do not re-run.
 Offer a commit: `ios: add App Store screenshot sources for en-US`.
 
 ## 10. P5 Export, validate, upload (gate G4)
@@ -376,16 +382,18 @@ asc screenshots validate --path metadata/screenshots/en-US/APP_IPAD_PRO_3GEN_129
 asc screenshots validate --path metadata/screenshots/en-US/APP_WATCH_SERIES_10 --device-type WATCH_SERIES_10   # watch only
 ```
 
-Never copy PNGs into `metadata/screenshots/` by hand; `s1s export` owns that folder.
-`s1s export` refuses an incomplete set or one with error-level warnings, writes `NN.png` only
-when the hash changed, warns about sibling `APP_*` folders with identical dims (asc fan-out
-uploads them twice), sets `exported` (an image already `uploaded` keeps it and gets
-`wasUploaded: true`), and prints the section 7 upload command per display type with `--dry-run`.
-`--prune` deletes every `NN.png|jpg|jpeg` the run did not write (else they are listed as `stale`
-and still upload), `--dry-run` shows the plan, `--no-asc` skips the asc validation. `s1s validate`
-checks names `01..NN`, 1 to 10 files, accepted dims, no alpha, RGB, uniform dims, and
-all-or-nothing over every locale folder (`--locale` narrows the table, never that rule). Size and
-format rules: [references/apple-rules.md](references/apple-rules.md).
+Never copy PNGs into `metadata/screenshots/` by hand; `s1s export` owns that folder. It refuses an
+incomplete set or one with error-level warnings, writes `NN.png` only when the hash changed, warns
+about sibling `APP_*` folders with identical dims (asc fan-out uploads them twice), sets `exported`
+(an image already `uploaded` keeps it and gets `wasUploaded: true`), and prints the section 7
+upload command per display type with `--dry-run`. An unapproved set is not refused: it warns
+`export-unapproved` and exports anyway, so G3 is yours to enforce. `--prune` deletes every
+`NN.png|jpg|jpeg` the run did not write (else they are listed as `stale` and still upload),
+`--dry-run` shows the plan, `--no-asc` skips the asc validation, `--metadata-dir <dir>` (also on
+`s1s validate`, same value for both) points at an export root other than `app.metadataDir`.
+`s1s validate` checks names `01..NN`, 1 to 10 files, accepted dims, no alpha, RGB, uniform dims,
+and all-or-nothing over every locale folder (`--locale` narrows the table, never that rule). Size
+and format rules: [references/apple-rules.md](references/apple-rules.md).
 Offer a commit: `ios: export en-US App Store screenshots`.
 
 Upload only when the user asks (argument `upload` or an explicit request), one device set per
@@ -422,6 +430,8 @@ Procedure, brief template, glossary rules, expansion budgets and number rules:
 3. Transcreate `screenshots/copy/<locale>.json` from `en-US.json`. Keep one highlight word.
    Decide line breaks with the copy (array headlines). Add the locale to `locales` in
    `screens.ts` and `locales.<locale>` to the manifest with `copyStatus: "draft"`.
+   `theme.headlineCase: 'title'` renders as sentence case outside English, so the copy
+   carries the case: write each line as the language wants it.
 4. G5: show en-US and `<locale>` side by side. Ask. On approval set `copyStatus: "approved"`,
    `approved: true`, then `s1s status --set copy-approved --locale <locale> --from pending --yes`.
 5. Own captures only: re-enter the branch as in P2 step 1 (existing branch, else re-apply the
@@ -438,18 +448,16 @@ s1s render --locale <locale>; echo "exit $?"
 jq '.counts' screenshots/out/<locale>/report.json
 ```
 
-   A reused capture reports `capture-fallback-locale` at info level; that is expected.
+   A capture reused through `captureSource: "reuse:<l>"` reports `capture-fallback-locale`
+   at info level; that is expected. The same code at warn level means nobody declared the
+   reuse and this locale simply has no capture: fix it, never ship it.
 7. G6: gallery `s1s dev --locale <locale>` (background; stopped in P7), sheets,
    `screenshots/out/<locale>/review.md`. On approval run
    `s1s status --set image-approved --locale <locale> --sizes iphone-6.9,ipad-13 --yes`.
-8. Export and validate; `validate` compares every locale folder for all-or-nothing, even with
-   `--locale`. While you ship device by device, add `--sizes` so a set you have not exported
-   yet stays out of scope. Never copy PNGs into `metadata/screenshots/` by hand.
-
-```sh
-s1s export --locale <locale> && s1s validate --locale <locale>
-```
-
+8. Export and validate (`s1s export --locale <locale> && s1s validate --locale <locale>`);
+   `validate` compares every locale folder for all-or-nothing, even with `--locale`. While you
+   ship device by device, add `--sizes` so a set you have not exported yet stays out of scope.
+   Never copy PNGs into `metadata/screenshots/` by hand.
 9. G7: upload per device set with the per-localization form as in P5, then verify. Record it
    with `s1s status --set uploaded --locale <locale> --sizes iphone-6.9 --yes`, which writes
    `uploadedAt` and clears `wasUploaded`. Commit: `ios: add <locale> App Store screenshots`.

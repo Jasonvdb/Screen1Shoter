@@ -170,21 +170,26 @@ Template choice that follows from the rules:
 | `two-device` | yes | Two captures, two upright devices, overlapped; the front one lower |
 | `feature-grid` | yes | iPad only: device left, up to three callout cards right |
 | `raw` | yes | Unframed capture filling the canvas. Default for watch |
-| `watch-caption` | yes | Watch capture plus a short caption. Opt-in (lands in W6) |
-| `bleed-bottom` | no | Device cropped at the bottom edge. Opt-in only when the user asks (lands in W6) |
-| `tilted` | no | Device rotated a few degrees. Opt-in only when the user asks (lands in W6) |
+| `watch-caption` | yes | Watch capture plus a short caption. Opt-in: ask before you use it instead of `raw` |
+| `bleed-bottom` | no | Device cropped at the bottom edge. Opt-in only when the user asks |
+| `tilted` | no | Device rotated a few degrees (`props.rotate`, default -8). Opt-in only when the user asks |
 
-Non-compliant templates tag the canvas `data-s1s-noncompliant` and are listed
-in `screenshots/out/<locale>/review.md`. Never switch a screen to one of them
-without the user's approval. See `template-catalog.md` for props.
+All eight are implemented. Non-compliant templates tag the canvas
+`data-s1s-noncompliant` and are listed in
+`screenshots/out/<locale>/review.md`; nothing is blocked, so the render and
+the export still succeed and the guideline risk is the user's. Never switch a
+screen to one of them without the user's approval, and record the decision in
+`screenshots/plan.md`. See `template-catalog.md` for props.
 
 ## 6. Watch screenshots are unframed
 
 Apple Watch screenshots go to App Store Connect without a bezel. The
-`watch-s10` preset is a passthrough: `s1s render` copies
-`screenshots/captures/<locale>/watch/<id>.png` to
+`watch-s10` preset is a passthrough for the default `raw` template: `s1s
+render` copies `screenshots/captures/<locale>/watch/<id>.png` to
 `out/<locale>/APP_WATCH_SERIES_10/NN-<id>.png` unchanged and checks that it is
-416x496 with no alpha. Apply the marketing rules inside the app instead: real
+416x496 with no alpha. A watch screen on `watch-caption` has copy to paint, so
+it goes through Chromium instead; the capture is still unframed and still must
+be exactly 416x496. Apply the marketing rules inside the app instead: real
 UI, marketing-grade values, a plausible clock. `xcrun simctl status_bar` does
 not support watchOS, so `s1s sim status-bar` reports `supported: false` and
 the real simulator clock stays. Accept it, or set the fixture time inside the

@@ -8,6 +8,15 @@ const SMALL_WORDS = new Set([
   'a', 'an', 'the', 'and', 'or', 'nor', 'but', 'for', 'of', 'to', 'in', 'on', 'at', 'by', 'with', 'vs', 'via', 'as',
 ]);
 
+/**
+ * Capitalising every word is an English convention, and SMALL_WORDS is an
+ * English list. German, French and Spanish titles are written in sentence
+ * case, so 'title' would only mis-case them ("Auf Der Karte").
+ */
+function isEnglish(locale: string): boolean {
+  return (locale.split('-')[0] ?? '').toLowerCase() === 'en';
+}
+
 function upperFirst(word: string, locale: string): string {
   const first = [...word][0];
   if (!first) return word;
@@ -29,7 +38,11 @@ function titleCaseLine(line: string, locale: string): string {
     .join(' ');
 }
 
-/** Title: capitalise each word except small words mid-line; never lowercases (GPS stays GPS). */
+/**
+ * Title: capitalise each word except small words mid-line; never lowercases
+ * (GPS stays GPS). Outside English 'title' degrades to sentence case, so the
+ * default headlineCase stays safe for the first locale a set adds.
+ */
 export function applyCase(text: string, mode: HeadlineCase, locale: string): string {
   switch (mode) {
     case 'upper':
@@ -37,6 +50,7 @@ export function applyCase(text: string, mode: HeadlineCase, locale: string): str
     case 'sentence':
       return upperFirst(text, locale);
     case 'title':
+      if (!isEnglish(locale)) return upperFirst(text, locale);
       return text
         .split('\n')
         .map((line) => titleCaseLine(line, locale))

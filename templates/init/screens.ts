@@ -9,6 +9,10 @@ import { defineScreens } from 'screen1shoter/config';
 export default defineScreens({
   sizes: ['iphone-6.9', 'ipad-13'], // {{sizes}}
   locales: ['en-US'], // {{locales}}
+  // One wide image sliced across consecutive screens; each screen shows its own
+  // slice, so the set reads as one picture in the App Store carousel. An explicit
+  // `props.background` on a screen wins over its slice.
+  // panorama: { image: 'assets/pano.png' },
   screens: [
     {
       id: 'home',
@@ -33,6 +37,12 @@ export default defineScreens({
     //   feature-grid: iPad only. Keep an iPhone template as the base and switch per family:
     //                 `overrides: { ipad: { template: 'feature-grid' } }`; the copy entry needs
     //                 1-3 `callouts: [{ title, body }]`.
+    //   watch-caption: watch only. A caption beside the capture instead of a bare `raw`
+    //                 passthrough; renders in the browser, so it is slower. Opt-in.
+    //   bleed-bottom: the device is cropped at the bottom canvas edge. Breaks Apple's
+    //                 marketing guidelines: opt-in, ask the user first.
+    //   tilted:       the device is rotated a few degrees. Breaks Apple's marketing
+    //                 guidelines: opt-in, ask the user first.
     // {{watch:start}}
     {
       id: 'watch-stats',

@@ -21,9 +21,20 @@ The repo ships two products that share one contract:
 | W1 | Renderer, CLI, core render loop (`init`, `link`, `doctor`, `dev`, `render`, `capture`, `sim`) | done |
 | W2 | Apple bezels, contact sheets, iPad and watch sizes, `two-device` and `feature-grid` templates | done |
 | W3 | Agent skill `app-store-screenshots`, `scripts/install-skills.sh`, repo docs | done |
-| W4 | MotoFit pilot: demo-data patch, captures, first complete en-US set | planned |
+| W4 | MotoFit pilot: demo-data patch, captures, first complete en-US set | done (in the MotoFit repo, commit `8f7e240`) |
 | W5 | `s1s export`, `s1s validate`, `s1s status`, `asc` integration | done |
-| W6 | Localization path, opt-in templates, retire the three old screenshot skills | planned |
+| W6 | Opt-in templates (`bleed-bottom`, `tilted`, `watch-caption`), panorama backgrounds, project fonts, de-DE localization dry run | done |
+
+The W4 pilot and the W5 export ran against MotoFit, whose repo holds the
+result: 14 upload-ready PNGs under `metadata/screenshots/en-US/` that pass
+`asc screenshots validate` for all three device types. Nothing has been
+uploaded to App Store Connect.
+
+Still open: retiring the three old screenshot skills
+(`scripts/install-skills.sh --retire`) needs the user's word, because it
+archives skills they may still be using. The de-DE dry run recorded the human
+gates instead of asking them, so its copy is unreviewed German. Its report,
+including the tool defects it found, is `docs/w6-de-de-dryrun.md`.
 
 ## Prerequisites
 
@@ -69,7 +80,12 @@ unframed.
 
 Per-app files live in `<app>/screenshots/`: `screens.ts`, `theme.ts`,
 `copy/<locale>.json`, `captures/<locale>/<family>/<name>.png`,
-`manifest.json`, optional `templates/` and `fonts/`, and the ignored `out/`.
+`manifest.json`, optional `templates/`, `assets/` (background and panorama
+images) and `fonts/`, and the ignored `out/`. Every `.woff2`, `.woff`, `.ttf`
+or `.otf` directly under `fonts/` becomes an `@font-face` rule whose family
+and weight come from the file name (`Satoshi-Bold.woff2` -> `Satoshi` 700,
+`InterVariable.woff2` -> `Inter` 100-900), so a `theme.fonts` stack can name
+it without any registration step.
 Exports go to `<app>/metadata/screenshots/<locale>/<APP_DISPLAY_TYPE>/NN.png`,
 the layout `asc screenshots upload` reads.
 
@@ -143,7 +159,7 @@ Install the skill once per machine from this checkout:
 ```sh
 scripts/install-skills.sh            # symlinks into ~/.agents/skills, ~/.claude/skills, ~/.codex/skills
 scripts/install-skills.sh --check    # report link state, change nothing
-scripts/install-skills.sh --retire   # archive the three old image-model skills (asks y/N; run it in W6)
+scripts/install-skills.sh --retire   # archive the three old image-model skills (asks y/N; not run yet)
 scripts/install-skills.sh --uninstall
 ```
 

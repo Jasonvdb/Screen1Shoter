@@ -36,8 +36,13 @@ Do not draft copy before every check below passes.
    still moving means doing the work twice.
 2. The target locale is named. Never assume a default. If the user gave none,
    ask (AskUserQuestion in Claude Code, a plain question elsewhere).
-3. The target locale exists on the editable version. Resolve the version and
-   its localizations; never hardcode ids:
+3. The target locale exists on the editable version - a precondition for
+   shipping, not for starting. Sections 2 to 8 need no store access at all
+   (the de-DE dry run completed every one of them with no App Store Connect
+   credentials), so run this check when you can, and repeat it in section 9
+   where the ids are re-resolved anyway. Do it now when store access is
+   available: a locale the store will not take is work you should not start.
+   Resolve the version and its localizations; never hardcode ids:
 
    ```bash
    asc versions list --app "$APP" --output json \
@@ -55,10 +60,13 @@ Do not draft copy before every check below passes.
      | jq -r '.data[] | "\(.attributes.locale)\t\(.id)"'
    ```
 
-   The target locale must be in this list. If it is not, the listing
-   metadata is not localized yet; point the user at `asc-localize-metadata`
-   and stop. Record `versionId`, `versionString` and
-   `versionLocalizationId` under `manifest.locales.<locale>`.
+   The target locale must be in this list before section 9 can upload. If it
+   is not, the listing metadata is not localized yet: tell the user, point
+   them at `asc-localize-metadata`, and either stop or agree to draft the
+   copy now and ship later. Record `versionId`, `versionString` and
+   `versionLocalizationId` under `manifest.locales.<locale>` when you have
+   them. Section 3 step 5 assumes you may find no target-locale listing
+   metadata; that branch is real.
 4. Rendering and upload are separate. Steps 1 to 8 need no store access.
    Only step 9 needs the editable version. Re-resolve the ids in step 9; they
    change per version and per run.
@@ -80,7 +88,7 @@ Confirm it against the project files above.
 | App ships the language | `manifest.locales.<locale>.captureSource` | Captures |
 |---|---|---|
 | yes | `"own"` | New captures with the app running in the target language (section 6). Every visible in-app string then matches the marketing copy. |
-| no | `"reuse:en-US"` | The renderer reads `screenshots/captures/en-US/...` for this locale and reports an info-level `capture-fallback-locale` warning per screen. No simulator work. |
+| no | `"reuse:en-US"` | The renderer reads `screenshots/captures/en-US/...` for this locale and reports an info-level `capture-fallback-locale` warning per screen. No simulator work. Leave the field on `"own"` and the same fall back is reported at warn level instead, because nobody asked for it. |
 
 For `reuse:` write this warning into `screenshots/copy/brief.md` and say it
 to the user at G5:
@@ -95,8 +103,7 @@ English app screen looks broken. The only strings that may stay untranslated
 in an own-capture set are brand names, format tokens (PDF, GPX), the `9:41`
 clock and language-neutral glyphs.
 
-Write the manifest entry now so `s1s render --locale <locale>` resolves
-captures correctly from the first dry run:
+Write the manifest entry now:
 
 ```json
 "locales": {
@@ -104,11 +111,22 @@ captures correctly from the first dry run:
 }
 ```
 
+When the reuse target is the source locale the renderer would find the same
+files anyway through its own source-locale fallback, so the entry is a record
+of intent rather than a switch: measured with the whole `de-DE` node deleted,
+the render resolved the identical en-US files and emitted the identical info
+warnings. It is load-bearing only when you reuse a locale that is not the
+source locale (`reuse:de-DE` for `de-AT`). Write it regardless: the reconcile
+table and `s1s status` read it, and `own` versus `reuse:` is the difference
+between a missing capture and a deliberate one.
+
 Add the locale to `locales` in `screenshots/screens.ts` too (the first entry
 stays the source locale). `s1s render --locale <locale>` works without it (it
-loads `copy/<locale>.json` directly), and the dev gallery unions the
-`screens.ts` list with the copy files and the manifest locales. Keep the three
-in step anyway: `screens.ts` is the declared set the reviewer reads.
+loads `copy/<locale>.json` directly), and the dev gallery's locale switcher
+unions the `screens.ts` list with the copy files. Manifest locales feed only
+the capture map, so a locale that exists only in `manifest.locales` never
+appears in the gallery. Keep all three in step: `screens.ts` is the declared
+set the reviewer reads.
 
 ## 3. App-context brief and glossary
 
@@ -153,6 +171,10 @@ What it does, for whom, in what tone (formal/informal register).
 
 ## Capture mode
 own | reuse:en-US, and why. (Paste the reuse warning here when it applies.)
+Under reuse: every caption sits above a source-language UI, so name the
+source-language labels the reader will see in the frame beside each caption
+noun. A caption noun that maps onto no visible label reads as a different
+app.
 
 ## Glossary (source -> target, where it comes from)
 | en-US | <locale> | Source |
@@ -192,7 +214,12 @@ Rules:
   highlight lands on its own line. Short lines beat one long line.
 - `highlight` must be an exact substring of the joined headline. Pick the
   word the reader should keep; in German that is often the noun that now
-  leads the line.
+  leads the line. In a compounding language check that the highlight is not
+  a prefix of a longer word earlier in the headline (`"Runde"` inside
+  `"Rundenzeiten"` colours half a compound, because the first substring
+  match wins). Highlight the whole compound instead.
+- Write each headline in the case the language wants. The theme no longer
+  re-cases it. See the note under the example below.
 - Apply the locale's number and punctuation conventions in the copy itself:
   German `60.000+` and a decimal comma, French narrow space before `:` and
   `!`, Japanese full-width punctuation. The renderer prints exactly what the
@@ -228,6 +255,13 @@ Example (illustrative values):
 }
 ```
 
+`theme.headlineCase: 'title'`, the documented default, applies English title
+case only when the render locale is English; in every other language it renders
+as `sentence`, so the example above renders as "Jede Runde / auf der Karte".
+The copy therefore carries the case: write each line as the language wants it
+and check on the contact sheet that the rendered case is the case the JSON
+says. Only `'upper'` still transforms every locale.
+
 Keep `approved: false` until G5. Check the file parses and every key maps
 to a screen before you show it to the user:
 
@@ -251,8 +285,18 @@ On approval:
 3. Run `s1s status --set copy-approved --locale <locale> --from pending --yes`.
    `--from pending` leaves higher statuses untouched; without it one
    `captured` image refuses the whole write, because `captured ->
-   copy-approved` is a refused transition. A size x screen the manifest has
-   no node for counts as `pending`, so the same command creates it.
+   copy-approved` is a refused transition (exit 2, nothing written). A
+   size x screen the manifest has no node for counts as `pending`, so the same
+   command creates it.
+
+   `--from pending` matches nothing once the locale has been rendered, which
+   section 4 encourages you to do. The command then prints the status table
+   and `OK`, exits 0, and writes nothing; only the stderr line `no image of
+   <locale> is pending; nothing was written.` says so. If you rendered before
+   G5, the copy approval lives in `copy/<locale>.json` (`"approved": true`)
+   and `manifest.locales.<locale>.copyStatus`; check
+   `s1s status --locale <locale> --json` and re-run the `--set` only while
+   rows are still at `pending`.
 4. Offer a commit (section 12).
 
 ## 6. Own captures: re-apply the demo patch and replay the steps
@@ -351,7 +395,19 @@ names in the captures must match the source set.
 
 ## 7. Render the locale and check the expansion
 
-Render iPhone first, then iPad. Text is fitted per screen; longer copy
+First make sure the source locale you will compare against exists on disk:
+
+```bash
+test -f screenshots/out/en-US/sheet-iphone-6.9.png || s1s render --locale en-US
+```
+
+`screenshots/.gitignore` ignores `out/`, so the source-locale renders and
+sheets are usually absent in a fresh checkout even when the manifest says
+`exported`. Re-render the source locale first; unchanged copy gives unchanged
+hashes, so nothing is re-approved. To rebuild only the sheets from an existing
+`report.json`, run `s1s sheet --locale <locale>`.
+
+Then render iPhone first, then iPad. Text is fitted per screen; longer copy
 shrinks until it fits or until `minPt`, at which point the renderer reports
 `text-min-size` and exits 1.
 
@@ -367,19 +423,22 @@ Expect the expansion from the brief: German about +30 %, French, Spanish and
 Portuguese about +20 %, Japanese, Chinese and Korean about -30 %. A screen
 whose headline shrank far below its en-US sibling reads as a different
 design; compare `screenshots/out/de-DE/sheet-iphone-6.9.png` against
-`screenshots/out/en-US/sheet-iphone-6.9.png` side by side. In the dev
-gallery the fitted size is on the headline element as `data-s1s-fitted`.
+`screenshots/out/en-US/sheet-iphone-6.9.png` side by side. `report.json`
+carries no fitted point size, so this comparison has no headless form: judge
+it by eye off the two contact sheets, or read `data-s1s-fitted` on the
+headline element in `s1s dev`.
 
 Warning codes and the fix that is yours to make:
 
 | Code | Level | Fix |
 |---|---|---|
 | `text-min-size`, `text-clipped`, `overflow` | error | Re-break the lines, shorten the subline, or drop a filler word. Do not change meaning without asking. |
-| `capture-fallback-locale` | info | Expected for `reuse:`; a defect for `own` (a capture is missing for this locale). |
+| `capture-fallback-locale` | info | A declared `reuse:<l>`: expected, and the message names the locale the pixels came from. |
+| `capture-fallback-locale` | warn | No `reuse:` declares it, so section 6 was skipped for that screen: the locale would ship source-locale pixels. Capture it, or set `locales.<locale>.captureSource` to `"reuse:<l>"` if the reuse is deliberate. |
 | `capture-missing` | error | Section 6 skipped a screen. Capture it. |
 | `copy-missing` | error | Add the screen entry to `copy/<locale>.json`; the render fails until it exists. |
 | `copy-unused` | info | Delete the stray key or fix the id. |
-| `font-fallback` | warn | The theme font lacks glyphs for this script. Set `theme.fonts.headline`/`body` to an installed family that covers it (one theme for every locale), or set `portable: true` for Inter. Project fonts under `screenshots/fonts/` land in W6. Common for ja, zh, ko, ar, he. |
+| `font-fallback` | warn | The theme font stack has no installed family. Set `theme.fonts.headline`/`body` to a family the machine has (one theme for every locale), drop the face files into `screenshots/fonts/` so they ship with the repo (template-catalog.md, "Project fonts"), or set `portable: true` for the bundled Inter. Common for ja, zh, ko, ar, he, where the family must also carry the script's glyphs. |
 
 Autonomous fixes are limited to line breaks, a same-style template swap, and
 a theme font scale change of at most 10 %. Three rounds per screen, then
@@ -429,7 +488,16 @@ not a safety net.
    ```
 
    Never copy PNGs into `metadata/screenshots/` by hand; `s1s export` owns
-   that folder. `export` refuses an incomplete or error-carrying set, copies changed
+   that folder. `export` writes under `manifest.app.metadataDir` and
+   `validate` reads the same root; both take `--metadata-dir <dir>` (absolute,
+   or relative to the app repo) to point somewhere else. Use it only when the
+   repo keeps its export tree outside the manifest's `metadataDir`, and give
+   both commands the same value or `validate` checks the wrong folder.
+   `export` refuses an
+   incomplete or error-carrying set (`export-blocked`, exit 1) but not an
+   unapproved one: a set that has not been through G6 gets the warn-level
+   `export-unapproved` and is exported anyway, so G6 is yours to enforce. It
+   copies changed
    renders to `metadata/screenshots/de-DE/APP_IPHONE_69/NN.png`, warns about
    sibling `APP_*` folders with identical dims (the asc fan-out double-upload
    trap), sets `exported`, runs `asc screenshots validate` per size when
@@ -481,7 +549,13 @@ not a safety net.
    ```
 
    That sets the status, writes `uploadedAt` and clears `wasUploaded`;
-   `storeFileName` came from `s1s export`. Offer a commit.
+   `storeFileName` came from `s1s export`. Read the exit code as a statement
+   about the table, not about the write: `s1s status` exits 1 whenever the
+   reconcile is NOT OK, and it re-reconciles after a `--set`, so a write that
+   moved a row past the files it has on disk succeeds and still exits 1. The
+   stderr line `set N image(s) to <status> in ...` is what tells you the write
+   happened. Exit 2 means the command refused and wrote nothing. Full table:
+   `agent-tooling.md` section 5.
 5. Repeat steps 1 to 4 for `ipad-13`, then `watch-s10` when present.
 
 ## 10. Reconcile on resume

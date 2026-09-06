@@ -6,8 +6,14 @@
  * The renderer force-loads it through document.fonts.load() before it
  * declares the page ready, so its font-display value never affects output.
  *
- * Project fonts under <project>/fonts/ (served at /project/fonts/*) are
- * registered in a later phase.
+ * Project fonts under <project>/fonts/ (served at /project/fonts/*) need no
+ * rule here: the Vite plugin lists the files into ProjectJson.fonts, and
+ * main.tsx injects one @font-face per file (src/web/runtime/fonts.ts,
+ * font-display: block) into <style data-s1s="project-fonts"> before React
+ * mounts. Their families join the stacks the settle loop force-loads, so a
+ * theme.fonts stack naming a project family renders with it; a file that
+ * fails to load leaves the family measurably absent and checks.ts reports
+ * font-fallback.
  */
 :root {
   --s1s-inter: 'Inter Variable', 'Inter', system-ui, sans-serif;

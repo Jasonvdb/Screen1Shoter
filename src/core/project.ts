@@ -23,6 +23,7 @@ import { copyPath as copyPathFor, listCopyLocales, loadCopy } from './copy.ts';
 import { S1sError } from './errors.ts';
 import { errorMessage } from './fs.ts';
 import { readManifest } from './manifest.ts';
+import { isPassthroughItem } from './matrix.ts';
 import { parseWith, screensConfigSchema, themeSchema } from './schemas.ts';
 
 export interface Project {
@@ -164,7 +165,64 @@ function uniqueTargets(sizes: readonly SizeId[]): SizePreset[] {
   return out;
 }
 
-/** Cross-field checks zod cannot express: ids, alias keys, template availability. */
+/**
+ * The panorama is one image cut into `count` equal slices, `count` being the
+ * length of the panorama order. Every listed screen therefore has to be
+ * rendered on every target, or the slices a family actually ships are
+ * non-adjacent and the seam breaks. Node is the only layer that has both the
+ * screen list and the presets, so the two checks live here.
+ */
+function panoramaProblems(
+  config: ScreensConfig,
+  targets: readonly SizePreset[],
+  locales: readonly string[],
+  hasProjectTemplates: boolean,
+): string[] {
+  const panorama = config.panorama;
+  if (panorama === undefined) return [];
+  const problems: string[] = [];
+  const known = config.screens.map((screen) => screen.id);
+  const listed = panorama.screens;
+
+  if (listed !== undefined) {
+    const seen = new Set<string>();
+    for (const id of listed) {
+      if (!known.includes(id)) {
+        problems.push(`panorama.screens names unknown screen "${id}"; known: ${known.join(', ')}`);
+      } else if (seen.has(id)) {
+        problems.push(`panorama.screens lists "${id}" twice; every screen takes exactly one slice`);
+      }
+      seen.add(id);
+    }
+    return problems;
+  }
+
+  // No explicit list: every screen takes a slice, so every screen must reach
+  // every target. `only` and the watch passthrough are the two ways it cannot.
+  const hint = 'list panorama.screens explicitly, or give that family its own list';
+  for (const screen of config.screens) {
+    let reported = false;
+    for (const preset of targets) {
+      if (reported) break;
+      if (!screenAppliesTo(screen, preset)) {
+        problems.push(`panorama: screen "${screen.id}" is kept off ${preset.family} by \`only\`, so its slice is never drawn there; ${hint}`);
+        break;
+      }
+      // The template can change per locale, and only `raw` takes the
+      // passthrough shortcut, so every locale has to be asked.
+      for (const locale of locales) {
+        const { template } = resolveScreen(screen, preset, locale, undefined, placeholderResolver);
+        if (!isPassthroughItem(preset, template, hasProjectTemplates)) continue;
+        problems.push(`panorama: screen "${screen.id}" is a passthrough item on ${preset.family} (template "${template}"), so its slice is never drawn; ${hint}`);
+        reported = true;
+        break;
+      }
+    }
+  }
+  return problems;
+}
+
+/** Cross-field checks zod cannot express: ids, alias keys, template availability, the panorama. */
 function validateScreens(config: ScreensConfig, screensPath: string, templatesPath: string | null, locales: string[]): void {
   const problems: string[] = [];
   const ids = new Set<string>();
@@ -177,6 +235,7 @@ function validateScreens(config: ScreensConfig, screensPath: string, templatesPa
     }
   }
   const targets = uniqueTargets(config.sizes ?? DEFAULT_SIZES);
+  problems.push(...panoramaProblems(config, targets, locales, templatesPath !== null));
   const seen = new Set<string>();
   for (const screen of config.screens) {
     for (const preset of targets) {

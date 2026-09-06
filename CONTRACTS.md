@@ -92,9 +92,19 @@ presets.ts
   `APP_IPAD_PRO_129`), `displayTypesShareDims` (the duplicate-dims rule,
   used by both `s1s export` and `s1s validate`).
 
+panorama.ts
+: `PanoramaSlice`, `PanoramaBackground`, `panoramaOrder(config)` (the screen
+  ids that share the panorama, in order; every screen when `panorama.screens`
+  is absent), `panoramaSlice(config, screenId)` (null when the screen takes
+  no slice), `panoramaBackground(slice)` (the `props.background` value).
+
 resolve.ts
-: `screenAppliesTo(screen, preset)`, `resolveScreen(screen, preset, locale,
-  copy, captureResolver)`, `captureKey(locale, family, ref)`,
+: `screenAppliesTo(screen, preset)`, `ResolveOptions`, `resolveScreen(screen,
+  preset, locale, copy, captureResolver, opts?)` — `opts.config` passes the
+  whole `ScreensConfig` so a project-level `panorama` is cut into this
+  screen's slice and injected into `props.background`; an explicit
+  `props.background` wins. Callers that only probe (capture planning,
+  template checks) omit it. `captureKey(locale, family, ref)`,
   `captureRelPath(locale, family, ref)`, `formatOrdinal(n)` ('01'),
   `renderFileName(n, id)` ('01-home.png'), `exportFileName(n)` ('01.png'),
   `EXPORT_FILE_RE` / `exportOrdinal(name)` (the one matcher for a set file,
@@ -204,14 +214,16 @@ export const localeCopySchema: z.ZodType<LocaleCopy>;
 ```ts
 export function readPngDims(path: string): Dims | null;   // sync IHDR parse, null if missing/not PNG
 export function resolveCapture(project: Project, ref: CaptureRef, preset: SizePreset, locale: string): CaptureSource;
-  // 1) manifest.locales[locale].captureSource === 'reuse:<l>' -> look in <l>
+  // 1) manifest.locales[locale].captureSource === 'reuse:<l>' -> look in <l>, fallback 'reuse'
   // 2) captures/<locale>/<family>/<ref>.png            -> fallback 'none'
   // 3) captures/<sourceLocale>/<family>/<ref>.png      -> 'source-locale'
   // 4) none                                            -> 'placeholder', resolvedPath null, dims null
 export function captureResolverFor(project: Project): CaptureResolver;
 export function captureMap(project: Project, locales: string[], presets: SizePreset[]): Record<string, CaptureSource>; // keyed by captureKey()
 export function captureWarnings(source: CaptureSource, preset: SizePreset, opts: { allowPlaceholder: boolean }): Warning[];
-  // capture-missing (error; warn with allowPlaceholder; element = missingCaptureElement(ref)), capture-fallback-locale (info),
+  // capture-missing (error; warn with allowPlaceholder; element = missingCaptureElement(ref)),
+  // capture-fallback-locale: info for fallback 'reuse' (the author asked for those pixels),
+  //   warn for 'source-locale' (nobody asked; the locale silently shipped English UI),
   // capture-dims via captureDimsWarning(): warn when the aspect matches within 1% (resampled), error otherwise (names the simulator)
 ```
 Note: the task brief wrote `resolveCapture(project, screen, preset, locale)`;
@@ -225,7 +237,13 @@ export function buildMatrix(project: Project, opts: MatrixOptions): RenderItem[]
   // presets = presetsFor(opts.sizes ?? project.sizes); group aliases under renderTarget();
   // per render preset: screens filtered by screenAppliesTo, ordinal = 1-based position in that filtered list;
   // item.outputs has one RenderOutput per requested size sharing the render target;
-  // item.url = renderRoute(locale, preset.id, screen.id); passthrough = !!preset.passthrough.
+  // item.url = renderRoute(locale, preset.id, screen.id);
+  // passthrough = isPassthroughItem(target, resolved.template, project.templatesPath !== null),
+  //   i.e. preset.passthrough && template === 'raw' && the project ships no templates/index.ts.
+  //   Only `raw` draws nothing, so only `raw` may skip the browser; a project template may
+  //   replace the built-in `raw` id and Node cannot evaluate that file, so any project with
+  //   its own templates takes the browser path on the watch too.
+export function isPassthroughItem(preset: SizePreset, templateId: string, hasProjectTemplates: boolean): boolean;
 ```
 
 ### src/core/paths.ts
@@ -423,7 +441,9 @@ Virtual modules (provided by `s1sPlugin`):
 
 Data endpoint: `GET /__s1s/project.json` -> `ProjectJson` (see types.ts):
 locale copies, manifest, presets in use, capture map keyed by
-`captureKey(locale, family, ref)`, bezel index or null.
+`captureKey(locale, family, ref)`, bezel index or null, and
+`fonts: ProjectFont[]` (one entry per file under `<project>/fonts/`; the
+browser turns each into an @font-face served from `/project/fonts/<file>`).
 
 Static:
 - `/project/*` -> `<project>/*` (captures, fonts, assets). Capture URL =
@@ -448,6 +468,13 @@ Window globals (declared in `src/web/s1s-globals.d.ts`):
   -> `capture-missing` (element `missingCaptureElement(ref)`). Capture and
   copy warnings also come from Node; the renderer merges both lists with
   `mergeWarnings` (same code + element = one warning).
+- `window.__S1S.noncompliant(): string | null` — the template id of a canvas
+  tagged `data-s1s-noncompliant`, else null. Compliance is a fact, not a
+  warning, so it stays out of `check()`; the renderer stores it as
+  `RenderReportItem.noncompliant` and review.md lists the offending screens.
+  It reads the browser registry, so a project template that declares
+  `compliant: false` is listed too — `templateMeta()` only knows built-ins,
+  and is the fallback for passthrough and dry-run items.
 - `[data-s1s-id="error"]` (ErrorPanel: unknown template, project.json
   failure, a template throw caught by the Canvas boundary) satisfies the
   readiness wait; the renderer then fails the item with the panel text.
@@ -618,20 +645,23 @@ re-render) all verified.
 Decisions taken:
 - `RenderReportItem.error?: string` is part of the type (was runtime-only).
 - `bin/s1s.js` spawns asynchronously and forwards signals.
-- Capture reuse via manifest `captureSource: 'reuse:<l>'` or the
-  source-locale fallback reports `fallback: 'source-locale'` plus an
-  info-level `capture-fallback-locale` warning (review.md shows the origin).
+- Capture reuse splits into two `CaptureFallback` values, because one is a
+  decision and the other is an accident. A declared manifest
+  `captureSource: 'reuse:<l>'` reports `fallback: 'reuse'` at info level. An
+  undeclared drop to the source locale reports `fallback: 'source-locale'` at
+  warn level: nobody asked for those pixels, so the locale is about to ship
+  the source language's UI. review.md shows the origin either way.
 - `copy-missing` is not emitted for template `raw` (no copy rendered).
 - Project-level `copy-unused` infos are attached to the first item of the
   report and filtered out of manifest `renderWarnings`.
 - `readManifest(path, fallbackApp?)` returns a default manifest for a
   missing file; all manifest schemas are loose (unknown keys survive).
-- `TemplateMeta.implemented` / `phase` (template-meta.ts): `loadProject`
-  rejects a screens.ts that names a planned built-in (`two-device`,
-  `feature-grid`, `bleed-bottom`, `tilted`, `watch-caption`) with
-  `config-invalid` naming the phase. `tests/unit/template-meta.test.ts`
-  asserts the flag mirrors `src/web/templates/*.tsx`, so W2/W6 flip it when
-  they add the file.
+- `TemplateMeta.implemented` / `phase` (template-meta.ts): every built-in is
+  implemented as of W6, so the `loadProject` rejection path ("planned for
+  <phase>") is unreachable today. It stays as the guard for a future phase
+  that lands metadata before its `src/web/templates/*.tsx` file.
+  `tests/unit/template-meta.test.ts` asserts the flag mirrors that directory;
+  `phase` is now history, not a gate.
 - Render bookkeeping (`buildReport`, `applyManifest`, `MAX_MANIFEST_RUNS`)
   lives in `src/render/bookkeeping.ts`, browser-free and unit-tested;
   `applyManifest` returns the new manifest. `src/core/sim.ts` exports the

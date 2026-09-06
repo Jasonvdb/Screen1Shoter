@@ -43,6 +43,22 @@ export function renderGroups(sizes: readonly string[]): RenderGroup[] {
   return [...groups.values()];
 }
 
+/**
+ * `raw` is the only passthrough-safe template: it draws nothing of its own, so
+ * the capture already is the output at `preset.px`. Every other template on a
+ * passthrough preset (`watch-caption`) has copy to paint, so it needs the
+ * browser even though the capture happens to be the right size.
+ *
+ * `hasProjectTemplates` (project.templatesPath !== null) closes the one hole
+ * Node cannot see through: templates/index.ts may replace the built-in `raw`,
+ * and skipping the browser would ship the capture instead of the project's own
+ * module. Node cannot evaluate that file, so any project that ships one takes
+ * the browser path on the watch too.
+ */
+export function isPassthroughItem(preset: SizePreset, templateId: string, hasProjectTemplates: boolean): boolean {
+  return preset.passthrough === true && templateId === 'raw' && !hasProjectTemplates;
+}
+
 function matchesSelection(selection: Set<string> | null, screenId: string, ordinal: number): boolean {
   if (!selection) return true;
   return selection.has(screenId) || selection.has(String(ordinal)) || selection.has(formatOrdinal(ordinal));
@@ -71,15 +87,19 @@ export function buildMatrix(project: Project, opts: MatrixOptions): RenderItem[]
         outPath: join(sizeOutDir(project, locale, preset.displayType), fileName),
         previewPath: join(previewDir(project, locale, preset.displayType), fileName),
       }));
+      // The config goes in for the same reason the browser passes it: a
+      // project-level panorama is part of the screen the page draws, so the
+      // item Node reports has to carry the same props.
+      const resolved = resolveScreen(screen, target, locale, copy, resolver, { config: project.screens });
       items.push({
         key: `${locale}/${target.id}/${screen.id}`,
         locale,
         preset: target,
         ordinal,
-        screen: resolveScreen(screen, target, locale, copy, resolver),
+        screen: resolved,
         url: renderRoute(locale, target.id, screen.id),
         outputs,
-        passthrough: target.passthrough === true,
+        passthrough: isPassthroughItem(target, resolved.template, project.templatesPath !== null),
       });
     });
   }

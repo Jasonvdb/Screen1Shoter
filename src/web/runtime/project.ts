@@ -104,8 +104,11 @@ export function localesOf(data: ProjectData): string[] {
   return [...all];
 }
 
+/** The config goes in so a project-level `panorama` reaches the screen being drawn. */
 export function resolveFor(data: ProjectData, locale: string, preset: SizePreset, screen: ScreenDef): ResolvedScreen {
-  return resolveScreen(screen, preset, locale, data.json.copies[locale], captureResolverFor(data.json));
+  return resolveScreen(screen, preset, locale, data.json.copies[locale], captureResolverFor(data.json), {
+    config: data.screens,
+  });
 }
 
 export function presetForRoute(sizeId: string): SizePreset {

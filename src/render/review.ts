@@ -86,7 +86,12 @@ export function reviewMarkdown(project: Project, report: RenderReport): string {
     }
   }
 
-  const nonCompliant = [...new Set(items.map((i) => i.template))].filter((id) => templateMeta(id)?.compliant === false);
+  // The browser is the authority (a project template may declare
+  // `compliant: false` under a built-in id); the metadata covers the items
+  // that never opened one (passthrough, dry run, failed).
+  const nonCompliant = [
+    ...new Set(items.map((i) => i.noncompliant ?? (templateMeta(i.template)?.compliant === false ? i.template : null))),
+  ].filter((id): id is string => id !== null);
   if (nonCompliant.length) {
     lines.push('## Non-compliant templates');
     lines.push('');

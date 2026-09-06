@@ -158,7 +158,7 @@ Every screen's copy has these fields. The template decides which ones it shows.
 | Field | Rule |
 |---|---|
 | `headline` | 2-5 words. Verb first. One idea. |
-| `highlight` | Exactly one word or short phrase from the headline, coloured with `theme.highlight`. Must appear in the headline verbatim (first case-insensitive match wins). |
+| `highlight` | Exactly one word or short phrase from the headline, coloured with `theme.highlight`. Must appear in the headline verbatim (first case-insensitive match wins, substring not word). In a compounding language check that the highlight is not a prefix of a longer word earlier in the headline: `"Runde"` against a headline holding `"Rundenzeiten"` colours five letters of the compound and leaves the rest white. Highlight the whole compound instead. |
 | `subline` | 8 words or fewer. Says how, or names the payoff. No second verb-first headline. |
 | `badge` | Optional. 1-2 words: "New", "Free", "Apple Watch". No keywords, no prices. |
 | `callouts` | `feature-grid` (iPad) only. Up to 3 entries; each `title` 1-3 words, `body` 8 words or fewer. A fourth callout is an `overflow` error. |
@@ -179,7 +179,7 @@ The theme owns the case: `theme.headlineCase` in `screenshots/theme.ts`.
 
 | Value | Effect | When |
 |---|---|---|
-| `title` (default) | Capitalises each word except small words mid-line (a, the, of, on, in, ...). Never lowercases, so "GPS" stays "GPS". | Default. Reads fastest at thumbnail size; keeps the highlight word visible; the shortest of the three, which matters once German arrives. |
+| `title` (default) | English: capitalises each word except small words mid-line (a, the, of, on, in, ...). Never lowercases, so "GPS" stays "GPS". Any other language: sentence case, because capitalising every word is an English convention. | Safe as the set default in every locale. Reads fastest at thumbnail size and keeps the highlight word visible. |
 | `sentence` | Uppercases the first character only. | Apps with a quiet, editorial voice. |
 | `upper` | Full uppercase in the locale. | Opt in only. This is the old high-impact look. It widens the text by 15-25 percent and takes the whole length budget in German; accented capitals in French and Spanish look heavy. |
 
@@ -189,6 +189,8 @@ Rules that follow:
 - Write acronyms and brand names in their real case ("GPS", "iPhone"). `title` never lowercases them.
 - Pick one case for the set. Never mix cases across screens.
 - Casing is locale-aware ("ß", Turkish "i") and uses the locale you render (`s1s render --locale`), not the `locale` field of the copy file. Name locales consistently in `screens.ts`, the copy file name and the render command.
+- `title` is locale-aware: the small-word list and the per-word capitalisation apply only when the render locale is English. In every other language `title` renders as `sentence`, so `["Jede Runde", "auf der Karte"]` renders as "Jede Runde / auf der Karte" and the translator owns the case.
+- `sentence` never lowercases either, so an English set whose copy is already written in the case you want usually renders unchanged after the switch (measured byte-identical on the six iPhone screens of the de-DE dry run). Never assume it: re-render the source locale in the same pass and compare the hashes in `report.json`. Changing `headlineCase` is a set-wide design decision, so ask the user first.
 
 ### Length budgets from render warnings
 
@@ -207,7 +209,7 @@ jq '.items[] | select(.warnings | length > 0) | {screenId, sizeId, warnings: [.w
 | `copy-missing` | No copy for a screen id (or `copyKey`) | Add the screen to the copy file |
 | `copy-unused` (info) | Copy for a screen that no longer exists | Delete the stale entry or fix the id |
 
-`--allow-placeholder` lets you check the copy before any capture exists (missing captures become hatched panels with a warn-level note instead of an error). It does not cover `watch-s10`: a passthrough size has no placeholder, so that screen still reports `failed` ("passthrough sizes have no placeholder"). Add `--sizes iphone-6.9,ipad-13` while you work on copy without watch captures.
+`--allow-placeholder` lets you check the copy before any capture exists (missing captures become hatched panels with a warn-level note instead of an error). It does not cover a passthrough item, which is `raw` on `watch-s10`: that screen still reports `failed` ("passthrough sizes have no placeholder"). Add `--sizes iphone-6.9,ipad-13` while you work on copy without watch captures. A watch screen on `watch-caption` renders through the browser, so it does get a placeholder.
 
 Keep headroom for locales. Typical expansion against en-US:
 
@@ -245,13 +247,15 @@ Terminology (Section F.4, "cross-key terminology pass, not just per-string trans
 - Make these glossary decisions UP FRONT, before translating a single headline: (1) the paid-tier name (German uses the brand name "Pro" everywhere, never the declined adjective); (2) the main object noun (the German library-item noun is "Dokument" for all library actions, with "Vertrag" reserved for content features and "Entwurf" for revisions); (3) the upgrade-CTA pattern (benefit-first "Mit Pro …" sentences, never a calque like "Führen Sie ein Upgrade durch"); (4) the register: du or Sie. Match the app's own strings; a screenshot that says "du" above an app that says "Sie" reads as a different product.
 - Write the decisions into `screenshots/copy/brief.md` (the localize playbook owns that file) and quote the app's `.xcstrings` or the existing `metadata/<locale>` wording as the source for each.
 
-Verification per locale:
+Verification per locale. Check only the fields that get rendered; a grep over the raw JSON matches the syntax quotes on every line and buries the real hits in `layoutNotes` prose:
 
 ```bash
-grep -n -E '\.\.\.|[0-9]\.[0-9]|[0-9],[0-9]{3}|"' screenshots/copy/de-DE.json
+jq -r '[.shared[]?, (.screens[] | (.headline | if type=="array" then .[] else . end),
+        (.subline // empty | if type=="array" then .[] else . end), (.badge // empty))] | .[]' \
+  screenshots/copy/de-DE.json | grep -n -E '\.\.\.|"|'"'"'|[0-9]\.[0-9]|[0-9],[0-9]{3}'
 ```
 
-Read every hit. A `"` inside a headline value is a straight quote; a `4.9` in a comma-decimal locale is wrong; a `2,000` is an English thousands separator.
+Read every hit. No output is the answer the check is supposed to give. A `"` or `'` inside a rendered string is a straight quote; a `4.9` in a comma-decimal locale is wrong; a `2,000` is an English thousands separator; `...` should be the ellipsis character.
 
 ---
 

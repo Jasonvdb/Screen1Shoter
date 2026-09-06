@@ -102,6 +102,16 @@ export function domChecks(root: ParentNode = document): Warning[] {
   return out;
 }
 
+/**
+ * Template id the canvas is tagged non-compliant with (Canvas.tsx writes
+ * data-s1s-noncompliant from the registry), or null. The registry is the only
+ * place that knows a project template's `compliant: false`, so the renderer
+ * reads the fact from here instead of from the built-in metadata.
+ */
+export function noncompliantTemplate(root: ParentNode = document): string | null {
+  return root.querySelector('[data-s1s-canvas]')?.getAttribute('data-s1s-noncompliant') || null;
+}
+
 // ---------------------------------------------------------------------------
 // Fonts: does the theme's stack resolve to a named family on this machine?
 // document.fonts.check() returns true for unknown families, so measure instead.
@@ -174,8 +184,14 @@ export function screenDataChecks(screen: ResolvedScreen, preset: SizePreset): Wa
       out.push(makeWarning('capture-missing', `Missing capture ${expected}`, missingCaptureElement(capture.requested)));
       continue;
     }
-    if (capture.fallback === 'source-locale') {
+    if (capture.fallback === 'reuse') {
       out.push(makeWarning('capture-fallback-locale', `${expected} not found; using ${capture.resolvedPath ?? '?'}`));
+    } else if (capture.fallback === 'source-locale') {
+      // Nobody declared this reuse; Node warns at warn level for the same reason.
+      out.push({
+        ...makeWarning('capture-fallback-locale', `${expected} not found; falling back to ${capture.resolvedPath ?? '?'}`),
+        level: 'warn',
+      });
     }
     if (capture.dims) {
       const dims = captureDimsWarning(capture.dims, preset, capture.resolvedPath ?? expected);

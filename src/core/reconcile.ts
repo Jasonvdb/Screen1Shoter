@@ -157,7 +157,7 @@ function captureSignal(locale: string, sources: readonly CaptureSource[]): Captu
     const paths = missing.map((source) => captureRelPath(locale, source.family, source.requested));
     notes.push(`capture missing: ${paths.join(', ')}`);
   }
-  const borrowed = sources.filter((source) => source.fallback === 'source-locale');
+  const borrowed = sources.filter((source) => source.fallback === 'reuse' || source.fallback === 'source-locale');
   if (borrowed.length > 0) {
     const locales = [...new Set(borrowed.map((source) => source.usedLocale))];
     notes.push(`capture reused from ${locales.join(', ')}`);

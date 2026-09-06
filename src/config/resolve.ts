@@ -2,6 +2,7 @@
 //   base < overrides[family] < overrides[sizeId] < locales[locale]
 // Runs in Node (matrix) and in the browser (render/gallery pages) with a
 // CaptureResolver injected by each side.
+import { panoramaBackground, panoramaSlice } from './panorama.ts';
 import { DEFAULT_TEMPLATE } from './template-meta.ts';
 import type {
   CaptureRef,
@@ -12,6 +13,7 @@ import type {
   ResolvedScreen,
   ScreenDef,
   ScreenOverride,
+  ScreensConfig,
   SizePreset,
 } from './types.ts';
 
@@ -41,12 +43,22 @@ function overrideLayers(screen: ScreenDef, preset: SizePreset, locale: string): 
   return layers.filter((layer): layer is ScreenOverride => layer !== undefined);
 }
 
+export interface ResolveOptions {
+  /**
+   * The whole config, so a project-level `panorama` can be cut into the slice
+   * this screen shows. Omitted (matrix probes, capture planning) means no
+   * panorama is injected.
+   */
+  config?: ScreensConfig | undefined;
+}
+
 export function resolveScreen(
   screen: ScreenDef,
   preset: SizePreset,
   locale: string,
   copy: LocaleCopy | undefined,
   captureResolver: CaptureResolver,
+  opts?: ResolveOptions,
 ): ResolvedScreen {
   const family = preset.family;
   let template = screen.template ?? DEFAULT_TEMPLATE[family];
@@ -58,6 +70,14 @@ export function resolveScreen(
     const refs = toRefs(layer.capture);
     if (refs !== undefined) captures = refs;
     if (layer.props !== undefined) props = { ...props, ...layer.props };
+  }
+
+  // The panorama is a project-wide default. An explicit props.background on the
+  // screen (or on any override layer) is what the author asked for for this one
+  // screen, so it wins and the screen simply drops out of the seam.
+  if (opts?.config !== undefined && props['background'] === undefined) {
+    const slice = panoramaSlice(opts.config, screen.id);
+    if (slice !== null) props = { ...props, background: panoramaBackground(slice) };
   }
 
   const copyKey = screen.copyKey ?? screen.id;
