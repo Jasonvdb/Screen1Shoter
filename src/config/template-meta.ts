@@ -5,7 +5,7 @@
 // two agree, so a phase that adds a template must flip the flag here.
 import type { DeviceFamily } from './types.ts';
 
-export type TemplatePhase = 'W1' | 'W2' | 'W6';
+export type TemplatePhase = 'W1' | 'W2' | 'W6' | 'W7';
 
 export interface TemplateMeta {
   id: string;
@@ -25,6 +25,10 @@ export interface TemplateMeta {
   /** Most `copy.callouts` entries the template shows; more is an overflow error (Node and browser). */
   callouts?: number;
 }
+
+/** Shared with src/web/templates/phone-watch.tsx so the module and the metadata stay identical. */
+export const PHONE_WATCH_IPAD_VARIANT =
+  "Watch at 30% of the iPad's width (iPhone 44%) with a smaller overhang, so it stays a companion beside a 13-inch canvas instead of a second subject.";
 
 /** Shared with src/web/templates/two-device.tsx so the module and the metadata stay identical. */
 export const TWO_DEVICE_IPAD_VARIANT =
@@ -98,6 +102,18 @@ export const BUILTIN_TEMPLATES: readonly TemplateMeta[] = [
     implemented: true,
     phase: 'W6',
     description: 'Watch capture with a short caption. Opt-in.',
+  },
+  {
+    id: 'phone-watch',
+    families: ['iphone', 'ipad'],
+    ipadVariant: PHONE_WATCH_IPAD_VARIANT,
+    compliant: true,
+    implemented: true,
+    phase: 'W7',
+    description:
+      "hero-top-text plus an Apple Watch standing in front of the device's lower right corner, so a phone or iPad shopper sees the watch app. " +
+      "Needs capture: [<phone>, 'watch-s10:<watch>']; props.watchVariant names the case and band.",
+    captures: 2,
   },
 ];
 

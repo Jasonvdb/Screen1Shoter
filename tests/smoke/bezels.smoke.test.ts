@@ -15,7 +15,10 @@ import { BEZEL_SOURCES, type BezelSourceId } from '../../src/core/bezels/sources
 import { makeTempDir, must, parseJsonLine, pngInfo, runS1s, type TempDir } from '../fixtures/helpers.ts';
 import { syntheticSourceEntry, writeSyntheticDmgTree, type SyntheticDmgTree } from '../fixtures/make-bezel.ts';
 
-const IDS = ['iphone-17-pro-max', 'ipad-pro-13-m5'] as const satisfies readonly BezelSourceId[];
+// The watch is here for its file name, which spends the orientation slot on the
+// strap, and for its geometry, whose corner radius reaches past the probes the
+// phone and iPad shapes need.
+const IDS = ['iphone-17-pro-max', 'ipad-pro-13-m5', 'apple-watch-series-11-46mm'] as const satisfies readonly BezelSourceId[];
 
 interface InspectedFile {
   file: string;
@@ -115,7 +118,11 @@ describe('s1s bezels on a synthetic DMG tree (smoke)', () => {
     const json = parseJsonLine<InstallJson>(run);
     expect(json.ok, JSON.stringify(json.error ?? json.skipped)).toBe(true);
     expect(json.installed.map((e) => `${e.id}/${e.variant}/${e.orientation}`).sort()).toEqual(
-      ['iphone-17-pro-max/deep-blue/portrait', 'ipad-pro-13-m5/space-black/portrait'].sort(),
+      [
+        'iphone-17-pro-max/deep-blue/portrait',
+        'ipad-pro-13-m5/space-black/portrait',
+        'apple-watch-series-11-46mm/titanium-gold-magnetic-link-sage-gray/portrait',
+      ].sort(),
     );
     expect(json.kept).toEqual([]);
     expect(json.skipped.filter((s) => s.level === 'error')).toEqual([]);
@@ -151,6 +158,7 @@ describe('s1s bezels on a synthetic DMG tree (smoke)', () => {
     }
     expect(must(json.installed.find((e) => e.id === 'iphone-17-pro-max')).screenAspect.toFixed(4)).toBe('0.4603');
     expect(must(json.installed.find((e) => e.id === 'ipad-pro-13-m5')).screenAspect.toFixed(4)).toBe('0.7500');
+    expect(must(json.installed.find((e) => e.id === 'apple-watch-series-11-46mm')).screenAspect.toFixed(4)).toBe('0.8387');
   });
 
   it('a second install keeps the entries instead of re-measuring', async () => {
@@ -175,7 +183,7 @@ describe('s1s bezels on a synthetic DMG tree (smoke)', () => {
     // iphone-6.1 wants iphone-17-pro; the Pro Max is on its fallback list.
     expect(json.presets['iphone-6.1']).toBe('iphone-17-pro-max/deep-blue (fallback)');
     expect(json.presets['ipad-11']).toBeNull();
-    expect(json.presets['watch-s10']).toBeNull();
+    expect(json.presets['watch-s10']).toBe('apple-watch-series-11-46mm/titanium-gold-magnetic-link-sage-gray');
   });
 
   it('the written index parses and resolves the default presets without a fallback', async () => {

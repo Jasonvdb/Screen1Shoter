@@ -4,7 +4,7 @@
 // theme.ts are strict so a typo surfaces as an error instead of a no-op.
 import { z } from 'zod';
 import { ALL_SIZE_IDS, SIZE_PRESETS } from '../config/presets.ts';
-import { CAPTURE_NAME_RE } from '../config/resolve.ts';
+import { CAPTURE_NAME_RE, CAPTURE_REF_RE, parseCaptureRef } from '../config/resolve.ts';
 import { IMAGE_STATUSES } from '../config/types.ts';
 import type {
   AppDisplayType,
@@ -36,7 +36,15 @@ const rectSchema = z.looseObject({ x: z.number(), y: z.number(), width: z.number
 // ---------------------------------------------------------------------------
 
 const FILE_SAFE_HINT = 'letters, digits, ".", "_" or "-" (what `s1s capture --name` accepts)';
-const captureRefSchema = z.string().regex(CAPTURE_NAME_RE, `capture name must be file-safe: ${FILE_SAFE_HINT}`);
+// A ref may name another size first (`watch-s10:watch-lap`) so one canvas can
+// show a second device; the regex allows the prefix and the refine rejects a
+// prefix that names no preset, which would otherwise read as part of the name.
+const captureRefSchema = z
+  .string()
+  .regex(CAPTURE_REF_RE, `capture name must be file-safe, optionally "<sizeId>:" first: ${FILE_SAFE_HINT}`)
+  .refine((ref) => !parseCaptureRef(ref).unknownSize, {
+    message: 'capture ref names a size that does not exist; use `s1s doctor` or drop the "<sizeId>:" prefix',
+  });
 const captureRefsSchema = z.union([captureRefSchema, z.array(captureRefSchema).min(1)]);
 const propsSchema = z.record(z.string(), z.unknown());
 

@@ -1,7 +1,8 @@
 # Apple product bezels: facts from the W2 Stage A spike
 
-Measured on 2026-09-02 from the two DMGs below with `hdiutil`, `sips` and a
-sharp script (raw RGBA scan). `src/core/bezels/sources.ts` encodes these facts;
+Measured on 2026-09-02 from the first two DMGs below with `hdiutil`, `sips` and
+a sharp script (raw RGBA scan); the Apple Watch DMG was added on 2026-09-03 for
+W7 and measured the same way. `src/core/bezels/sources.ts` encodes these facts;
 this file is the human record so nobody has to re-download to check a number.
 
 ## DMGs
@@ -10,6 +11,7 @@ this file is the human record so nobody has to re-download to check a number.
 |---|---|---|---|
 | iPhone 17 family | `https://devimages-cdn.apple.com/design/resources/download/Bezel-iPhone-17.dmg` | 265,205,982 | `~/.screen1shoter/dmg/Bezel-iPhone-17.dmg` |
 | iPad Pro (M5) | `https://devimages-cdn.apple.com/design/resources/download/Bezel-iPad-Pro-(M5).dmg` | 6,787,021 | `~/.screen1shoter/dmg/Bezel-iPad-Pro-(M5).dmg` |
+| Apple Watch Series 11 (W7) | `https://devimages-cdn.apple.com/design/resources/download/Bezel-Apple-Watch-Series-11-2025.dmg` | 357,953,080 | `~/.screen1shoter/dmg/Bezel-Apple-Watch-Series-11-2025.dmg` |
 
 - No login. `curl -L -o <file> "<url>"` works; quote the URL (parentheses).
   The server reports `Content-Length`, so a file with the exact size above can
@@ -74,8 +76,18 @@ image are 2026-04-14.
 
 ### File-name rule
 
-`<model> - <Colour> - <Portrait|Landscape>.png`, separator ` - ` (space,
-hyphen, space). `normaliseBezelFilename` lowercases, drops `"`/`(`/`)`, turns
+Two shapes, both with separator ` - ` (space, hyphen, space):
+
+- `<model> - <Colour> - <Portrait|Landscape>.png` (iPhone, iPad)
+- `<model> - <NNmm> - <Case> + <Band>.png` (Apple Watch)
+
+A watch file spends its second part on the case size and its third on the
+strap, and the DMG ships portrait only. `normaliseBezelFilename` keys on the
+second part: `\d{2}mm` means a watch, the size joins the model
+(`apple-watch-s11-46mm` -> `apple-watch-series-11-46mm` via
+`FILENAME_OVERRIDES`), the whole case-plus-band string becomes the variant and
+the orientation is portrait. " + " and " " slug to the same dash, so
+`Aluminum Jet Black + Sport Band Black` is `aluminum-jet-black-sport-band-black`. `normaliseBezelFilename` lowercases, drops `"`/`(`/`)`, turns
 runs of other characters into `-`, then applies `FILENAME_OVERRIDES`
 (`ipad-pro-m5-13` -> `ipad-pro-13-m5`, `ipad-pro-m5-11` -> `ipad-pro-11-m5`;
 Apple writes the chip before the size, presets write the size first) or the
@@ -98,6 +110,8 @@ preset, so captures drop in 1:1 with no resampling.
 | iphone-air | 1380x2880 | (5,25) 1370x2829 | (60,72) 1260x2736 | 0.4605 | (503,133) 374x108 | 234 | 189 |
 | ipad-pro-13-m5 | 2300x3000 | (28,30) 2249x2936 | (118,124) 2064x2752 | 0.7500 | none | 63 | 58 |
 | ipad-pro-11-m5 | 1880x2640 | (15,15) 1854x2606 | (106,110) 1668x2420 | 0.6893 | none | 64 | 58 |
+| apple-watch-series-11-46mm | 560x880 | (31,16) 521x849 | (72,192) 416x496 | 0.8387 | none | 127 | 101 |
+| apple-watch-series-11-42mm | 520x800 | (36,19) 469x763 | (73,177) 374x446 | 0.8386 | none | 114 | 90 |
 
 `cornerRadius` is what `measure.ts` (`radiusFromProfile`) computes on the
 real file and what `s1s bezels install` writes to `index.json`;
@@ -116,6 +130,27 @@ image rotated (iPhone 17 Pro Max landscape: 3000x1470, screen (66,75)
 Colour variants share the alpha channel: the three iPhone 17 Pro Max colours
 and both iPad colours gave identical rects, identical semi-transparent pixel
 counts and identical corner profiles. Measure once per id and reuse.
+
+The watch is the exception, and only in `deviceRect`: the PNG includes the
+band, so a Sport Loop is 12 px taller than a Sport Band (849 / 853 / 861 / 865
+across the four strap families, all 46 mm) while `screenRect`, the corner
+radius and the case itself never move. `installBezelFile` measures every file
+it writes, and `checkAgainstSource` guards only `screenRect`, so one recorded
+measurement per id stays true; `measuredVariant` names the file it came from.
+
+The watch also broke two measurement assumptions that the phone and iPad shapes
+had never exercised, both fixed in W7 with no change to any existing number:
+
+- Its corner radius is 24% of the screen width, so the single column probe 20%
+  into the screen started inside the corner arc and read the height as 488
+  instead of 496. `findScreenBox` now takes the union of contiguous column
+  scans at 20%, 50% and 80%; 20% is still what clears an iPhone's island, 50%
+  is what clears the watch's corners.
+- Those same arcs then read as a 250x4 "Dynamic Island" a couple of rows down,
+  which dragged the corner-profile scan back into the arc and gave a radius of
+  90 instead of 101 - a visible background gap at every screen corner.
+  `findIsland` now drops a box that spans its whole search window or is under
+  1% of the screen deep, which no real pill is.
 
 Body colour samples (RGB at the left bezel strip, mid height): Pro Max Deep
 Blue 14,19,33; Silver 85,85,83; Cosmic Orange 113,39,16; iPhone 17 Black

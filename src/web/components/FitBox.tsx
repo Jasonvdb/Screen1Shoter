@@ -3,6 +3,9 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { Dims } from '../../config/types.ts';
 import { acquire } from '../runtime/ready.ts';
+import { fitInto } from './fit-box.ts';
+
+export { fitInto } from './fit-box.ts';
 
 export interface FitBoxProps {
   /** width / height of the child. */
@@ -13,15 +16,6 @@ export interface FitBoxProps {
   align?: 'start' | 'center' | 'end' | undefined;
   style?: CSSProperties | undefined;
   children: (size: Dims) => ReactNode;
-}
-
-/** Largest integer-width box with `aspect` inside `slot`, capped by the maxima. */
-export function fitInto(slot: Dims, aspect: number, maxWidth?: number, maxHeight?: number): Dims {
-  let width = Math.min(slot.width, maxWidth ?? Number.POSITIVE_INFINITY);
-  const height = Math.min(slot.height, maxHeight ?? Number.POSITIVE_INFINITY);
-  if (width / aspect > height) width = height * aspect;
-  width = Math.max(0, Math.floor(width));
-  return { width, height: width / aspect };
 }
 
 const ALIGN: Record<NonNullable<FitBoxProps['align']>, CSSProperties['alignItems']> = {

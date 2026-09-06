@@ -1,5 +1,6 @@
 // Default template: text block on top, whole upright device below.
 // `FramedScreen` is shared with text-bottom (same layout, flipped order).
+import type { ReactNode } from 'react';
 import type { TemplateModule, TemplateProps } from '../../runtime/index.ts';
 import { Background, backgroundSpecFrom } from '../components/Background.tsx';
 import { Badge } from '../components/Badge.tsx';
@@ -7,80 +8,37 @@ import { layoutScale } from '../components/Canvas.tsx';
 import { Caption } from '../components/Caption.tsx';
 import { DeviceFrame } from '../components/DeviceFrame.tsx';
 import { Headline } from '../components/Headline.tsx';
+import { LAYOUT, type FramedFamily, type FramedLayout } from './framed-layout.ts';
 
-interface FontRange {
-  min: number;
-  max: number;
-  maxLines: number;
-}
-
-/** Numbers in pt at the family's reference width (440 iPhone, 1032 iPad); ratios are unitless. */
-export interface FramedLayout {
-  padX: number;
-  padTop: number;
-  padBottom: number;
-  /** Fixed height of the text block so every screen in a set gets the same device size. */
-  textHeight: number;
-  /** Gap between the text block and the device. */
-  gap: number;
-  /** Gap between badge, headline and subline. */
-  textGap: number;
-  headline: FontRange;
-  subline: FontRange;
-  badge: number;
-  /** Device width as a fraction of the canvas width. */
-  deviceMaxWidth: number;
-}
-
-export type FramedFamily = 'iphone' | 'ipad';
-
-export const LAYOUT: Record<FramedFamily, FramedLayout> = {
-  iphone: {
-    padX: 30,
-    padTop: 54,
-    padBottom: 30,
-    textHeight: 172,
-    gap: 20,
-    textGap: 10,
-    headline: { min: 28, max: 46, maxLines: 2 },
-    subline: { min: 15, max: 21, maxLines: 2 },
-    badge: 12,
-    deviceMaxWidth: 0.82,
-  },
-  ipad: {
-    padX: 80,
-    padTop: 76,
-    padBottom: 44,
-    textHeight: 258,
-    gap: 30,
-    textGap: 14,
-    headline: { min: 40, max: 72, maxLines: 2 },
-    subline: { min: 22, max: 32, maxLines: 2 },
-    badge: 17,
-    deviceMaxWidth: 0.84,
-  },
-};
+export { LAYOUT } from './framed-layout.ts';
+export type { FontRange, FramedFamily, FramedLayout } from './framed-layout.ts';
 
 export function framedFamily(props: TemplateProps): FramedFamily {
   return props.preset.family === 'ipad' ? 'ipad' : 'iphone';
 }
 
-export interface FramedScreenProps {
-  props: TemplateProps;
-  layout: FramedLayout;
-  order: 'text-first' | 'device-first';
+export type FramedAlign = 'left' | 'center';
+
+/** `props.align: 'left'` left-aligns the text block; default centred. */
+export function framedAlign(props: TemplateProps): FramedAlign {
+  return props.screen.props['align'] === 'left' ? 'left' : 'center';
 }
 
-/** Column layout: [text, device] or [device, text]; the device fills what the text leaves. */
-export function FramedScreen({ props, layout, order }: FramedScreenProps) {
-  const { screen, preset, theme, copy } = props;
+/** `props.deviceMaxWidth` (0-1) overrides the family default. */
+export function framedDeviceMaxWidth(props: TemplateProps, layout: FramedLayout): number {
+  const value = props.screen.props['deviceMaxWidth'];
+  return typeof value === 'number' && value > 0 && value <= 1 ? value : layout.deviceMaxWidth;
+}
+
+/**
+ * Badge, headline and subline in a fixed-height slot. Shared with phone-watch
+ * so a set can mix the two templates and keep one copy band at one y.
+ */
+export function FramedText({ props, layout, align }: { props: TemplateProps; layout: FramedLayout; align: FramedAlign }) {
+  const { screen, theme, copy, preset } = props;
   const s = layoutScale(preset);
   const px = (value: number) => Math.round(value * s);
-  const align = screen.props['align'] === 'left' ? 'left' : 'center';
-  const maxWidthProp = screen.props['deviceMaxWidth'];
-  const deviceMaxWidth = typeof maxWidthProp === 'number' && maxWidthProp > 0 && maxWidthProp <= 1 ? maxWidthProp : layout.deviceMaxWidth;
-
-  const text = (
+  return (
     <div
       data-s1s-slot=""
       data-s1s-id="text"
@@ -118,18 +76,13 @@ export function FramedScreen({ props, layout, order }: FramedScreenProps) {
       ) : null}
     </div>
   );
+}
 
-  // Slot mode: the frame fills the column left by the text block, capped in width.
-  const device = (
-    <DeviceFrame
-      captures={screen.captures}
-      preset={preset}
-      theme={theme}
-      maxWidth={Math.round(deviceMaxWidth * preset.pt.width)}
-      align={order === 'text-first' ? 'start' : 'end'}
-    />
-  );
-
+/** Background plus the padded flex column every framed template shares. */
+export function FramedColumn({ props, layout, children }: { props: TemplateProps; layout: FramedLayout; children: ReactNode }) {
+  const { screen, preset, theme } = props;
+  const s = layoutScale(preset);
+  const px = (value: number) => Math.round(value * s);
   return (
     <>
       <Background spec={backgroundSpecFrom(screen.props['background'], theme.background)} />
@@ -145,10 +98,40 @@ export function FramedScreen({ props, layout, order }: FramedScreenProps) {
           padding: `${px(layout.padTop)}px ${px(layout.padX)}px ${px(layout.padBottom)}px`,
         }}
       >
-        {order === 'text-first' ? text : device}
-        {order === 'text-first' ? device : text}
+        {children}
       </div>
     </>
+  );
+}
+
+export interface FramedScreenProps {
+  props: TemplateProps;
+  layout: FramedLayout;
+  order: 'text-first' | 'device-first';
+}
+
+/** Column layout: [text, device] or [device, text]; the device fills what the text leaves. */
+export function FramedScreen({ props, layout, order }: FramedScreenProps) {
+  const { screen, preset, theme } = props;
+  const align = framedAlign(props);
+  const text = <FramedText props={props} layout={layout} align={align} />;
+
+  // Slot mode: the frame fills the column left by the text block, capped in width.
+  const device = (
+    <DeviceFrame
+      captures={screen.captures}
+      preset={preset}
+      theme={theme}
+      maxWidth={Math.round(framedDeviceMaxWidth(props, layout) * preset.pt.width)}
+      align={order === 'text-first' ? 'start' : 'end'}
+    />
+  );
+
+  return (
+    <FramedColumn props={props} layout={layout}>
+      {order === 'text-first' ? text : device}
+      {order === 'text-first' ? device : text}
+    </FramedColumn>
   );
 }
 

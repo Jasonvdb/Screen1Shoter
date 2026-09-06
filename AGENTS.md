@@ -21,9 +21,9 @@ is about how to work here.
   `export` and `validate` shipped in W5, so no command the skill names is
   unimplemented any more; do not reintroduce a "(lands in W<n>)" marker, and
   do not invent flags. The same now holds for templates: W6 shipped
-  `bleed-bottom`, `tilted` and `watch-caption`, so every entry of
-  `BUILTIN_TEMPLATES` has `implemented: true` and the docs describe all eight
-  as built. `TemplateMeta.phase` is history, not a promise.
+  `bleed-bottom`, `tilted` and `watch-caption` and W7 added `phone-watch`, so
+  every entry of `BUILTIN_TEMPLATES` has `implemented: true` and the docs
+  describe all nine as built. `TemplateMeta.phase` is history, not a promise.
 - A registered flag is not the same as a working command. `s1s status --set`
   refuses a selection covering a whole locale without `--yes`, so every
   documented `--set` needs `--yes` (or a `--from <status>` that really

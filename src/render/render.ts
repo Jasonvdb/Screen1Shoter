@@ -5,6 +5,7 @@ import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { Browser, BrowserContext, Page } from 'playwright';
 import { isSizeId, presetsFor } from '../config/presets.ts';
+import { captureRefPreset } from '../config/resolve.ts';
 import type { LocaleCopy, RenderItem, RenderReport, RenderReportItem, ResolvedScreen, SizeId, Warning } from '../config/types.ts';
 import { templateMeta } from '../config/template-meta.ts';
 import { makeWarning, mergeWarnings, promoteWarnings } from '../config/warnings.ts';
@@ -88,7 +89,7 @@ function matrixOptions(opts: RenderOptions): MatrixOptions {
 function nodeWarnings(item: RenderItem, allowPlaceholder: boolean): Warning[] {
   const warnings: Warning[] = [];
   for (const source of item.screen.captures) {
-    warnings.push(...captureWarnings(source, item.preset, { allowPlaceholder }));
+    warnings.push(...captureWarnings(source, captureRefPreset(source.requested, item.preset), { allowPlaceholder }));
   }
   if (item.screen.copy === undefined && !COPYLESS_TEMPLATES.has(item.screen.template)) {
     warnings.push(

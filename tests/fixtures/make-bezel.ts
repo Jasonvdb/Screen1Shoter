@@ -142,10 +142,29 @@ export function bezelColourName(variant: string): string {
     .join(' ');
 }
 
-/** Path of a bezel PNG relative to the DMG's `PNG/` folder, exactly as Apple names it. */
+/**
+ * A watch model carries its case size where a phone model does not, and it is
+ * the only shape whose file name has no orientation part. That is exactly what
+ * `normaliseBezelFilename` keys on, so the fixture must reproduce it.
+ */
+export function isWatchModel(id: BezelSourceId): boolean {
+  return BEZEL_SOURCES[id].model.includes(' - ');
+}
+
+/**
+ * Path of a bezel PNG relative to the DMG's `PNG/` folder, exactly as Apple
+ * names it: `<model> - <Colour> - <Portrait|Landscape>.png` for a phone or
+ * iPad, `<model> - <NNmm> - <Case> + <Band>.png` for a watch (the model here
+ * already holds the size, and there is no landscape file).
+ *
+ * The real watch names join case and band with " + ", which `bezelSlug` folds
+ * to the same dash as a space, so the slug round-trips either way.
+ */
 export function appleBezelRelPath(id: BezelSourceId, variant: string, orientation: BezelOrientation): string {
   const source = BEZEL_SOURCES[id];
-  const name = `${source.model} - ${bezelColourName(variant)} - ${orientation === 'portrait' ? 'Portrait' : 'Landscape'}.png`;
+  const name = isWatchModel(id)
+    ? `${source.model} - ${bezelColourName(variant)}.png`
+    : `${source.model} - ${bezelColourName(variant)} - ${orientation === 'portrait' ? 'Portrait' : 'Landscape'}.png`;
   return source.subDir ? `${source.subDir}/${name}` : name;
 }
 
@@ -172,11 +191,14 @@ export async function writeSyntheticDmgTree(root: string, ids: readonly BezelSou
   for (const id of ids) {
     const entry = syntheticSourceEntry(id);
     const portrait = `PNG/${appleBezelRelPath(id, entry.variant, 'portrait')}`;
-    const landscape = `PNG/${appleBezelRelPath(id, entry.variant, 'landscape')}`;
     await writeSyntheticBezelFile(join(root, portrait), entry);
-    await writeSyntheticBezelFile(join(root, landscape), entry, 90);
     tree.portrait.push(portrait);
-    tree.landscape.push(landscape);
+    // Apple ships no landscape watch bezel, so neither does the fixture.
+    if (!isWatchModel(id)) {
+      const landscape = `PNG/${appleBezelRelPath(id, entry.variant, 'landscape')}`;
+      await writeSyntheticBezelFile(join(root, landscape), entry, 90);
+      tree.landscape.push(landscape);
+    }
     const psd = `Photoshop/${BEZEL_SOURCES[id].model}.psd`;
     await mkdir(dirname(join(root, psd)), { recursive: true });
     await writeFile(join(root, psd), '8BPS');

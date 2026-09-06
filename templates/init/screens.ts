@@ -43,6 +43,14 @@ export default defineScreens({
     //                 marketing guidelines: opt-in, ask the user first.
     //   tilted:       the device is rotated a few degrees. Breaks Apple's marketing
     //                 guidelines: opt-in, ask the user first.
+    //   phone-watch:  hero-top-text with an Apple Watch standing in front of the phone,
+    //                 for an app that has a watch app: the watch set sits behind a listing
+    //                 tab most shoppers never open. `template: 'phone-watch',
+    //                 capture: ['home', 'watch-s10:watch-stats'],
+    //                 props: { watchVariant: 'aluminum-jet-black-sport-band-black' }`.
+    //                 A `<sizeId>:` prefix reads a capture belonging to another device.
+    //                 Compliant, and it keeps hero-top-text's text block and device box,
+    //                 so it does not break a set. Needs `s1s bezels install`.
     // {{watch:start}}
     {
       id: 'watch-stats',

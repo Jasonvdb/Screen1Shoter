@@ -139,6 +139,53 @@ describe('measureRaw on a synthetic iPad bezel (no island)', () => {
   });
 });
 
+/**
+ * Apple Watch 46 mm at full size: a nearly square cut-out whose corner radius
+ * is 24% of its width. Both defects this fixture pins were real:
+ *
+ *  - the height came out 488, not 496, because the single column probe sat
+ *    20% into the screen, inside the corner arc;
+ *  - the arcs then read as a 250x4 "Dynamic Island" a couple of rows down,
+ *    which dragged the corner-profile scan back into the arc and reported a
+ *    radius of 90 instead of 101, leaving a background gap at every corner.
+ */
+const WATCH: BezelEntry = {
+  id: 'synthetic-watch',
+  variant: 'jet-black',
+  file: 'synthetic-watch/jet-black.png',
+  imageSize: { width: 560, height: 880 },
+  deviceRect: rect(31, 16, 521, 849),
+  screenRect: rect(72, 192, 416, 496),
+  cornerRadius: 101,
+  orientation: 'portrait',
+  screenAspect: 416 / 496,
+};
+
+describe('measureRaw on a synthetic Apple Watch bezel', () => {
+  let m: BezelMeasurement;
+  beforeAll(async () => {
+    const { png } = await synthetic(WATCH);
+    m = measureRaw(await rawOf(png));
+  });
+
+  it('measures the full 416x496 cut-out despite the corner radius reaching past the 20% probe', () => {
+    expectRectNear(m.deviceRect, WATCH.deviceRect);
+    expectRectNear(m.screenRect, WATCH.screenRect);
+    expect(m.screenRect.width).toBe(416);
+    expect(m.screenRect.height).toBe(496);
+    expect(m.screenAspect).toBeCloseTo(416 / 496, 4);
+  });
+
+  it('invents no Dynamic Island out of the corner arcs', () => {
+    expect(m.islandRect).toBeUndefined();
+  });
+
+  it('recovers the radius the whole corner needs', () => {
+    expect(Math.abs(m.cornerRadius - WATCH.cornerRadius)).toBeLessThanOrEqual(2);
+    expect(m.cornerRadius / m.screenRect.width).toBeGreaterThan(0.2);
+  });
+});
+
 describe('measureRaw orientation and failures', () => {
   it('reports landscape when the screen is wider than tall and still finds the island on the left', async () => {
     const landscape: BezelEntry = {

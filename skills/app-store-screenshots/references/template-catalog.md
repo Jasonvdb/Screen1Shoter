@@ -21,6 +21,7 @@ All paths in this file are relative to the app repo. The CLI is `s1s`.
 | `bleed-bottom` | iphone, ipad | 1 | headline, highlight, subline, badge | NOT compliant | built, opt-in |
 | `tilted` | iphone, ipad | 1 | headline, highlight, subline, badge | NOT compliant | built, opt-in |
 | `watch-caption` | watch | 1 | headline, highlight | compliant | built, opt-in |
+| `phone-watch` | iphone, ipad | 2 (`capture: [phone, 'watch-s10:watch']`) | headline, highlight, subline, badge | compliant | built |
 
 Every built-in template above is implemented and renders today. Check the list
 on the machine before you rely on it:
@@ -189,6 +190,76 @@ lower). `side` on iPad gives two 3:4 tablets next to each other; each is small,
 so prefer `stack`.
 
 Apple rules: compliant. Both bezels are whole and upright; overlap is allowed.
+
+## phone-watch
+
+When to use: the app has a watch app and the iPhone or iPad set has to say so.
+The watch set only appears on the Watch tab of the listing, so a shopper
+browsing on a phone never sees it; this puts the watch on a frame they will
+see. At most once per set, on the screen whose subject is the same on both
+devices, so the watch backs the headline instead of decorating it.
+
+Layout: `hero-top-text` exactly - same padding, same fixed text block, same
+device width and position - with an Apple Watch standing in front of the
+device's lower right corner. That is the point of the template: a set can put
+`phone-watch` on one screen and `hero-top-text` on the rest and the copy band
+and the bezels still line up across the carousel. Aim the watch at the least
+load-bearing corner of the capture.
+
+| Family | Watch width | Overhang right / below (of the device width) |
+|---|---|---|
+| iphone | 44 % of the device width | 7 % / 3 % |
+| ipad | 30 % | 5 % / 2.5 % |
+
+True relative scale would be 60 % on iPhone (an Apple Watch 46 mm with bands
+is 76 mm tall against a 163 mm iPhone 17 Pro Max) and buries a third of the
+phone; 44 % keeps the watch face readable and the phone the subject. An
+overhang that would push the watch off the canvas is clamped inward rather than
+clipped, so the watch never shrinks and never trips the canvas check.
+
+Required captures: exactly two. The second names the watch size, because it
+lives under `captures/<locale>/watch/` and is 416x496, not a phone capture:
+
+```ts
+{
+  id: 'lap-times',
+  template: 'phone-watch',
+  capture: ['lap-times', 'watch-s10:watch-lap'],
+  props: { watchVariant: 'aluminum-jet-black-sport-band-black' },
+}
+```
+
+A `<sizeId>:` prefix on any capture ref sends it to that size's preset, which
+decides both the directory it is read from and the dimensions it is checked
+against. Without the prefix the ref would be looked up as a phone capture and
+reported missing. A prefix naming no preset is a `screens.ts` error, not a file
+name. A missing second capture shows a hint panel naming the `screens.ts`
+change, not a capture command.
+
+Needs the watch bezel: `s1s bezels install` (it is in the defaults, from
+`Bezel-Apple-Watch-Series-11-2025.dmg`). Without it the watch falls back to the
+generic CSS frame and `report.json` carries a `bezel-fallback` warning.
+
+Copy fields: `headline`, `highlight`, `subline`, `badge`. Drop a badge that
+names the platform the frame now shows - "Apple Watch" beside a picture of an
+Apple Watch is clutter, and removing it lifts the headline back to the top of
+the text block where the other screens start theirs.
+
+Props:
+- `watchVariant`: the case and band, e.g. `'aluminum-jet-black-sport-band-black'`.
+  A watch shares no colour name with a phone, so a project's single
+  `theme.bezelVariant` never matches one and the fallback is whichever variant
+  installed first. Name it. `s1s bezels list` prints what is installed.
+- `align`, `background`, `deviceMaxWidth` (all as `hero-top-text`).
+
+iPad: 30 % watch with a smaller overhang, so it reads as a companion beside a
+13-inch canvas rather than a second subject. Note that an Apple Watch pairs
+with an iPhone, not an iPad; the frame says "there is a watch app", which is
+true, but ask the user before putting it in an iPad set.
+
+Apple rules: compliant. Both devices are whole, upright and un-cropped in their
+real Apple bezels and the copy stays beside them. Apple's rule bans cropping
+and tilting a product image, not standing two products together.
 
 ## feature-grid
 
@@ -518,7 +589,9 @@ Rules the example shows:
   `overrides` or `only` by an alias id.
 - `only` restricts a screen to families or size ids. Each family gets its own
   ordinal sequence, so dropping a screen on iPad renumbers the iPad set only.
-- `capture` is a name, an array of names (`two-device`), or a map per family.
+- `capture` is a name, an array of names (`two-device`, `phone-watch`), or a
+  map per family. A name may be prefixed with a size (`'watch-s10:watch-lap'`)
+  to read a capture belonging to another device.
   Omit it to use the id. Names resolve to
   `captures/<locale>/<family>/<name>.png`, then to the `reuse:<l>` locale's
   file (info-level `capture-fallback-locale`), then to the source locale's
@@ -790,7 +863,9 @@ with a warning.
 - One story arc: screen 1 is the biggest reason to download, 2-3 the core
   loop, 4-6 differentiators, the last one platform breadth or social proof.
 - One primary template. `hero-top-text` for most screens; `text-bottom` in a
-  block, not alternating; `two-device` and `feature-grid` at most once each.
+  block, not alternating; `two-device`, `feature-grid` and `phone-watch` at
+  most once each. `phone-watch` is the exception that costs nothing: it keeps
+  hero-top-text's text block and device box, so it does not break the set.
 - Same device size on every screen of a size: identical `deviceMaxWidth`
   (or none) and the same template family, so the bezels line up in the
   carousel.
@@ -808,7 +883,11 @@ with a warning.
   `feature-grid` callouts exist (1-3) wherever the iPad override uses it.
 - Watch set: `raw` (or `watch-caption` on every watch screen when the user
   asked for captions, never a mix), 416x496 captures, marketing-grade values
-  from the app's screenshot mode.
+  from the app's screenshot mode. When the app has a watch app, ask whether one
+  iPhone and iPad frame should carry it too (`phone-watch`): the watch set is
+  behind a listing tab most shoppers never open.
+- `capture` refs that name another size (`'watch-s10:watch-lap'`) point at a
+  file that really exists under that size's family directory.
 - Panorama, when the set uses one: the seam lines up on the contact sheet, no
   screen of the run silently kept its own `background`, and the slice order
   matches the export order (`NN`).

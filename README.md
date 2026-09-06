@@ -24,11 +24,19 @@ The repo ships two products that share one contract:
 | W4 | MotoFit pilot: demo-data patch, captures, first complete en-US set | done (in the MotoFit repo, commit `8f7e240`) |
 | W5 | `s1s export`, `s1s validate`, `s1s status`, `asc` integration | done |
 | W6 | Opt-in templates (`bleed-bottom`, `tilted`, `watch-caption`), panorama backgrounds, project fonts, de-DE localization dry run | done |
+| W7 | Apple Watch bezels, cross-size capture refs, `phone-watch` template | done |
 
 The W4 pilot and the W5 export ran against MotoFit, whose repo holds the
 result: 14 upload-ready PNGs under `metadata/screenshots/en-US/` that pass
 `asc screenshots validate` for all three device types. Nothing has been
 uploaded to App Store Connect.
+
+W7 answered a gap the pilot's own copy notes had recorded: MotoFit ships a
+watch app, but the watch set only shows on the Watch tab of the listing, so no
+iPhone or iPad shopper ever saw it. `phone-watch` stands a real Apple Watch
+bezel in front of the phone on one frame of the iPhone and iPad sets, keeping
+`hero-top-text`'s text block and device box so the rest of the carousel still
+lines up.
 
 Still open: retiring the three old screenshot skills
 (`scripts/install-skills.sh --retire`) needs the user's word, because it

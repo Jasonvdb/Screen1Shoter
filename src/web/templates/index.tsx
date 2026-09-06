@@ -5,6 +5,7 @@ import type { TemplateModule } from '../../runtime/index.ts';
 import bleedBottom from './bleed-bottom.tsx';
 import featureGrid from './feature-grid.tsx';
 import heroTopText from './hero-top-text.tsx';
+import phoneWatch from './phone-watch.tsx';
 import raw from './raw.tsx';
 import textBottom from './text-bottom.tsx';
 import tilted from './tilted.tsx';
@@ -20,6 +21,7 @@ export const BUILTIN_TEMPLATE_MODULES: readonly TemplateModule[] = [
   bleedBottom,
   tilted,
   watchCaption,
+  phoneWatch,
 ];
 
 export function isTemplateModule(value: unknown): value is TemplateModule {

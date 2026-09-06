@@ -14,6 +14,7 @@ import {
   normaliseBezelFilename,
   sourceForFile,
 } from '../../src/core/bezels/sources.ts';
+import { isWatchModel } from '../fixtures/make-bezel.ts';
 
 const MOUNT = '/Volumes/Bezel-iPhone-17';
 
@@ -37,6 +38,21 @@ const REAL_FILES: Array<[string, BezelFileName]> = [
   ['PNG/iPad Pro (M5) 13" - Silver - Landscape.png', { id: 'ipad-pro-13-m5', variant: 'silver', orientation: 'landscape' }],
   ['PNG/iPad Pro (M5) 11" - Silver - Portrait.png', { id: 'ipad-pro-11-m5', variant: 'silver', orientation: 'portrait' }],
   ['PNG/iPad Pro (M5) 11" - Space Black - Landscape.png', { id: 'ipad-pro-11-m5', variant: 'space-black', orientation: 'landscape' }],
+  // Apple Watch: the case size takes the slot a phone spends on the colour and
+  // the strap takes the slot a phone spends on the orientation, of which the
+  // watch DMG ships only portrait. " + " and " " both slug to one dash.
+  [
+    'PNG/Sport Band/Apple Watch S11 - 46mm - Aluminum Jet Black + Sport Band Black.png',
+    { id: 'apple-watch-series-11-46mm', variant: 'aluminum-jet-black-sport-band-black', orientation: 'portrait' },
+  ],
+  [
+    'PNG/Milanese Loop/Apple Watch S11 - 46mm - Titanium Natural + Milanese Loop.png',
+    { id: 'apple-watch-series-11-46mm', variant: 'titanium-natural-milanese-loop', orientation: 'portrait' },
+  ],
+  [
+    'PNG/Sport Loop/Apple Watch S11 - 42mm - Aluminum Silver + Sport Loop Forest.png',
+    { id: 'apple-watch-series-11-42mm', variant: 'aluminum-silver-sport-loop-forest', orientation: 'portrait' },
+  ],
 ];
 
 /** Everything else the two DMGs contain. */
@@ -49,6 +65,8 @@ const NOT_BEZELS = [
   'Apple Design Resources License.rtf',
   'Photoshop/iPhone 17 Pro Max/iPhone 17 Pro Max - Deep Blue - Portrait.psd',
   'Photoshop/iPad Pro (M5) 13" - Silver - Portrait.psd',
+  'PNG/Sport Band/.DS_Store',
+  'Photoshop/Apple Watch S11 - 46mm - Aluminum Jet Black + Sport Band Black.psd',
 ];
 
 describe('normaliseBezelFilename', () => {
@@ -112,15 +130,27 @@ describe('sourceForFile', () => {
 });
 
 describe('BEZEL_SOURCES', () => {
-  it('lists the six models seen in the two DMGs', () => {
-    expect([...BEZEL_SOURCE_IDS].sort()).toEqual(['ipad-pro-11-m5', 'ipad-pro-13-m5', 'iphone-17', 'iphone-17-pro', 'iphone-17-pro-max', 'iphone-air']);
+  it('lists the eight models seen in the three DMGs', () => {
+    expect([...BEZEL_SOURCE_IDS].sort()).toEqual([
+      'apple-watch-series-11-42mm',
+      'apple-watch-series-11-46mm',
+      'ipad-pro-11-m5',
+      'ipad-pro-13-m5',
+      'iphone-17',
+      'iphone-17-pro',
+      'iphone-17-pro-max',
+      'iphone-air',
+    ]);
   });
 
   it('round-trips its own model names through the normaliser', () => {
     for (const id of BEZEL_SOURCE_IDS) {
       const source = BEZEL_SOURCES[id];
-      const path = [BEZEL_DMGS[source.dmg].pngDir, source.subDir, `${source.model} - X - Portrait.png`].filter(Boolean).join('/');
-      expect(normaliseBezelFilename(path)?.id).toBe(id);
+      // A watch model already holds its case size and its files carry no orientation part.
+      const file = isWatchModel(id) ? `${source.model} - X.png` : `${source.model} - X - Portrait.png`;
+      const path = [BEZEL_DMGS[source.dmg].pngDir, source.subDir, file].filter(Boolean).join('/');
+      expect(normaliseBezelFilename(path)?.id, id).toBe(id);
+      expect(normaliseBezelFilename(path)?.orientation, id).toBe('portrait');
     }
   });
 
@@ -128,7 +158,7 @@ describe('BEZEL_SOURCES', () => {
     for (const id of BEZEL_SOURCE_IDS) {
       const { portrait: p, pxPerPt, variants } = BEZEL_SOURCES[id];
       expect(variants.length).toBeGreaterThan(0);
-      expect([2, 3]).toContain(pxPerPt);
+      expect([1, 2, 3]).toContain(pxPerPt);
       expect(p.screenRect.x).toBeGreaterThan(p.deviceRect.x);
       expect(p.screenRect.y).toBeGreaterThan(p.deviceRect.y);
       expect(p.screenRect.x + p.screenRect.width).toBeLessThan(p.deviceRect.x + p.deviceRect.width);
@@ -138,6 +168,8 @@ describe('BEZEL_SOURCES', () => {
       expect(p.cornerRadius).toBeLessThan(p.screenRect.width / 2);
       expect(p.screenRect.width % pxPerPt).toBe(0);
       expect(p.screenRect.height % pxPerPt).toBe(0);
+      // Only an iPhone has a Dynamic Island; a watch's very round corners must
+      // not be mistaken for one (they were, before the region-span guard).
       if (id.startsWith('iphone')) {
         expect(p.islandRect).toBeDefined();
         const island = p.islandRect!;
@@ -165,6 +197,16 @@ describe('BEZEL_SOURCES', () => {
     expect(BEZEL_SOURCES['ipad-pro-13-m5'].portrait.screenRect).toMatchObject({ width: 2064, height: 2752 });
     expect(BEZEL_SOURCES['iphone-17-pro'].portrait.screenRect).toMatchObject({ width: 1206, height: 2622 });
     expect(BEZEL_SOURCES['ipad-pro-11-m5'].portrait.screenRect).toMatchObject({ width: 1668, height: 2420 });
+    expect(BEZEL_SOURCES['apple-watch-series-11-46mm'].portrait.screenRect).toMatchObject({ width: 416, height: 496 });
+  });
+
+  it("records the watch corner radius the whole cut-out needs, not the one a 20% probe reaches", () => {
+    // 101 of 416 is 24.3% of the screen width, past the 20% the corner-profile
+    // scan used to start at; starting inside the arc read 90 and left a
+    // background gap at every screen corner.
+    const watch = BEZEL_SOURCES['apple-watch-series-11-46mm'].portrait;
+    expect(watch.cornerRadius).toBe(101);
+    expect(watch.cornerRadius / watch.screenRect.width).toBeGreaterThan(0.2);
   });
 });
 

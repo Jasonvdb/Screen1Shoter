@@ -108,7 +108,15 @@ afterAll(async () => {
 describe('pure decisions', () => {
   it('requestedIds: presets by default, --all, --device with validation, everything for --from', () => {
     expect(requestedIds({})).toEqual(defaultBezelIds());
-    expect(defaultBezelIds()).toEqual(['iphone-17-pro-max', 'iphone-17-pro', 'ipad-pro-13-m5', 'ipad-pro-11-m5']);
+    // The watch joined the defaults when its bezel landed: watch-s10 names it,
+    // and a default install has to cover every preset's own bezel.
+    expect(defaultBezelIds()).toEqual([
+      'iphone-17-pro-max',
+      'iphone-17-pro',
+      'ipad-pro-13-m5',
+      'ipad-pro-11-m5',
+      'apple-watch-series-11-46mm',
+    ]);
     expect(requestedIds({ all: true })).toEqual([...BEZEL_SOURCE_IDS]);
     expect(requestedIds({ devices: ['iphone-17', 'iphone-17'] })).toEqual(['iphone-17']);
     expect(requestedIds({ from: '/x' })).toBeNull();

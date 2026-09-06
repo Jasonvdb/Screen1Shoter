@@ -7,7 +7,7 @@ import type { Dims, Rect } from '../../config/types.ts';
 
 export type BezelOrientation = 'portrait' | 'landscape';
 
-export type BezelDmgId = 'iphone-17' | 'ipad-pro-m5';
+export type BezelDmgId = 'iphone-17' | 'ipad-pro-m5' | 'apple-watch-11';
 
 export interface BezelDmg {
   /** Apple CDN URL. No login, but `hdiutil attach` prints an SLA and waits for "Y" on stdin. */
@@ -33,6 +33,12 @@ export const BEZEL_DMGS: Readonly<Record<BezelDmgId, BezelDmg>> = {
     bytes: 6_787_021,
     pngDir: 'PNG',
   },
+  'apple-watch-11': {
+    url: 'https://devimages-cdn.apple.com/design/resources/download/Bezel-Apple-Watch-Series-11-2025.dmg',
+    dmgName: 'Bezel-Apple-Watch-Series-11-2025.dmg',
+    bytes: 357_953_080,
+    pngDir: 'PNG',
+  },
 };
 
 // Not inspected in the spike (URLs from the plan; contents unknown, so no
@@ -40,8 +46,6 @@ export const BEZEL_DMGS: Readonly<Record<BezelDmgId, BezelDmg>> = {
 //   Bezel-iPhone-16.dmg                 -> presets expect iphone-16-pro-max, iphone-16-pro as fallbacks
 //   Bezel-iPad-Air-(M4).dmg             -> presets expect ipad-air-13-m4, ipad-air-11-m4 as fallbacks
 //                                          (IPAD_CHIP_SIZE below already maps 'iPad Air (M4) 13"')
-//   Bezel-Apple-Watch-Series-11-2025.dmg -> preset watch-s10 names apple-watch-series-11-46mm, but
-//                                          the watch preset is passthrough, so no bezel is needed
 //   ipad-pro-13-m4 / ipad-pro-11-m4     -> preset fallbacks with no known DMG (Apple lists only the M5 iPad Pro)
 
 export type BezelSourceId =
@@ -50,7 +54,9 @@ export type BezelSourceId =
   | 'iphone-17'
   | 'iphone-air'
   | 'ipad-pro-13-m5'
-  | 'ipad-pro-11-m5';
+  | 'ipad-pro-11-m5'
+  | 'apple-watch-series-11-46mm'
+  | 'apple-watch-series-11-42mm';
 
 export interface BezelPortraitFacts {
   imageSize: Dims;
@@ -81,8 +87,17 @@ export interface BezelSource {
   variants: readonly string[];
   /** Native bezel pixels per Apple point (PNG dpi / 72). */
   pxPerPt: number;
-  /** Measured on the portrait PNG. The alpha channel is identical across colours, so one measurement per id is enough. */
+  /**
+   * Measured on the portrait PNG named by `defaultVariant`. On iPhone and iPad
+   * the alpha channel is identical across colours, so one measurement covers
+   * the id. Apple Watch is the exception: each band changes `deviceRect`
+   * (a Sport Loop is 12 px taller than a Sport Band), but the case and its
+   * screen cut-out do not move, and `installBezelFile` measures every file it
+   * writes. Only `screenRect` is used as a guard, so the record stays true.
+   */
   portrait: BezelPortraitFacts;
+  /** File the `portrait` facts were measured on, when the id has more than one alpha shape. */
+  measuredVariant?: string;
 }
 
 const rect = (x: number, y: number, width: number, height: number): Rect => ({ x, y, width, height });
@@ -176,6 +191,88 @@ export const BEZEL_SOURCES: Readonly<Record<BezelSourceId, BezelSource>> = {
       cornerRadius: 58,
     },
   },
+  // PNG/{Magnetic Link,Milanese Loop,Sport Band,Sport Loop}/Apple Watch S11 - 46mm - <Case> + <Band>.png
+  // A watch file names the case size where a phone file names the orientation,
+  // and there is no landscape file; normaliseBezelFilename reads both shapes.
+  // `variants` is in install order (sorted path), so variants[0] is what
+  // `bezelVariant: 'auto'` picks. A watch has no colour in common with a phone,
+  // so a project's single theme.bezelVariant never matches one: name the band
+  // on the screen instead (phone-watch takes `props.watchVariant`).
+  'apple-watch-series-11-46mm': {
+    dmg: 'apple-watch-11',
+    model: 'Apple Watch S11 - 46mm',
+    subDir: '',
+    variants: [
+      'titanium-gold-magnetic-link-sage-gray',
+      'titanium-natural-magnetic-link-caramel',
+      'titanium-slate-magnetic-link-navy',
+      'titanium-gold-milanese-loop',
+      'titanium-natural-milanese-loop',
+      'titanium-slate-milanese-loop',
+      'aluminum-jet-black-sport-band-black',
+      'aluminum-rose-gold-sport-band-light-blush',
+      'aluminum-silver-sport-band-neon-yellow',
+      'aluminum-silver-sport-band-purple-fog',
+      'aluminum-space-gray-sport-band-anchor-blue',
+      'aluminum-space-gray-sport-band-black',
+      'titanium-gold-sport-band-light-blush',
+      'titanium-gold-sport-band-purple-fog',
+      'titanium-natural-sport-band-stone-gray',
+      'titanium-slate-sport-band-black',
+      'aluminum-jet-black-sport-loop-dark-gray',
+      'aluminum-rose-gold-sport-loop-purple-fog',
+      'aluminum-silver-sport-loop-forest',
+      'aluminum-silver-sport-loop-neon-yellow',
+      'aluminum-space-gray-sport-loop-anchor-blue',
+      'aluminum-space-gray-sport-loop-forest',
+    ],
+    pxPerPt: 1,
+    measuredVariant: 'aluminum-jet-black-sport-band-black',
+    portrait: {
+      imageSize: { width: 560, height: 880 },
+      deviceRect: rect(31, 16, 521, 849),
+      screenRect: rect(72, 192, 416, 496),
+      cornerRadius: 101,
+    },
+  },
+  // Same DMG, no preset points at it today: `s1s bezels install --device apple-watch-series-11-42mm`.
+  'apple-watch-series-11-42mm': {
+    dmg: 'apple-watch-11',
+    model: 'Apple Watch S11 - 42mm',
+    subDir: '',
+    variants: [
+      'titanium-gold-magnetic-link-sage-gray',
+      'titanium-natural-magnetic-link-caramel',
+      'titanium-slate-magnetic-link-navy',
+      'titanium-gold-milanese-loop',
+      'titanium-natural-milanese-loop',
+      'titanium-slate-milanese-loop',
+      'aluminum-jet-black-sport-band-black',
+      'aluminum-rose-gold-sport-band-light-blush',
+      'aluminum-silver-sport-band-neon-yellow',
+      'aluminum-silver-sport-band-purple-fog',
+      'aluminum-space-gray-sport-band-anchor-blue',
+      'aluminum-space-gray-sport-band-black',
+      'titanium-gold-sport-band-light-blush',
+      'titanium-gold-sport-band-purple-fog',
+      'titanium-natural-sport-band-stone-gray',
+      'titanium-slate-sport-band-black',
+      'aluminum-jet-black-sport-loop-dark-gray',
+      'aluminum-rose-gold-sport-loop-purple-fog',
+      'aluminum-silver-sport-loop-forest',
+      'aluminum-silver-sport-loop-neon-yellow',
+      'aluminum-space-gray-sport-loop-anchor-blue',
+      'aluminum-space-gray-sport-loop-forest',
+    ],
+    pxPerPt: 1,
+    measuredVariant: 'aluminum-jet-black-sport-band-black',
+    portrait: {
+      imageSize: { width: 520, height: 800 },
+      deviceRect: rect(36, 19, 469, 763),
+      screenRect: rect(73, 177, 374, 446),
+      cornerRadius: 90,
+    },
+  },
 };
 
 export const BEZEL_SOURCE_IDS: readonly BezelSourceId[] = Object.keys(BEZEL_SOURCES) as BezelSourceId[];
@@ -215,12 +312,17 @@ export interface BezelFileName {
 export const FILENAME_OVERRIDES: Readonly<Record<string, string>> = {
   'ipad-pro-m5-13': 'ipad-pro-13-m5',
   'ipad-pro-m5-11': 'ipad-pro-11-m5',
+  'apple-watch-s11-46mm': 'apple-watch-series-11-46mm',
+  'apple-watch-s11-42mm': 'apple-watch-series-11-42mm',
 };
 
 /** Generic form of the override for DMGs not seen yet: `ipad-air-m4-13` -> `ipad-air-13-m4`. */
 const IPAD_CHIP_SIZE = /^(ipad(?:-[a-z]+)?)-(m\d+)-(\d+(?:\.\d+)?)$/;
 
 const PART_SEPARATOR = ' - ';
+
+/** Second part of an Apple Watch file name: the case size, where a phone names the orientation. */
+const WATCH_CASE_SIZE = /^\d{2}mm$/;
 
 /** 'iPad Pro (M5) 13"' -> 'ipad-pro-m5-13'; 'Cosmic Orange' -> 'cosmic-orange'. Keeps dots (12.9). */
 export function bezelSlug(text: string): string {
@@ -233,22 +335,30 @@ export function bezelSlug(text: string): string {
 
 /**
  * Pure: maps an Apple bezel file name (any path prefix) to id / variant /
- * orientation, or null for anything that is not a `<model> - <Colour> -
- * <Portrait|Landscape>.png` file (PSDs, .DS_Store, the DMG background image).
+ * orientation, or null for anything that is neither shape Apple ships (PSDs,
+ * .DS_Store, the DMG background image).
+ *
+ *   `<model> - <Colour> - <Portrait|Landscape>.png`   iPhone, iPad
+ *   `<model> - <NNmm> - <Case> + <Band>.png`          Apple Watch
+ *
+ * The watch spends the third part on the strap instead of the orientation and
+ * ships portrait only, so the case size joins the model and the whole
+ * case-plus-band string becomes the variant.
  */
 export function normaliseBezelFilename(path: string): BezelFileName | null {
   const base = path.split('/').pop() ?? '';
   if (base.startsWith('.') || !/\.png$/i.test(base)) return null;
   const parts = base.slice(0, -4).split(PART_SEPARATOR).map((part) => part.trim());
   if (parts.length !== 3) return null;
-  const [model, colour, orientationText] = parts as [string, string, string];
-  const orientation = orientationText.toLowerCase();
-  if (orientation !== 'portrait' && orientation !== 'landscape') return null;
-  const rawId = bezelSlug(model);
-  const variant = bezelSlug(colour);
+  const [model, colour, last] = parts as [string, string, string];
+  const watch = WATCH_CASE_SIZE.test(colour);
+  const orientationText = watch ? 'portrait' : last.toLowerCase();
+  if (orientationText !== 'portrait' && orientationText !== 'landscape') return null;
+  const rawId = bezelSlug(watch ? `${model} ${colour}` : model);
+  const variant = bezelSlug(watch ? last : colour);
   if (!rawId || !variant) return null;
   const id = FILENAME_OVERRIDES[rawId] ?? rawId.replace(IPAD_CHIP_SIZE, '$1-$3-$2');
-  return { id, variant, orientation };
+  return { id, variant, orientation: orientationText };
 }
 
 /** `normaliseBezelFilename` restricted to models with a BezelSource entry. */

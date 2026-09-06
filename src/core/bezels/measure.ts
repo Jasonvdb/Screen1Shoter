@@ -99,7 +99,15 @@ function fail(message: string): S1sError {
 /**
  * Screen x-range from row scans at mid height and at 20% height (an iPhone
  * landscape file has its island at mid height, so the union of both rows is
- * the real width), y-range from a column scan 20% into that range.
+ * the real width), y-range from the union of column scans at 20%, 50% and 80%
+ * of that range.
+ *
+ * One probe is not enough for both device shapes. 20% clears an iPhone's
+ * Dynamic Island, which would stop a centre scan short; the centre clears an
+ * Apple Watch's corners, whose radius is 22% of the screen width, so a 20%
+ * probe starts inside the corner arc and under-reads the height by 8 px.
+ * Every run is contiguous through `cy` and the body is opaque all round, so
+ * no scan can escape the device and the union is never too large.
  */
 function findScreenBox(img: RawImage, device: Rect): Rect {
   const cx = device.x + Math.floor(device.width / 2);
@@ -112,35 +120,71 @@ function findScreenBox(img: RawImage, device: Rect): Rect {
     left = Math.min(left, scanUntilEdge(img, cx, y, -1, 0));
     right = Math.max(right, scanUntilEdge(img, cx, y, 1, 0));
   }
-  const probeX = left + Math.round((right - left + 1) * 0.2);
-  const top = scanUntilEdge(img, probeX, cy, 0, -1);
-  const bottom = scanUntilEdge(img, probeX, cy, 0, 1);
+  const width = right - left + 1;
+  let top = Number.POSITIVE_INFINITY;
+  let bottom = -1;
+  for (const fraction of [0.2, 0.5, 0.8]) {
+    const x = left + Math.round(width * fraction);
+    if (x < left || x > right || alphaAt(img, x, cy) > EDGE_ALPHA) continue;
+    top = Math.min(top, scanUntilEdge(img, x, cy, 0, -1));
+    bottom = Math.max(bottom, scanUntilEdge(img, x, cy, 0, 1));
+  }
+  if (bottom < 0) throw fail('no transparent column found inside the screen cut-out');
   return rectOf(left, top, right, bottom);
 }
 
-/** Opaque pill on the screen's leading edge (top in portrait, left in landscape), away from the corners. */
+/**
+ * Opaque pill on the screen's leading edge (top in portrait, left in
+ * landscape), away from the corners.
+ *
+ * A device with no island still has something opaque in that window: the two
+ * corner arcs. On an Apple Watch, whose corner radius is 22% of the screen
+ * width, they reach past both edges of the window a few rows down and their
+ * bounding box reads as a 250x4 island. That phantom then drags the
+ * corner-profile scan back into the arc it was meant to clear, so it is ruled
+ * out two ways. A real Dynamic Island is a free-standing pill (iPhone 17 Pro
+ * Max: 374x108 in a 792-wide window, 3.8% of the screen height) and fails
+ * neither test.
+ */
 function findIsland(img: RawImage, screen: Rect, orientation: BezelOrientation): Rect | undefined {
-  const region: Rect =
-    orientation === 'portrait'
-      ? { x: screen.x + Math.round(screen.width * 0.2), y: screen.y, width: Math.round(screen.width * 0.6), height: Math.round(screen.height * 0.15) }
-      : { x: screen.x, y: screen.y + Math.round(screen.height * 0.2), width: Math.round(screen.width * 0.15), height: Math.round(screen.height * 0.6) };
+  const portrait = orientation === 'portrait';
+  const region: Rect = portrait
+    ? { x: screen.x + Math.round(screen.width * 0.2), y: screen.y, width: Math.round(screen.width * 0.6), height: Math.round(screen.height * 0.15) }
+    : { x: screen.x, y: screen.y + Math.round(screen.height * 0.2), width: Math.round(screen.width * 0.15), height: Math.round(screen.height * 0.6) };
   const island = boundingBox(img, region, (a) => a > TRANSPARENT_ALPHA);
   if (!island) return undefined;
   // Anything that large is not an island (a screen that is not transparent).
   if (island.width * island.height > screen.width * screen.height * 0.1) return undefined;
+  // Across = along the leading edge; deep = away from it. Reaching both edges
+  // of the window means the corner arcs, not a pill; too shallow means the
+  // same arcs caught a row or two in.
+  const across = portrait ? island.width : island.height;
+  const regionAcross = portrait ? region.width : region.height;
+  const deep = portrait ? island.height : island.width;
+  const screenDeep = portrait ? screen.height : screen.width;
+  if (across >= regionAcross || deep < screenDeep * 0.01) return undefined;
   return island;
 }
 
 /**
  * Corner profile of the top-left screen corner: for each row from the screen
  * top, the first half-covered transparent x, counted from the screen's left
- * edge. Scanned inward from 20% of the width (the bounding-box corner itself
- * lies outside the phone body on iPhones). Stops at the first row that
- * reaches the edge (offset 0).
+ * edge. Stops at the first row that reaches the edge (offset 0).
+ *
+ * The scan runs inward from a column that stays transparent for every row of
+ * the corner; the bounding-box corner itself lies outside the device body, so
+ * it cannot start at the screen's own edge. The screen centre is the safe
+ * default. An island sits on the centre line a few rows down and would stop
+ * the walk dead (an iPhone 17 Pro Max reads 234 instead of 189 that way), so
+ * when there is one the scan starts just left of it instead. iPhone and iPad
+ * radii are identical either way; an Apple Watch needs the wider start, since
+ * its corner arc reaches 30% into the screen.
  */
-export function cornerProfile(img: RawImage, screen: Rect): number[] {
+export function cornerProfile(img: RawImage, screen: Rect, island?: Rect): number[] {
   const offsets: number[] = [];
-  const startX = screen.x + Math.round(screen.width * 0.2);
+  const centreX = screen.x + Math.round(screen.width * 0.5);
+  const margin = Math.max(4, Math.round(screen.width * 0.01));
+  const startX = island ? Math.min(centreX, island.x - margin) : centreX;
   const maxRows = Math.floor(Math.min(screen.width, screen.height) / 2);
   for (let i = 0; i < maxRows; i++) {
     const y = screen.y + i;
@@ -205,7 +249,7 @@ export function measureRaw(img: RawImage, opts: { density?: number } = {}): Beze
   if (!screenRect) throw fail('no transparent screen cut-out found');
   const orientation: BezelOrientation = screenRect.width > screenRect.height ? 'landscape' : 'portrait';
   const islandRect = findIsland(img, screenRect, orientation);
-  const cornerRadius = radiusFromProfile(cornerProfile(img, screenRect));
+  const cornerRadius = radiusFromProfile(cornerProfile(img, screenRect, islandRect));
   const preset = matchPreset(screenRect, orientation);
   const fromDensity = opts.density && opts.density % 72 === 0 ? opts.density / 72 : undefined;
   const pxPerPt = preset?.scale ?? fromDensity;

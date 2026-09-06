@@ -104,8 +104,11 @@ resolve.ts
   whole `ScreensConfig` so a project-level `panorama` is cut into this
   screen's slice and injected into `props.background`; an explicit
   `props.background` wins. Callers that only probe (capture planning,
-  template checks) omit it. `captureKey(locale, family, ref)`,
-  `captureRelPath(locale, family, ref)`, `formatOrdinal(n)` ('01'),
+  template checks) omit it. `CAPTURE_REF_RE`, `CaptureRefParts`,
+  `parseCaptureRef(ref)`, `captureRefPreset(ref, preset)`,
+  `captureKey(locale, family, ref)`,
+  `captureRelPath(locale, family, ref)` (both drop a size prefix, so two refs
+  naming one file share a key and a path), `formatOrdinal(n)` ('01'),
   `renderFileName(n, id)` ('01-home.png'), `exportFileName(n)` ('01.png'),
   `EXPORT_FILE_RE` / `exportOrdinal(name)` (the one matcher for a set file,
   shared by `--prune` and `s1s validate`),
@@ -229,6 +232,18 @@ export function captureWarnings(source: CaptureSource, preset: SizePreset, opts:
 Note: the task brief wrote `resolveCapture(project, screen, preset, locale)`;
 the contract takes a single `CaptureRef` because a screen may reference
 several captures (`two-device`). `resolveScreen` maps every ref through it.
+
+**Cross-size capture refs (W7).** A `CaptureRef` is a file-safe name, optionally
+prefixed with a size: `'watch-s10:watch-lap'`. `resolveScreen` resolves each ref
+against `captureRefPreset(ref, preset)` rather than the preset being rendered,
+so the prefix decides both the family directory the file is read from and the
+dimensions `captureWarnings` checks it against; `render.ts` passes the same
+preset to `captureWarnings`. Without this a watch capture on an iPhone canvas
+would be looked for at `captures/<l>/iphone/watch-lap.png` and, if found, fail
+the 1320x2868 check. `parseCaptureRef` reports `unknownSize: true` for a prefix
+that names no preset and `screenDefSchema` refuses it, so a typo is a
+`screens.ts` error rather than part of a file name. `phone-watch` is the only
+built-in that needs it.
 
 ### src/core/matrix.ts
 ```ts
@@ -493,6 +508,9 @@ Data attributes:
 - `data-s1s-allow-bleed` on a container whose overflow is intentional.
 - `data-s1s-noncompliant="<template id>"` on the canvas when the template is
   not guideline-compliant (`bleed-bottom`, `tilted`); review.md lists these.
+  `phone-watch` is compliant: both devices are whole, upright and un-cropped,
+  and Apple's rule bans cropping and tilting a product image, not standing two
+  products together.
 - `data-s1s-bezel="<id>/<variant>"` (or `"generic"`) on every `DeviceFrame`
   root (`data-s1s-id="device"`), `data-s1s-bezel-fallback="<wanted id>"` when
   a substitute id or the generic frame was used (`checks.ts` -> `bezel-fallback`,
@@ -531,9 +549,21 @@ inside the repo. `/bezels/*` serves the cache dir to the browser.
 ```ts
 // src/core/bezels/sources.ts (Stage A facts; docs/bezels.md is the human record)
 export const BEZEL_DMGS, BEZEL_SOURCES, BEZEL_SOURCE_IDS; export function isBezelSourceId, dmgsFor(ids), normaliseBezelFilename(path), sourceForFile(path);
-  // ids: iphone-17-pro-max iphone-17-pro iphone-17 iphone-air ipad-pro-13-m5 ipad-pro-11-m5; variants[0] is the 'auto' colour
+  // ids: iphone-17-pro-max iphone-17-pro iphone-17 iphone-air ipad-pro-13-m5 ipad-pro-11-m5
+  //      apple-watch-series-11-46mm apple-watch-series-11-42mm (W7); variants[0] is the 'auto' colour.
+  // normaliseBezelFilename reads two shapes: `<model> - <Colour> - <Portrait|Landscape>.png`
+  //   and, when the second part is a case size, `<model> - <NNmm> - <Case> + <Band>.png`
+  //   (Apple Watch: no orientation part, portrait only, the whole case-plus-band string is the variant).
+  //   `measuredVariant` names the file `portrait` was measured on: a watch band changes deviceRect,
+  //   though never the case or its cut-out, and only screenRect guards an install.
 // src/core/bezels/measure.ts (sharp raw RGBA; unit-tested on a synthetic bezel)
 export function measureBezel(path): Promise<BezelMeasurement>;   // deviceRect (alpha > 12 bbox), screenRect, cornerRadius, islandRect?, pxPerPt (matching preset's scale, else dpi/72)
+  // screenRect's height is the union of contiguous column scans at 20%, 50% and 80% of the width, and
+  //   cornerProfile scans inward from the screen centre (or just left of an island). One probe cannot serve
+  //   both shapes: 20% clears an iPhone's Dynamic Island, the centre clears an Apple Watch's corners, whose
+  //   radius is 24% of the screen width. findIsland then drops a box that spans its whole search window or
+  //   is under 1% of the screen deep - that is the pair of corner arcs, not a pill.
+  // W7 note: these three rules leave every iPhone and iPad measurement byte-identical; they only fix the watch.
 export function writeTrimmedBezel(...)                            // deviceRect + TRIM_PAD (2 px)
 // src/core/bezels/install.ts
 export async function installBezels(opts: { devices?, all?, from?, keepDmg?, force?, landscape?, home?, log? }): Promise<InstallResult>;
@@ -564,14 +594,20 @@ column marks fallbacks like the `--json` `presets` map). Browser: `src/web/hooks
 allowBleed?, captureHint?, style? })` resolves its own bezel: capture box = screenRect
 fractions of deviceRect grown by 1 bezel px, `border-radius` from
 cornerRadius, bezel `<img>` on top (the opaque island covers the capture),
-decoded under a `bezel-image` token. `useCapture` holds its `capture` token
+decoded under a `bezel-image` token. `fitInto` (the pure core of `FitBox`,
+in `src/web/components/fit-box.ts`) computes the same box as `frameBox` in
+slot mode, so a template that measures a device row itself puts the device
+exactly where one that hands the row to `DeviceFrame` does; `phone-watch`
+relies on that. `useCapture` holds its `capture` token
 only while its `<img>` is mounted; a frame whose slot collapsed to zero
 mounts nothing and flags the slot `data-s1s-overflow="overflow"` (with a
 `data-s1s-overflow-why` explanation `checks.ts` prints), so the page still
 becomes ready. Verified on the real iPhone 17 Pro Max
 (screen (56,48) 1320x2868, aspect 0.4603, radius 189, island (529,91)
-374x108, px/pt 3) and iPad Pro 13 M5 ((92,96) 2064x2752, 0.75, radius 58,
-no island, px/pt 2).
+374x108, px/pt 3), iPad Pro 13 M5 ((92,96) 2064x2752, 0.75, radius 58,
+no island, px/pt 2) and Apple Watch S11 46mm ((72,192) 416x496, 0.8387,
+radius 101, no island, px/pt 1; the PNG includes the band, so `deviceRect`
+differs per strap while the cut-out does not).
 
 ## 6b. Contact sheet (W2)
 
