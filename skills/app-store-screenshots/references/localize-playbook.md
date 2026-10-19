@@ -65,7 +65,7 @@ Do not draft copy before every check below passes.
    them at `asc-localize-metadata`, and either stop or agree to draft the
    copy now and ship later. Record `versionId`, `versionString` and
    `versionLocalizationId` under `manifest.locales.<locale>` when you have
-   them. Section 3 step 5 assumes you may find no target-locale listing
+   them. Section 3 step 6 assumes you may find no target-locale listing
    metadata; that branch is real.
 4. Rendering and upload are separate. Steps 1 to 8 need no store access.
    Only step 9 needs the editable version. Re-resolve the ids in step 9; they
@@ -148,16 +148,24 @@ Caption quality depends on this step. Spend real effort here.
    echoing, and the approved terminology. If the listing says "drafts", a
    caption must not say "documents". Note live social-proof numbers so badge
    copy stays accurate.
-2. Read the source copy, `screenshots/copy/en-US.json`, and
+2. Ask the user which search keywords this locale targets, in priority
+   order, before any target copy. Apple reads caption text as a search
+   signal per storefront, and people search in their own words: a German
+   searcher may not type the translation of "lap timer" you would guess.
+   Offer the target locale's `keywords` field and the source keywords from
+   `## Target keywords` in `screenshots/plan.md` as candidates. The user
+   decides; never translate the source list and assume it. Never proceed on
+   silence. Write the answer into the brief.
+3. Read the source copy, `screenshots/copy/en-US.json`, and
    `screenshots/plan.md`. They carry the benefit per screen and the marketing
    order.
-3. Read the app's own target-language strings when the app ships the
+4. Read the app's own target-language strings when the app ships the
    language (`Localizable.xcstrings`, or the compiled
    `<app>.app/<lang>.lproj/Localizable.strings` via `plutil -convert json`).
    Every core noun in a caption must be the word the app uses on screen.
-4. Skim the repo README, the landing page and the App Store category for
+5. Skim the repo README, the landing page and the App Store category for
    purpose, audience and tone. Tone decides register (German du/Sie).
-5. If the target locale already has listing metadata, mirror its terminology
+6. If the target locale already has listing metadata, mirror its terminology
    and tone so captions and description read as one voice. If it does not,
    decide the target term for each core noun once and reuse it everywhere.
 
@@ -175,6 +183,11 @@ Under reuse: every caption sits above a source-language UI, so name the
 source-language labels the reader will see in the frame beside each caption
 noun. A caption noun that maps onto no visible label reads as a different
 app.
+
+## Target keywords (from the user, in priority order)
+| Rank | Keyword | Source | Screen | Field |
+|---|---|---|---|---|
+| 1 | Rundenzeiten | user | map | subline |
 
 ## Glossary (source -> target, where it comes from)
 | en-US | <locale> | Source |
@@ -224,6 +237,13 @@ Rules:
   German `60.000+` and a decimal comma, French narrow space before `:` and
   `!`, Japanese full-width punctuation. The renderer prints exactly what the
   file says; there is no model to drift back to `60,000+`.
+- Place the locale's target keywords from the brief with the placement
+  rules in the copy playbook (section 1, Step 4): keyword 1 on screen 1,
+  screens 1 to 3 each carry one, every keyword at least once in a
+  `headline` or `subline`, at most one per field. A locale keyword takes
+  the place of the source keyword on that screen; it is not a translation
+  of it. Run the coverage check from that step on
+  `screenshots/copy/<locale>.json` and fill the brief's keyword table.
 - Never render a core concept with two different words across the set.
 - Put the reasoning in `layoutNotes`. The field is never rendered; it is for
   the next agent and the reviewer.
@@ -242,8 +262,8 @@ Example (illustrative values):
     "map": {
       "headline": ["Jede Runde", "auf der Karte"],
       "highlight": "Runde",
-      "subline": "GPS-Strecke jeder Fahrt, automatisch",
-      "layoutNotes": "Noun leads so the highlight sits alone on line 1. DE is ~30% longer than 'Every Ride on the Map'; two short lines instead of one."
+      "subline": "Rundenzeiten und Strecke jeder Fahrt",
+      "layoutNotes": "Noun leads so the highlight sits alone on line 1. DE is ~30% longer than 'Every Ride on the Map'; two short lines instead of one. The subline carries de keyword 1, 'Rundenzeiten', from the user's de list."
     },
     "laps": {
       "headline": ["Rundenzeiten", "automatisch"],
@@ -275,8 +295,9 @@ key. Fix both before G5.
 ## 5. Gate G5: copy approval
 
 Present the full copy table for the locale in one message: screen id, source
-headline, target lines, highlight word, subline, badge, and the capture-mode
-line from section 2. Ask for explicit approval. Never proceed on silence.
+headline, target lines, highlight word, subline, badge, the target keyword
+each screen carries, the keyword coverage result, and the capture-mode line
+from section 2. Ask for explicit approval. Never proceed on silence.
 
 On approval:
 

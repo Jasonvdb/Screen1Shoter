@@ -1,12 +1,12 @@
 # Copy playbook
 
-Use this playbook in Phase 1 (discovery and copy) and again in Phase 6 (per locale). It tells you how to find the benefits, write the headlines, rate the captures, pick the brand colour, and keep the set consistent.
+Use this playbook in Phase 1 (discovery and copy) and again in Phase 6 (per locale). It tells you how to get the target keywords, find the benefits, write the headlines, rate the captures, pick the brand colour, and keep the set consistent.
 
 Text is real text. The renderer draws every headline from `screenshots/copy/<locale>.json` with the app's fonts. There are no image prompts. This replaces the image-model generation of the old `aso-appstore-screenshots` skill; the methodology below is ported from it verbatim where marked.
 
 Outputs of this playbook:
 
-- `screenshots/plan.md`: benefits, order, template per screen, brand colour, appearance, keyword decisions.
+- `screenshots/plan.md`: target keywords and the screen that carries each, benefits, order, template per screen, brand colour, appearance.
 - `screenshots/copy/<locale>.json`: the copy (shape in "Copy file shape").
 - `screenshots/manifest.json`: `screens[]` (`id`, `order`, `benefit`, `template`, `sizes`) and `locales.<locale>.copyStatus`.
 
@@ -16,11 +16,46 @@ Paths are relative to the app repo.
 
 ## 1. Benefit discovery (most critical phase)
 
-This phase sets the foundation for everything. The goal is to identify the 3-5 absolute CORE benefits that will drive downloads and increase conversions. Do not rush this.
+This phase sets the foundation for everything. The goal is to identify the 3-5 absolute CORE benefits that will drive downloads and increase conversions, written in the words people search for. Do not rush this.
 
-Run this section only when `manifest.json` has no `screens[]` with a `benefit`, or when the user asks to redo discovery.
+Run this section only when `manifest.json` has no `screens[]` with a `benefit`, or when the user asks to redo discovery or to retarget keywords.
 
-### Step 1: Analyze the codebase
+### Step 1: Ask for the target keywords (always first)
+
+Apple reads the caption text in screenshots and uses it as an App Store search ranking signal. The headline and subline are keyword surfaces next to the app name, the subtitle and the `keywords` field. So the copy starts from the keywords the user wants to rank for, not from the feature list.
+
+Ask before any codebase analysis or benefit work. When `screenshots/plan.md` already has a `## Target keywords` table, reuse it and show it in one line; ask again only when the user wants to retarget. A `plan.md` with only an older "Keyword decisions" section has no confirmed target keywords: ask.
+
+Gather candidates first, so the user can pick instead of type. When `metadata/` is missing, ask anyway; Step 4 offers the pull.
+
+```bash
+jq -r '.name, .subtitle' metadata/app-info/en-US.json 2>/dev/null
+V=$(ls metadata/version 2>/dev/null | sort -V | tail -1); [ -n "$V" ] && jq -r '.keywords // empty' "metadata/version/$V/en-US.json"
+```
+
+An ASO tool you have (for example the Astro MCP `get_app_keywords`) can add tracked keywords and their popularity. It is optional.
+
+Ask in one question (AskUserQuestion where it exists, plain chat elsewhere): "Which search keywords do you want these screenshots to rank for? List them in priority order, most important first." Show the candidates with it. Rules:
+
+- Never pick the keywords for the user. Never proceed on silence.
+- "Use the listing" is an answer: take the `keywords` field in its order and confirm the list in one line.
+- "None" is an answer too. Record it; the placement rules in Step 4 then fall back to the listing terminology.
+- A set holds about one keyword per screen in the headline and one in the subline. With a longer list, use the top-ranked ones and tell the user which ones stay out.
+
+Write the answer into `screenshots/plan.md` now, before any other output. Keep each keyword exactly as the user wrote it. Fill `Screen` and `Field` when the copy exists (Step 7):
+
+```markdown
+## Target keywords
+
+| Rank | Keyword | Source | Screen | Field |
+|---|---|---|---|---|
+| 1 | lap timer | user | map | subline |
+| 2 | motocross | user | laps | subline |
+| 3 | gps | user, listing `keywords` | replay | subline |
+| 4 | track history | user | history | headline |
+```
+
+### Step 2: Analyze the codebase
 
 Explore the project codebase thoroughly. Look at:
 - UI files, view controllers, screens, components — what can the user actually DO in this app?
@@ -45,7 +80,7 @@ grep -rn -E "ProductID|Entitlement|subscription|paywall" --include=*.swift . | h
 ls metadata 2>/dev/null && cat metadata/app-info/en-US.json 2>/dev/null
 ```
 
-### Step 2: Ask the user clarifying questions
+### Step 3: Ask the user clarifying questions
 
 After your analysis, present what you've learned and ask the user targeted questions to fill gaps:
 
@@ -60,9 +95,9 @@ Adapt your questions based on what you can and can't determine from the code. Do
 
 Ask in chat, or with `AskUserQuestion` where it exists. Never answer these questions for the user.
 
-### Step 3: ASO keyword pass (new)
+### Step 4: Keyword placement and listing terminology
 
-Read the App Store listing before you write a single headline. The listing is the source of truth for terminology.
+Read the App Store listing before you write a single headline. The target keywords from Step 1 decide which search terms the captions carry. The listing is the source of truth for every other word.
 
 Sources, in order:
 
@@ -82,16 +117,38 @@ When `metadata/` is missing, offer to pull it first. Do not guess the listing.
 asc metadata pull --app "<APP_ID>" --version "<VERSION>" --dir ./metadata
 ```
 
-Rules:
+Placement rules for the target keywords:
 
-- At most ONE keyword per headline, and only where it reads naturally. "Time Every Lap" is good; "GPS Lap Timer Tracker" is a keyword pile.
-- Listing terminology wins. If the listing says "moto", the headline says "moto", not "ride". If the listing says "workout", do not write "session".
-- Screenshot text is not indexed by App Store search. The keyword pass keeps the message consistent with the listing so the searcher recognises what they searched for. It does not replace the `keywords` field.
+- Keyword 1 goes on screen 1: in the headline where it reads naturally, else in the subline.
+- Screens 1 to 3 each carry a target keyword. Search results show these first, so they are the frames a searcher sees.
+- Every target keyword appears at least once in the set, in a `headline` or a `subline`. Those are the fields every size renders in large, high-contrast text. A keyword only in a `badge`, a `callouts` entry (iPad only) or `layoutNotes` (never rendered) does not count.
+- Use the keyword as the user wrote it ("lap timer", not "lap timing"). The theme may change its case; that is fine.
+- At most ONE keyword in the headline and one in the subline, and only where it reads naturally. "Time Every Lap" is good; "GPS Lap Timer Tracker" is a keyword pile. A pile lowers conversion, and conversion feeds ranking too.
+- When it fits the set's highlight style, make the keyword the `highlight`: the colour draws the eye to the term the searcher typed.
+- Never put a competitor's name or another brand's trademark in a caption.
+- Name the keyword a screen carries in its `layoutNotes`, so the translator and the next agent keep it.
+
+Listing rules:
+
+- Listing terminology wins for every word that is not a target keyword. If the listing says "moto", the headline says "moto", not "ride". If the listing says "workout", do not write "session".
+- Captions work next to the listing fields, not instead of them. They do not replace the `keywords` field.
+- A target keyword missing from the name, the subtitle and the `keywords` field is a listing gap. Tell the user and offer the `asc-aso-audit` skill; the keyword still goes on the screenshot.
 - Offer the `asc-aso-audit` skill when the listing itself looks weak (empty subtitle, keyword waste). Fix the listing first; screenshots inherit it.
 
-Write the chosen terms into `screenshots/plan.md` under "Keyword decisions" with one line per term: the term, the source field, the headline that carries it.
+Check the coverage after the copy exists and before G1. Put the target keywords in the loop:
 
-### Step 4: Draft the core benefits
+```bash
+for k in "lap timer" "motocross" "gps" "track history"; do
+  printf '%s: ' "$k"
+  jq -r --arg k "$k" '.screens | to_entries[]
+    | select([.value.headline, .value.subline] | flatten | map(select(. != null)) | join(" ")
+      | ascii_downcase | contains($k | ascii_downcase)) | .key' screenshots/copy/en-US.json | paste -sd, -
+done
+```
+
+Each line lists the screens that carry the keyword. An empty list means no screen carries it: fix the copy, or tell the user why it stays out. Show the result at G1 and write it into the `Screen` and `Field` columns of `## Target keywords` in `screenshots/plan.md`.
+
+### Step 5: Draft the core benefits
 
 Based on your analysis and the user's input, draft 3-5 core benefits. Each benefit MUST:
 
@@ -99,6 +156,7 @@ Based on your analysis and the user's input, draft 3-5 core benefits. Each benef
 2. **Focus on what the USER gets**, not what the app does technically
 3. **Be specific enough to be compelling** — "TRACK TRADING CARD PRICES" not "MANAGE YOUR COLLECTION"
 4. **Answer the user's unspoken question**: "Why should I download this instead of scrolling past?"
+5. **Carry a target keyword where one fits**, placed by the Step 4 rules. Rank the benefits that match the top keywords onto the first three screens when the story allows it.
 
 The examples above are in upper case because the old skill rendered every headline in caps. Write the copy in natural case ("Track Trading Card Prices"). The theme applies the case at render time (see "Casing").
 
@@ -107,9 +165,9 @@ Present the benefits to the user in this format:
 ```
 Here are the core benefits I'd recommend for your screenshots:
 
-1. [ACTION VERB] + [BENEFIT] — [why this drives downloads]
-2. [ACTION VERB] + [BENEFIT] — [why this drives downloads]
-3. [ACTION VERB] + [BENEFIT] — [why this drives downloads]
+1. [ACTION VERB] + [BENEFIT] — [why this drives downloads] (keyword: [term or none])
+2. [ACTION VERB] + [BENEFIT] — [why this drives downloads] (keyword: [term or none])
+3. [ACTION VERB] + [BENEFIT] — [why this drives downloads] (keyword: [term or none])
 ...
 ```
 
@@ -121,12 +179,12 @@ Order the benefits so the set tells a story when swiped:
 |---|---|---|
 | 1 | The single biggest reason to download | Every Ride on the Map |
 | 2-3 | The core loop: what the user does every time | Automatic Lap Timing; Replay Laps in 3D |
-| 4-6 | Differentiators against the competitors named in Step 2 | Build a Track History; Set a Start Line |
+| 4-6 | Differentiators against the competitors named in Step 3 | Build a Track History; Set a Start Line |
 | last | Platform breadth or social proof | Phone or Watch. Your Call. / "4.8 stars from 2,000 riders" |
 
 Five to eight screens is the normal range. Apple accepts one to ten per set. Fewer strong screens beat more weak ones.
 
-### Step 5: Collaborate and refine
+### Step 6: Collaborate and refine
 
 DO NOT proceed until the user explicitly confirms the benefits. This is an iterative process:
 
@@ -137,9 +195,9 @@ DO NOT proceed until the user explicitly confirms the benefits. This is an itera
 
 This is gate G1. Never proceed on silence.
 
-### Step 6: Save the plan
+### Step 7: Save the plan
 
-Write `screenshots/plan.md` (benefits in order, template per screen, brand colour, appearance, keyword decisions, user preferences such as "user prefers 'Track' over 'Monitor'"). Write `screens[]` into `screenshots/manifest.json` with `id`, `order`, `benefit`, `template`, `sizes`. Write `screenshots/copy/en-US.json`. Set `locales.en-US.copyStatus` to `approved`. Set status `copy-approved` only on images still at `pending`; leave `captured` and higher untouched (`copy-approved` is not a legal backward target). A changed headline shows up as a new render hash on the next `s1s render`.
+Write `screenshots/plan.md` (the `## Target keywords` table with `Screen` and `Field` filled from the coverage check, benefits in order, template per screen, brand colour, appearance, user preferences such as "user prefers 'Track' over 'Monitor'"). Write `screens[]` into `screenshots/manifest.json` with `id`, `order`, `benefit`, `template`, `sizes`. Write `screenshots/copy/en-US.json`. Set `locales.en-US.copyStatus` to `approved`. Set status `copy-approved` only on images still at `pending`; leave `captured` and higher untouched (`copy-approved` is not a legal backward target). A changed headline shows up as a new render hash on the next `s1s render`.
 
 ```bash
 s1s render --locale en-US --sizes iphone-6.9,ipad-13 --dry-run --allow-placeholder --json   # validates copy JSON shape and the screens config
@@ -162,7 +220,7 @@ Every screen's copy has these fields. The template decides which ones it shows.
 | `subline` | 8 words or fewer. Says how, or names the payoff. No second verb-first headline. |
 | `badge` | Optional. 1-2 words: "New", "Free", "Apple Watch". No keywords, no prices. |
 | `callouts` | `feature-grid` (iPad) only. Up to 3 entries; each `title` 1-3 words, `body` 8 words or fewer. A fourth callout is an `overflow` error. |
-| `layoutNotes` | Never rendered. Tell the translator or the next agent why the lines break where they do. |
+| `layoutNotes` | Never rendered. Tell the translator or the next agent why the lines break where they do, and which target keyword the screen carries. |
 
 Line breaks are part of the copy. Write them with the copy, not after the render:
 
@@ -275,19 +333,21 @@ One file per locale: `screenshots/copy/<locale>.json`. The screen keys match `sc
     "map": {
       "headline": ["Every Ride", "on the Map"],
       "highlight": "Map",
-      "subline": "Your route, your laps, your track",
-      "layoutNotes": "Break before 'on' so the verb phrase stays together. Keep 'Map' as the highlight; it carries the listing keyword 'GPS ride tracker'."
+      "subline": "A lap timer that maps every ride",
+      "layoutNotes": "Break before 'on' so the verb phrase stays together. The subline carries target keyword 1, 'lap timer'; keep a keyword on this screen in every locale."
     },
     "laps": {
       "headline": "Automatic Lap Timing",
       "highlight": "Automatic",
-      "subline": "Best lap highlighted, no button to press"
+      "subline": "Every motocross lap, no button to press",
+      "layoutNotes": "The subline carries target keyword 2, 'motocross'."
     },
     "replay": {
       "headline": "Replay Laps in 3D",
       "highlight": "3D",
-      "subline": "Fly the line you rode",
-      "badge": "New"
+      "subline": "Fly your GPS line, turn by turn",
+      "badge": "New",
+      "layoutNotes": "The subline carries target keyword 3, 'gps'."
     },
     "history": {
       "headline": "Build a Track History",
@@ -298,7 +358,7 @@ One file per locale: `screenshots/copy/<locale>.json`. The screen keys match `sc
         { "title": "Best Laps", "body": "Personal bests stay pinned" },
         { "title": "Totals", "body": "Ride time across the season" }
       ],
-      "layoutNotes": "Callouts render only on iPad via the feature-grid override in screens.ts."
+      "layoutNotes": "The headline carries target keyword 4, 'track history'. Callouts render only on iPad via the feature-grid override in screens.ts."
     },
     "watch-stats": {
       "headline": "On Your Wrist",
@@ -458,6 +518,7 @@ The tool enforces most of this for you: one `theme.ts` drives every screen, and 
 
 ## KEY PRINCIPLES
 
+- **Keywords first**: caption text is an App Store search signal. Ask for the target keywords before any copy, and put the top ones on the first three screens in words that read naturally
 - **Benefits over features**: "BOOST ENGAGEMENT" not "ADD SUBTITLES TO VIDEOS"
 - **Specific over generic**: "TRACK TRADING CARD PRICES" not "MANAGE YOUR STUFF"
 - **Action-oriented**: Every headline starts with a strong verb

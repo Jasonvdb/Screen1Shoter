@@ -12,12 +12,12 @@ between them:
 | Phase | Work | Gate |
 |---|---|---|
 | P0 | `s1s doctor`, `s1s bezels install`, app facts, `s1s init` | G0 first-launch approval |
-| P1 | Benefit discovery, copy, `screenshots/plan.md`, `copy/en-US.json` | G1 plan and copy |
+| P1 | Target keywords (asked first), benefit discovery, copy, `screenshots/plan.md`, `copy/en-US.json` | G1 plan and copy |
 | P2 | Temporary demo-data branch and patch, fresh simulators, `s1s capture` | G2 captures |
 | P3 | `screens.ts`, `theme.ts`, `s1s render`, `s1s sheet`, visual QA loop | - |
 | P4 | Human review of the gallery, sheet and `review.md` | G3 renders |
 | P5 | `s1s export`, `s1s validate`, `asc screenshots validate`, optional upload | G4 upload per device set |
-| P6 | Same phases per locale: brief, transcreate, capture or reuse, render, export | G5, G6, G7 |
+| P6 | Same phases per locale: target keywords, brief, transcreate, capture or reuse, render, export | G5, G6, G7 |
 | P7 | Revert the demo-data branch, shut down simulators, verify `git status` | - |
 
 All state lives in `screenshots/manifest.json` in the app repo, so any session
@@ -75,7 +75,7 @@ SKILL.md                          # rules, routing, phases, gates, command chain
 README.md                         # this file
 agents/openai.yaml                # Codex display metadata
 references/
-  copy-playbook.md                # benefit discovery, headline formula, Great/Usable/Retake rubric
+  copy-playbook.md                # target keywords, benefit discovery, headline formula, Great/Usable/Retake rubric
   capture-playbook.md             # demo-data patch recipe, simulator prep, navigation steps, watch
   localize-playbook.md            # brief and glossary, transcreation, per-locale capture, all-or-nothing upload
   asc-upload.md                   # verified asc commands, editable-version gate, verification jq

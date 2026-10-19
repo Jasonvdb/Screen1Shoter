@@ -1,6 +1,6 @@
 ---
 name: app-store-screenshots
-description: Create, localize, export and upload App Store screenshots for an iOS, iPadOS or watchOS app with the s1s CLI (Screen1Shoter). Real Simulator captures sit in Apple product bezels, copy is real text in React templates, headless Chromium renders exact-pixel PNGs, exports land in metadata/screenshots, uploads go through asc, and all state lives in screenshots/manifest.json so any session can resume. Replaces aso-appstore-screenshots, asc-localize-screenshots and localize-app-store-screenshots. Use when the user says App Store screenshots, store screenshots, screenshot set, marketing screenshots, screenshot copy or captions, benefit headlines, localize or translate screenshots, add a screenshot language, upload screenshots to App Store Connect, iPhone 6.9 or iPad 13 or watch screenshot sizes, screenshot status, or resume the screenshot workflow.
+description: Create, localize, export and upload App Store screenshots for an iOS, iPadOS or watchOS app with the s1s CLI (Screen1Shoter). Real Simulator captures sit in Apple product bezels, copy is real text in React templates, headless Chromium renders exact-pixel PNGs, exports land in metadata/screenshots, uploads go through asc, and all state lives in screenshots/manifest.json so any session can resume. Replaces aso-appstore-screenshots, asc-localize-screenshots and localize-app-store-screenshots. Use when the user says App Store screenshots, store screenshots, screenshot set, marketing screenshots, screenshot copy or captions, benefit headlines, screenshot keywords, localize or translate screenshots, add a screenshot language, upload screenshots to App Store Connect, iPhone 6.9 or iPad 13 or watch screenshot sizes, screenshot status, or resume the screenshot workflow.
 user-invocable: true
 argument-hint: "[status | plan | capture | compose | review | export | upload | <locale> | cleanup]"
 allowed-tools: Bash(s1s:*), Bash(xcrun simctl:*), Bash(xcodebuild:*), Bash(asc:*), Bash(git status:*), Bash(git diff:*), Bash(git switch:*), Bash(git add:*), Bash(git commit:*), Bash(git branch:*), Bash(git apply:*), Bash(git rev-parse:*), Bash(git check-ignore:*), Bash(node:*), Bash(jq:*), Bash(sips:*), Bash(find:*), Bash(grep:*), Bash(mkdir:*), Bash(ls:*), Bash(cat:*), Bash(sleep:*), Bash(pkill:*), Read, Write, Edit, Grep, Glob, AskUserQuestion
@@ -27,6 +27,7 @@ All paths below are relative to the app repo. Run every command from the app rep
 - State lives in `screenshots/manifest.json` and in files under `screenshots/`, never in your
   memory. Reconcile before you act.
 - Never proceed on silence at a gate. Ask, wait for the answer, then continue.
+- Caption text is an App Store search signal. Ask for target keywords before writing any copy.
 - Every step has a shell path. Claude Code tools (XcodeBuildMCP, AskUserQuestion, Read on
   images) are alternatives, never requirements. See section 13.
 - Never Read a full-size render. Read the contact sheet first, then only warned previews.
@@ -62,8 +63,7 @@ metadata/screenshots/<locale>/<APP_DISPLAY_TYPE>/NN.png   # export, what asc upl
 ```
 
 Image status, per locale x size x screen, forward by any number of steps, or back only to
-`pending`, `captured` or `generated`; never back to `copy-approved`, `image-approved` or
-`exported`:
+`pending`, `captured` or `generated`; never back to `copy-approved`, `image-approved` or `exported`:
 `pending -> copy-approved -> captured -> generated -> image-approved -> exported -> uploaded`.
 `s1s capture` sets `captured` from `pending` or `copy-approved` and keeps any higher status;
 `s1s render` sets `generated` on a hash change (from any status, including `uploaded`);
@@ -181,9 +181,9 @@ later phases launch only when these keys exist and ask again only when they are 
 
 ## 6. P1 Discovery and copy (gate G1)
 
-Follow [references/copy-playbook.md](references/copy-playbook.md) end to end: benefit discovery
-questions, verb-first headline formula, story arc, brand colour, one appearance, the new ASO
-keyword pass. Inputs:
+Ask the user first which search keywords they target, in priority order; stop until answered.
+Then follow [references/copy-playbook.md](references/copy-playbook.md) end to end: keywords,
+benefits, verb-first headlines that carry the keywords, story arc, brand colour. Inputs:
 
 ```sh
 find metadata/app-info metadata/version -maxdepth 2 2>/dev/null
@@ -192,12 +192,11 @@ cat metadata/version/*/en-US.json 2>/dev/null | head -80
 grep -rn -i 'struct .*View\b' --include='*.swift' . | grep -v -i 'test\|preview' | head -60
 ```
 
-Plan 5 to 8 screens. For each: `id`, order, benefit, template (see
-[references/template-catalog.md](references/template-catalog.md)), capture route, data state.
-Write:
+Plan 5 to 8 screens. For each: `id`, order, benefit, target keyword, template (see
+[references/template-catalog.md](references/template-catalog.md)), capture route, data state. Write:
 
-- `screenshots/plan.md`: a table with order, id, benefit, headline, highlight, subline,
-  template, capture route, plus brand colour and appearance.
+- `screenshots/plan.md`: the `## Target keywords` table, then a table with order, id, benefit,
+  headline, highlight, subline, keyword, template, capture route, plus brand colour and appearance.
 - `screenshots/copy/en-US.json`: `screens.<id>.{headline,highlight,subline,badge,layoutNotes}`.
   Write explicit line breaks as an array headline. `approved: false` until G1.
 - `screenshots/screens.ts`: the same ids in the same order, `sizes`, `locales`, `only` for
@@ -205,8 +204,8 @@ Write:
 - manifest `screens[] { id, order, benefit, template, sizes, capture: { steps: [], dataState } }`
   and `locales.en-US { copyStatus: "draft", captureSource: "own", devices: {} }`.
 
-G1: show the plan table and every headline. Ask for approval, apply push-back edits, repeat until
-approved. Then set `copy.approved = true`, `copyStatus: "approved"`, and run
+G1: show the plan table, every headline and the keyword coverage. Ask for approval, apply push-back
+edits, repeat until approved. Then set `copy.approved = true`, `copyStatus: "approved"`, and run
 `s1s status --set copy-approved --locale en-US --from pending --yes`; higher statuses stay put
 (a changed headline shows up as a new render hash on the next `s1s render`). Offer a commit:
 `ios: plan App Store screenshots and copy`.
@@ -427,11 +426,12 @@ Procedure, brief template, glossary rules, expansion budgets and number rules:
 1. Decide the capture source. If the locale is in `app.appLocales`: `captureSource: "own"`.
    Otherwise `captureSource: "reuse:en-US"`; write the warning into `plan.md` and tell the user
    that the UI in the images stays English.
-2. Write `screenshots/copy/brief.md`: tone, audience, glossary that mirrors the terminology in
-   `metadata/version/<v>/<locale>.json` and `metadata/app-info`. Read the store metadata first.
-3. Transcreate `screenshots/copy/<locale>.json` from `en-US.json`. Keep one highlight word.
-   Decide line breaks with the copy (array headlines). Add the locale to `locales` in
-   `screens.ts` and `locales.<locale>` to the manifest with `copyStatus: "draft"`.
+2. Read `metadata/version/<v>/<locale>.json` and `metadata/app-info`, then ask the user for this
+   locale's target keywords in priority order (its own search terms, never translations). Write
+   `screenshots/copy/brief.md`: keywords, tone, audience, and a glossary that mirrors the metadata.
+3. Transcreate `screenshots/copy/<locale>.json` from `en-US.json` and place the locale keywords.
+   Keep one highlight word. Decide line breaks with the copy (array headlines). Add the locale to
+   `locales` in `screens.ts` and `locales.<locale>` to the manifest with `copyStatus: "draft"`.
    `theme.headlineCase: 'title'` renders as sentence case outside English, so the copy
    carries the case: write each line as the language wants it.
 4. G5: show en-US and `<locale>` side by side. Ask. On approval set `copyStatus: "approved"`,
