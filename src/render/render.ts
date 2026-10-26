@@ -18,7 +18,7 @@ import { bezelDir, reportPath, sheetPath } from '../core/paths.ts';
 import type { Project } from '../core/project.ts';
 import { contextFor, launchBrowser } from './browser.ts';
 import { applyManifest, buildReport } from './bookkeeping.ts';
-import { postProcess, writePng, writePreview } from './post.ts';
+import { postProcess, writeCreativeViews, writePng, writePreview } from './post.ts';
 import { writeReview } from './review.ts';
 import { createS1sServer, type S1sServer } from './server.ts';
 import { readReport, sheetProject } from './sheet.ts';
@@ -157,6 +157,8 @@ async function writeOutputs(item: RenderItem, png: Buffer): Promise<void> {
     item.outputs.map((o) => o.outPath),
   );
   for (const output of item.outputs) await writePreview(png, output.previewPath);
+  const first = item.outputs[0];
+  if (first !== undefined) await writeCreativeViews(png, item.preset, first.outPath);
 }
 
 /** `raw` on a watch preset: copy the capture through postProcess, no browser. */

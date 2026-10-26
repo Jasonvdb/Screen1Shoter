@@ -6,11 +6,12 @@ import { readFile, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { DEFAULT_SIZES, SIZE_PRESETS, isSizeId, presetsFor, renderTarget } from '../config/presets.ts';
+import { DEFAULT_SIZES, SIZE_PRESETS, isCreativePreset, isSizeId, presetsFor, renderTarget } from '../config/presets.ts';
 import { resolveScreen, screenAppliesTo } from '../config/resolve.ts';
 import { implementedTemplateIds, templateMeta } from '../config/template-meta.ts';
 import type {
   CaptureResolver,
+  CaptureSource,
   DeviceFamily,
   LocaleCopy,
   ProjectManifest,
@@ -238,6 +239,16 @@ function displayTypeProblems(sizes: readonly SizeId[]): string[] {
     .map(([type, ids]) => `sizes ${ids.join(' and ')} both export to ${type}, which holds one set per locale; keep one of them`);
 }
 
+/**
+ * A creative canvas has no simulator, so every capture it shows belongs to a
+ * device size and must say which: `iphone-6.9:home`, not `home`.
+ */
+function creativeCaptureProblems(screenId: string, captures: readonly CaptureSource[]): string[] {
+  return captures
+    .filter((source) => source.family === 'creative')
+    .map((source) => `screen "${screenId}": creative capture "${source.requested}" needs a device size first, such as "iphone-6.9:${source.requested}"`);
+}
+
 /** Cross-field checks zod cannot express: ids, alias keys, display types, template availability, the panorama. */
 function validateScreens(config: ScreensConfig, screensPath: string, templatesPath: string | null, locales: string[]): void {
   const problems: string[] = [];
@@ -259,6 +270,7 @@ function validateScreens(config: ScreensConfig, screensPath: string, templatesPa
       if (!screenAppliesTo(screen, preset)) continue;
       for (const locale of locales) {
         const { template, captures } = resolveScreen(screen, preset, locale, undefined, placeholderResolver);
+        if (isCreativePreset(preset)) problems.push(...creativeCaptureProblems(screen.id, captures));
         const meta = templateMeta(template);
         const problemKey = meta ? `${screen.id}/${preset.family}/${template}` : `${screen.id}/${template}`;
         if (seen.has(problemKey)) continue;
@@ -279,6 +291,12 @@ function validateScreens(config: ScreensConfig, screensPath: string, templatesPa
           problems.push(
             `screen "${screen.id}": template "${template}" has no ${preset.family} layout (families: ${meta.families.join(', ')})`,
           );
+        }
+        if (meta.maxCaptures !== undefined) {
+          if (captures.length > meta.maxCaptures) {
+            problems.push(`screen "${screen.id}": template "${template}" shows at most ${meta.maxCaptures} captures (got ${captures.length})`);
+          }
+          continue;
         }
         const wanted = meta.captures ?? 1;
         if (captures.length !== wanted) {

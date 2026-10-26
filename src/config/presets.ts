@@ -1,9 +1,10 @@
 // Size presets. Numbers come from Apple's screenshot specification and from
 // `asc screenshots sizes --all` (verified 2026-09-02). Design unit is CSS px =
 // Apple points; px = pt * scale is asserted by the unit tests.
-import type { AppDisplayType, DeviceFamily, Dims, SizeId, SizePreset } from './types.ts';
+import type { AppDisplayType, DeviceFamily, Dims, Rect, SizeId, SizePreset } from './types.ts';
 
 const d = (width: number, height: number): Dims => ({ width, height });
+const r = (x: number, y: number, width: number, height: number): Rect => ({ x, y, width, height });
 
 const IPHONE_69_ACCEPTED: Dims[] = [d(1320, 2868), d(1290, 2796), d(1260, 2736)];
 
@@ -186,7 +187,63 @@ export const SIZE_PRESETS: Record<SizeId, SizePreset> = {
     passthrough: true,
     bezelOptional: true,
   },
+  // Creative assets (iOS 27 / iPadOS 27): the product page header and the
+  // search results artwork. Sizes and formats come from
+  // `asc asset-library specs` (Apple's imageSpecs, 2026-10-26): the universal
+  // 16:9 PNG is the only file that fills both placements; the header alone is
+  // 21:9 PNG; search results takes any 3:2 from 1920x1280 to 3840x2560, and
+  // s1s renders the largest. Each safe area is the "Art Safe Area" rectangle
+  // in Apple's Photoshop and Sketch templates (identical in both). No
+  // simulator, no bezel: a creative screen shows other sizes' captures through
+  // `<sizeId>:<name>` refs, and only screens that opt in with `only` render here.
+  'creative-universal': creativePreset('creative-universal', 'CREATIVE_UNIVERSAL', d(5244, 2950), {
+    placements: ['PRODUCT_PAGE_HEADER_ASSET', 'APP_STORE_SEARCH_RESULTS_ASSET'],
+    safeAreaPx: r(1921, 660, 1402, 962),
+    formats: ['png'],
+  }),
+  'creative-header': creativePreset('creative-header', 'CREATIVE_HEADER', d(3840, 1646), {
+    placements: ['PRODUCT_PAGE_HEADER_ASSET'],
+    safeAreaPx: r(1097, 493, 1646, 661),
+    formats: ['png'],
+  }),
+  'creative-search': creativePreset('creative-search', 'CREATIVE_SEARCH', d(3840, 2560), {
+    placements: ['APP_STORE_SEARCH_RESULTS_ASSET'],
+    safeAreaPx: r(836, 765, 2168, 1030),
+    formats: ['png', 'jpeg'],
+  }),
 };
+
+function creativePreset(id: SizeId, displayType: AppDisplayType, px: Dims, creative: NonNullable<SizePreset['creative']>): SizePreset {
+  const scale = 2;
+  return {
+    id,
+    family: 'creative',
+    displayType,
+    deviceTypeToken: '',
+    px,
+    pt: d(px.width / scale, px.height / scale),
+    scale,
+    acceptedDims: [px],
+    bezel: '',
+    bezelOptional: true,
+    bezelFallbacks: [],
+    captureDims: px,
+    simulatorName: '',
+    creative,
+  };
+}
+
+/** True for the three creative asset sizes (no simulator, no bezel, exported under creative-assets/). */
+export function isCreativePreset(preset: Pick<SizePreset, 'family'>): boolean {
+  return preset.family === 'creative';
+}
+
+/** A creative preset's Art Safe Area in CSS px (Apple points), the unit templates lay out in. */
+export function safeAreaPt(preset: SizePreset): Rect | null {
+  const rect = preset.creative?.safeAreaPx;
+  if (rect === undefined) return null;
+  return r(rect.x / preset.scale, rect.y / preset.scale, rect.width / preset.scale, rect.height / preset.scale);
+}
 
 export const ALL_SIZE_IDS: readonly SizeId[] = Object.keys(SIZE_PRESETS) as SizeId[];
 

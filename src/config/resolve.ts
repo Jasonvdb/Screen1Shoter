@@ -3,7 +3,7 @@
 // Runs in Node (matrix) and in the browser (render/gallery pages) with a
 // CaptureResolver injected by each side.
 import { panoramaBackground, panoramaSlice } from './panorama.ts';
-import { SIZE_PRESETS, isSizeId } from './presets.ts';
+import { SIZE_PRESETS, isCreativePreset, isSizeId } from './presets.ts';
 import { DEFAULT_TEMPLATE } from './template-meta.ts';
 import type {
   CaptureRef,
@@ -19,9 +19,13 @@ import type {
   SizePreset,
 } from './types.ts';
 
-/** `only` filter: a screen applies when it names the preset's family or id. */
+/**
+ * `only` filter: a screen applies when it names the preset's family or id.
+ * A creative asset size is opt-in: no `only` means the device sizes, never a
+ * product page header or search results canvas.
+ */
 export function screenAppliesTo(screen: ScreenDef, preset: SizePreset): boolean {
-  if (!screen.only || screen.only.length === 0) return true;
+  if (!screen.only || screen.only.length === 0) return !isCreativePreset(preset);
   return screen.only.includes(preset.family) || screen.only.includes(preset.id);
 }
 
@@ -64,7 +68,8 @@ export function resolveScreen(
 ): ResolvedScreen {
   const family = preset.family;
   let template = screen.template ?? DEFAULT_TEMPLATE[family];
-  let captures = baseCaptures(screen.capture, family) ?? [screen.id];
+  // A creative canvas has no capture of its own, so no `capture` means none.
+  let captures = baseCaptures(screen.capture, family) ?? (family === 'creative' ? [] : [screen.id]);
   let props: Record<string, unknown> = { ...screen.props };
 
   for (const layer of overrideLayers(screen, preset, locale)) {

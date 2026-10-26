@@ -65,6 +65,8 @@ const GENERIC: Record<DeviceFamily, GenericSpec> = {
   ipad: { border: 46, screenRadius: 30 },
   watch: { border: 20, screenRadius: 84 },
   duo: { border: 23, screenRadius: 53 },
+  // Never drawn: a creative canvas frames each capture with that capture's own size.
+  creative: { border: 17, screenRadius: 63 },
 };
 
 /** Frame geometry for a family whose screen is `screen` (pt). */

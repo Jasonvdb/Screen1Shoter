@@ -11,8 +11,11 @@
 /**
  * `duo` is iPhone Duo: its own family because its displays are neither iPhone
  * nor iPad sized, so its captures need their own folder (captures/<l>/duo/).
+ * `creative` is not a device: it is the App Store product page header and
+ * search results artwork (iOS 27 creative assets). Its canvases have no
+ * simulator and no bezel of their own; they show other sizes' captures.
  */
-export type DeviceFamily = 'iphone' | 'ipad' | 'watch' | 'duo';
+export type DeviceFamily = 'iphone' | 'ipad' | 'watch' | 'duo' | 'creative';
 
 export type SizeId =
   | 'iphone-6.9'
@@ -25,9 +28,16 @@ export type SizeId =
   | 'ipad-13'
   | 'ipad-11'
   | 'watch-s10'
-  | 'watch-ultra';
+  | 'watch-ultra'
+  | 'creative-universal'
+  | 'creative-header'
+  | 'creative-search';
 
-/** App Store Connect display type; also the export folder name. */
+/**
+ * App Store Connect display type; also the export folder name. The three
+ * CREATIVE_* names are folder names only: creative assets export under
+ * metadata/creative-assets/ (creativeRoot), never beside the screenshot sets.
+ */
 export type AppDisplayType =
   | 'APP_IPHONE_69'
   | 'APP_IPHONE_67'
@@ -37,7 +47,13 @@ export type AppDisplayType =
   | 'APP_IPAD_PRO_3GEN_129'
   | 'APP_IPAD_PRO_3GEN_11'
   | 'APP_WATCH_SERIES_10'
-  | 'APP_WATCH_ULTRA';
+  | 'APP_WATCH_ULTRA'
+  | 'CREATIVE_UNIVERSAL'
+  | 'CREATIVE_HEADER'
+  | 'CREATIVE_SEARCH';
+
+/** App Store Connect Asset Library placement types a creative asset can fill. */
+export type CreativePlacement = 'PRODUCT_PAGE_HEADER_ASSET' | 'APP_STORE_SEARCH_RESULTS_ASSET';
 
 export interface Dims {
   width: number;
@@ -95,6 +111,19 @@ export interface SizePreset {
   passthrough?: boolean;
   /** Renders once as the target preset; exports to this preset's own folder. */
   aliasOf?: SizeId;
+  /**
+   * Creative assets only: the placements the file can fill (the universal
+   * 16:9 fills both), and Apple's "Art Safe Area" in output px, measured from
+   * Apple's creative asset templates. Key art and every word go inside it.
+   */
+  creative?: CreativeSpec;
+}
+
+export interface CreativeSpec {
+  placements: CreativePlacement[];
+  safeAreaPx: Rect;
+  /** File types the Asset Library spec accepts for this size. */
+  formats: Array<'png' | 'jpeg'>;
 }
 
 // ---------------------------------------------------------------------------
@@ -371,7 +400,13 @@ export type WarningCode =
   /** Two display-type folders hold the same pixel size; an `asc` upload fans out into both. */
   | 'duplicate-dims'
   /** A manifest field the upload command needs (app.appId, locales.<l>.versionString) is empty. */
-  | 'manifest-incomplete';
+  | 'manifest-incomplete'
+  /** Text or key art outside a creative asset's Art Safe Area: some App Store layouts crop it away. */
+  | 'safe-area'
+  /** Two devices on a creative asset overlap, so one hides part of the other's screen. */
+  | 'device-overlap'
+  /** A device on a creative asset is under half the canvas height: its UI is hard to read at store size. */
+  | 'device-small';
 
 export type WarningLevel = 'info' | 'warn' | 'error';
 
@@ -505,6 +540,8 @@ export interface ManifestApp {
   watchBundleId?: string;
   /** App Store Connect app id. */
   appId?: string;
+  /** App Store Connect Asset Library id (`asc asset-library view --app <appId>`); creative asset uploads need it. */
+  assetLibraryId?: string;
   /** .xcodeproj / .xcworkspace path relative to the app repo. */
   project?: string;
   scheme?: string;
@@ -567,6 +604,8 @@ export interface ImageState {
   exportSha256?: string;
   storeFileName?: string;
   uploadedAt?: string;
+  /** Creative assets: the Asset Library image id the upload returned. */
+  assetImageId?: string;
   /** Set when the render hash changed after an upload. */
   wasUploaded?: boolean;
 }

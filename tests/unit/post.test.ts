@@ -6,7 +6,7 @@ import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 import { SIZE_PRESETS } from '../../src/config/presets.ts';
 import { defineTheme, type Dims } from '../../src/config/types.ts';
-import { PREVIEW_SCALE, postProcess, writePreview } from '../../src/render/post.ts';
+import { PREVIEW_SCALE, creativeViewPaths, postProcess, writeCreativeViews, writePreview } from '../../src/render/post.ts';
 import { catchS1sError, makeTempDir } from '../fixtures/helpers.ts';
 
 const iphone69 = SIZE_PRESETS['iphone-6.9'];
@@ -88,5 +88,31 @@ describe('writePreview', () => {
     } finally {
       await tmp.cleanup();
     }
+  });
+});
+
+describe('writeCreativeViews', () => {
+  it('writes the safe area at full size and the whole asset at the iPhone display width', async () => {
+    const tmp = await makeTempDir();
+    try {
+      const preset = SIZE_PRESETS['creative-search'];
+      const png = await sharp({ create: { ...preset.px, channels: 3, background: '#203040' } }).png().toBuffer();
+      const outPath = join(tmp.dir, 'CREATIVE_SEARCH', '01-store-search.png');
+      const paths = await writeCreativeViews(png, preset, outPath);
+      expect(paths).toEqual(creativeViewPaths(outPath));
+      expect(paths?.safe).toBe(join(tmp.dir, 'CREATIVE_SEARCH', 'store', '01-store-search-safe.png'));
+      const safe = await sharp(paths!.safe).metadata();
+      expect({ width: safe.width, height: safe.height }).toEqual({ width: 2168, height: 1030 });
+      const phone = await sharp(paths!.phone).metadata();
+      expect(phone.width).toBe(365 * 3);
+      expect(phone.height).toBe(730);
+    } finally {
+      await tmp.cleanup();
+    }
+  });
+
+  it('writes nothing for a device size', async () => {
+    const png = await sharp({ create: { ...iphone69.px, channels: 3, background: '#203040' } }).png().toBuffer();
+    expect(await writeCreativeViews(png, iphone69, '/nowhere/01-home.png')).toBeNull();
   });
 });

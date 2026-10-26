@@ -22,6 +22,7 @@ All paths in this file are relative to the app repo. The CLI is `s1s`.
 | `tilted` | iphone, ipad | 1 | headline, highlight, subline, badge | NOT compliant | built, opt-in |
 | `watch-caption` | watch | 1 | headline, highlight | compliant | built, opt-in |
 | `phone-watch` | iphone, ipad | 2 (`capture: [phone, 'watch-s10:watch']`, or `watch-ultra:` for an Ultra) | headline, highlight, subline, badge | compliant | built |
+| `creative-hero` | creative | 0 to 3, each `'<sizeId>:<name>'` | headline, highlight, subline | Apple's creative asset rules | built (default for creative) |
 
 Every built-in template above is implemented and renders today. Check the list
 on the machine before you rely on it:
@@ -35,6 +36,7 @@ provides fails with `config-invalid` (`unknown template "<id>" and no
 templates/index.ts / templates/index.tsx`). A built-in used on a family it has
 no layout for fails the same way (`has no <family> layout (families: ...)`).
 iPhone Duo (`duo`) has three layouts: `hero-top-text`, `text-bottom` and `raw`.
+The creative asset canvases (`creative`) have one: `creative-hero`.
 
 ## How every built-in template works
 
@@ -490,6 +492,36 @@ Example:
 ```ts
 { id: 'watch-stats', template: 'watch-caption', only: ['watch'], props: { captionSide: 'top' } }
 ```
+
+## creative-hero
+
+Product page header and search results artwork (iOS 27 creative assets) on
+the `creative-universal`, `creative-header` and `creative-search` canvases.
+Full guidance, props and ASO advice: [creative-assets.md](creative-assets.md).
+
+- Layout: background full bleed; the text block lies inside Apple's Art Safe
+  Area of the canvas (the rectangle from Apple's templates). `props.text`:
+  `'left'` (default) puts a text column left of the devices, `'top'` puts it
+  above them, `'none'` draws no text. With no captures the words fill the
+  safe area.
+- Devices: whole, side by side with a gap, never overlapped, at most 88% of
+  the canvas height and within the safe area's width. Each capture ref names
+  its size (`'iphone-6.9:home'`, `'ipad-13:home'`), and that size's bezel
+  frames it. A phone beside a tablet stands at 80% of its height, bottoms
+  aligned.
+- `props.art`: key art, a transparent PNG path or a list of paths or
+  `{ src, scale }` (an `s1s model render` of the product, a cut-out photo),
+  placed in the row before any device. A row of art alone may use the canvas
+  width less 10% each side, centred on the safe area.
+- `props.glow`: a CSS colour for a soft spotlight behind the subjects.
+- `props.icon`: a project-relative image (the app icon) above the headline.
+- Checks: `safe-area` (text outside the safe area), `device-overlap`, `overflow`
+  (a device leaves the canvas) and `device-small` (a device under half the
+  canvas height). The render also writes `store/NN-<id>-phone.png` and
+  `-safe.png` for the validation step in creative-assets.md section 4. The
+  contact sheet outlines the safe area with a green dashed box.
+- Only screens whose `only` names `creative` or a creative size id render on
+  these canvases; every other screen skips them.
 
 ## Non-compliant templates: what the tool does
 

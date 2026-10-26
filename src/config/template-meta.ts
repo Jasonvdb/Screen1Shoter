@@ -5,7 +5,7 @@
 // two agree, so a phase that adds a template must flip the flag here.
 import type { DeviceFamily } from './types.ts';
 
-export type TemplatePhase = 'W1' | 'W2' | 'W6' | 'W7';
+export type TemplatePhase = 'W1' | 'W2' | 'W6' | 'W7' | 'W9';
 
 export interface TemplateMeta {
   id: string;
@@ -22,6 +22,8 @@ export interface TemplateMeta {
   description: string;
   /** Captures a screen must list (`capture: [a, b]`); default 1. loadProject rejects other counts. */
   captures?: number;
+  /** Instead of an exact `captures`: any count from 0 to this. */
+  maxCaptures?: number;
   /** Most `copy.callouts` entries the template shows; more is an overflow error (Node and browser). */
   callouts?: number;
 }
@@ -33,6 +35,12 @@ export const PHONE_WATCH_IPAD_VARIANT =
 /** Shared with src/web/templates/two-device.tsx so the module and the metadata stay identical. */
 export const TWO_DEVICE_IPAD_VARIANT =
   'Same stack with iPad proportions: 60%-wide devices, the front one 120 pt lower (iPhone: 56% and 88 pt, clear of the Dynamic Island). props.arrangement: "side" puts them side by side at equal scale.';
+
+/** Shared with src/web/templates/creative-hero.tsx so the module and the metadata stay identical. */
+export const CREATIVE_HERO_DESCRIPTION =
+  'Creative asset (product page header, search results): background, an optional short headline inside Apple\'s Art Safe Area, ' +
+  "and up to three whole devices side by side ('iphone-6.9:<capture>', 'ipad-13:<capture>'), as tall as the canvas allows. " +
+  "props.text: 'left' | 'top' | 'none'; props.icon; props.background.";
 
 export const BUILTIN_TEMPLATES: readonly TemplateMeta[] = [
   {
@@ -116,6 +124,15 @@ export const BUILTIN_TEMPLATES: readonly TemplateMeta[] = [
       'props.watchBezel names another frame without changing the capture size, props.watchVariant the case and band.',
     captures: 2,
   },
+  {
+    id: 'creative-hero',
+    families: ['creative'],
+    compliant: true,
+    implemented: true,
+    phase: 'W9',
+    description: CREATIVE_HERO_DESCRIPTION,
+    maxCaptures: 3,
+  },
 ];
 
 export const DEFAULT_TEMPLATE: Record<DeviceFamily, string> = {
@@ -123,6 +140,7 @@ export const DEFAULT_TEMPLATE: Record<DeviceFamily, string> = {
   ipad: 'hero-top-text',
   watch: 'raw',
   duo: 'hero-top-text',
+  creative: 'creative-hero',
 };
 
 export function templateMeta(id: string): TemplateMeta | undefined {

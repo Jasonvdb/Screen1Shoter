@@ -154,6 +154,11 @@ async function captureCommand(globals: GlobalOpts, opts: CaptureOptions): Promis
     });
   }
   const family = refPreset?.family ?? opts.device;
+  if (family === 'creative') {
+    throw new S1sError('usage', `${refPreset?.id ?? 'A creative size'} is a creative asset canvas; it has no simulator to capture from.`, {
+      hint: 'Capture on a device size (iphone-6.9:<name>, ipad-13:<name>) and name that ref in the creative screen.',
+    });
+  }
   if (family === undefined) {
     throw new S1sError('usage', 'A bare --name needs --device to say which family it belongs to.', {
       hint: `Pass --device ${FAMILIES.join('|')}, or name the size in --name as "<sizeId>:${ref}".`,

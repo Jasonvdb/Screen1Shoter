@@ -432,3 +432,67 @@ later; older asc rejects the token). Every
 line must end in `COMPLETE` and the per-type counts must match the export.
 Then run `s1s status --set uploaded --locale "$LOCALE" --sizes iphone-6.9,ipad-13 --yes`
 and offer the `ios:` commit.
+
+## 13. Creative assets: Asset Library upload and placement
+
+The product page header and search results assets (creative-assets.md) do not
+go through `asc screenshots`. Each file is uploaded to the app's Asset Library
+and then placed in a version localization. None of these commands has a
+`--dry-run`, and each changes App Store Connect: show the human the exact
+commands at G4 and run them only on a yes. `s1s export` prints them with the
+real paths, the localization id and placeholders for what it cannot know.
+
+1. Resolve the Asset Library id once and write it to `app.assetLibraryId`. For
+   the apps checked so far it equals the app id.
+
+```sh
+APP_ID=$(jq -r '.app.appId // empty' screenshots/manifest.json)
+asc asset-library view --app "$APP_ID" --output json | jq -r '.data.id'
+```
+
+2. Check what the localization already shows; a placement holds one asset.
+
+```sh
+LOC_ID=$(jq -r '.locales["en-US"].versionLocalizationId' screenshots/manifest.json)
+asc localizations placements list --localization-id "$LOC_ID" --placement-type PRODUCT_PAGE_HEADER_ASSET --include image,video --output json
+asc localizations placements list --localization-id "$LOC_ID" --placement-type APP_STORE_SEARCH_RESULTS_ASSET --include image,video --output json
+```
+
+3. Upload each approved file. The command waits for processing and prints the
+   image id; write it to the image's `assetImageId` in the manifest
+   (manifest-schema.md section 6).
+
+```sh
+asc asset-library images upload --library-id "$LIBRARY_ID" \
+  --file metadata/creative-assets/en-US/CREATIVE_SEARCH/01.png \
+  --reference-name "<App> search en-US 01-store-search" --output json
+```
+
+4. Place it. An empty slot takes `create`; a filled slot takes `swap` with the
+   old placement id (it keeps the slot and replaces the media in one request).
+   The universal asset needs one placement per type.
+
+```sh
+asc localizations placements create --localization-id "$LOC_ID" --image-id "$IMAGE_ID" --placement-type APP_STORE_SEARCH_RESULTS_ASSET
+asc localizations placements swap --localization-id "$LOC_ID" --image-id "$IMAGE_ID" \
+  --placement-type PRODUCT_PAGE_HEADER_ASSET --placement-id "$OLD_PLACEMENT_ID" --confirm
+```
+
+5. Review. While the app has no approved version, the assets go to review with
+   that version's submission: nothing more to do. Once a version is approved,
+   an asset can be reviewed alone, without a new build:
+
+```sh
+SUB=$(asc review submissions-create --app "$APP_ID" --platform IOS --output json | jq -r '.data.id')
+asc review items add --submission "$SUB" --item-type appAssetLibraryImages --item-id "$IMAGE_ID"
+asc review submissions-submit --id "$SUB" --confirm
+```
+
+6. Verify with the step 2 list (the image id must match), then
+   `s1s status --set uploaded --locale en-US --sizes creative-search --yes`.
+
+Custom product pages and product page optimization treatments take the same
+placements through `asc product-pages custom-pages localizations placements`
+and `asc product-pages experiments treatments localizations placements`
+(`create`, `swap`, `list`, `delete`). A running experiment blocks placement
+changes on the default page (`EXPERIMENT_IN_PROGRESS`).

@@ -40,9 +40,10 @@ class TemplateBoundary extends Component<BoundaryProps, BoundaryState> {
 /**
  * Reference canvas width per family; layouts are authored at this width and
  * scaled. A portrait iPhone Duo canvas has an iPad's shape (0.70 against
- * 0.75), so `duo` takes the iPad numbers and the iPad reference.
+ * 0.75), so `duo` takes the iPad numbers and the iPad reference. Creative
+ * canvases are landscape, so they take LANDSCAPE_REF_WIDTH.
  */
-export const REF_WIDTH: Record<DeviceFamily, number> = { iphone: 440, ipad: 1032, watch: 416, duo: 1032 };
+export const REF_WIDTH: Record<DeviceFamily, number> = { iphone: 440, ipad: 1032, watch: 416, duo: 1032, creative: 951 };
 
 /** Reference width of a landscape canvas: iphone-duo-landscape, 951 pt. */
 export const LANDSCAPE_REF_WIDTH = 951;

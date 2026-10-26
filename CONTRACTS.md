@@ -143,6 +143,9 @@ Presets (verified against `asc screenshots sizes --all`):
 | ipad-11 | ipad | APP_IPAD_PRO_3GEN_11 | IPAD_PRO_3GEN_11 | 1668x2420 | 834x1210 @2 | iPad Pro 11-inch (M5) | |
 | watch-s10 | watch | APP_WATCH_SERIES_10 | WATCH_SERIES_10 | 416x496 | 416x496 @1 | Apple Watch Series 11 (46mm) | passthrough |
 | watch-ultra | watch | APP_WATCH_ULTRA | WATCH_ULTRA | 422x514 | 422x514 @1 | Apple Watch Ultra 3 (49mm) | passthrough, bezelOptional (W8) |
+| creative-universal | creative | CREATIVE_UNIVERSAL | (none) | 5244x2950 | 2622x1475 @2 | (none) | header + search, PNG, safe area (1921,660) 1402x962 |
+| creative-header | creative | CREATIVE_HEADER | (none) | 3840x1646 | 1920x823 @2 | (none) | header, PNG, safe area (1097,493) 1646x661 |
+| creative-search | creative | CREATIVE_SEARCH | (none) | 3840x2560 | 1920x1280 @2 | (none) | search results, PNG/JPEG, safe area (836,765) 2168x1030 |
 
 `bezelOptional` keeps a preset's `bezel` out of `defaultBezelIds()`, so
 `s1s bezels install` with no `--device` does not fetch it. Set on `watch-ultra`:
@@ -157,6 +160,26 @@ pick the right one. A preset whose `px` is wider than tall is landscape
 `hero-top-text` / `text-bottom`. `acceptedDims` of the Duo sizes lists all four
 sizes App Store Connect takes for `APP_IPHONE_DUO`. `captureDisplay` is the
 `simctl io --display` screen `s1s capture` shoots.
+
+The `creative` family is the iOS 27 creative assets (sizes and formats from
+`asc asset-library specs`). `preset.creative` holds the placements a file
+fills, the accepted formats and `safeAreaPx`, Apple's "Art Safe Area"
+measured from Apple's Photoshop and Sketch templates. A creative preset has
+no token, simulator or bezel (`bezel: ''`). It is opt-in: `screenAppliesTo`
+skips it unless `only` names `creative` or the size id, and a creative screen
+with no `capture` has none. Every capture it shows carries a device size
+prefix (`loadProject` refuses a bare ref). Its `CREATIVE_*` folder is a folder
+name, not an App Store Connect display type: `exportDir` sends it to
+`creativeRoot(metadataRoot)` (`<metadataDir>/../creative-assets`), outside the
+tree `asc screenshots upload` walks. The browser marks the safe area with
+`data-s1s-safe-area`; any `data-s1s-safe` element outside it is a `safe-area`
+error, two `data-s1s-device` boxes that overlap are `device-overlap` (error),
+and a device under half the canvas height is `device-small` (warn). Node
+writes `out/<locale>/CREATIVE_*/store/NN-<id>-phone.png` and `-safe.png`
+(`writeCreativeViews`) next to every creative render; the header's phone
+view drops the 8% an iPhone cuts from each side. `s1s model render`
+(src/core/model-render.ts) compiles a SceneKit helper into S1S_HOME/bin like
+the pose helper and writes a trimmed transparent PNG for `props.art`.
 
 Resolution order in `resolveScreen`: base < `overrides[family]` <
 `overrides[sizeId]` < `locales[locale]`. `template` and `capture` replace;

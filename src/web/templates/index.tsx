@@ -3,6 +3,7 @@
 import projectTemplates from 'virtual:s1s-templates';
 import type { TemplateModule } from '../../runtime/index.ts';
 import bleedBottom from './bleed-bottom.tsx';
+import creativeHero from './creative-hero.tsx';
 import featureGrid from './feature-grid.tsx';
 import heroTopText from './hero-top-text.tsx';
 import phoneWatch from './phone-watch.tsx';
@@ -22,6 +23,7 @@ export const BUILTIN_TEMPLATE_MODULES: readonly TemplateModule[] = [
   tilted,
   watchCaption,
   phoneWatch,
+  creativeHero,
 ];
 
 export function isTemplateModule(value: unknown): value is TemplateModule {

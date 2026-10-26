@@ -286,7 +286,7 @@ export function matchPreset(screen: Dims, orientation: BezelOrientation): SizePr
   let best: { preset: SizePreset; error: number } | undefined;
   for (const id of ALL_SIZE_IDS) {
     const preset = SIZE_PRESETS[id];
-    if (preset.aliasOf || preset.passthrough) continue;
+    if (preset.aliasOf || preset.passthrough || preset.bezel === '') continue;
     if (preset.px.width === portrait.width && preset.px.height === portrait.height) return preset;
     const presetAspect = preset.px.width / preset.px.height;
     const error = Math.abs(aspect - presetAspect) / presetAspect;

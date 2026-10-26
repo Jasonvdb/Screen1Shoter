@@ -13,7 +13,7 @@
 // filled in, a sibling folder with identical pixel sizes).
 import { copyFile, mkdir, readdir, rename, rm } from 'node:fs/promises';
 import { basename, dirname, join, relative, resolve } from 'node:path';
-import { ALL_SIZE_IDS, displayTypesShareDims, getPreset, isSizeId, presetByDisplayType } from '../config/presets.ts';
+import { ALL_SIZE_IDS, displayTypesShareDims, getPreset, isCreativePreset, isSizeId, presetByDisplayType } from '../config/presets.ts';
 import { EXPORT_FILE_RE, exportFileName, exportOrdinal, formatOrdinal } from '../config/resolve.ts';
 import type {
   AppDisplayType,
@@ -103,6 +103,14 @@ export interface ExportReport {
    * fan-out selects files by pixel size, so a sibling folder doubles the set.
    */
   fanOutCommands: string[];
+  /**
+   * Creative assets (asc-upload.md section 13): an Asset Library upload for
+   * every exported file, then one placement per placement type for the set's
+   * 01 file. A placement holds one asset; 02 and later are variants for
+   * product page optimization or custom product pages. None of these has a
+   * dry run, so the skill shows them to the human before it runs them.
+   */
+  creativeCommands: string[];
   ok: boolean;
 }
 
@@ -421,7 +429,8 @@ async function duplicateDimsWarnings(root: string, locale: string, sets: readonl
 async function validateWithAsc(sets: readonly ExportSet[], cwd: string): Promise<AscValidateResult[]> {
   const results: AscValidateResult[] = [];
   for (const set of sets) {
-    if (set.items.length === 0) continue;
+    // `asc screenshots validate` knows device types only; `s1s validate` checks creative files.
+    if (set.items.length === 0 || isCreativePreset(set.preset)) continue;
     try {
       results.push(await ascValidateScreenshots({ path: set.dir, deviceType: set.preset.deviceTypeToken, cwd }));
     } catch (error) {
@@ -465,7 +474,7 @@ function uploadCommands(
   sets: readonly ExportSet[],
   duplicateDims: boolean,
 ): { commands: string[]; fanOut: string[]; warnings: Warning[] } {
-  const written = sets.filter((set) => set.items.length > 0);
+  const written = sets.filter((set) => set.items.length > 0 && !isCreativePreset(set.preset));
   if (written.length === 0) return { commands: [], fanOut: [], warnings: [] };
 
   // Run from the app repo root, the way the skill's commands do.
@@ -528,6 +537,92 @@ function uploadCommands(
     ]),
   );
   return { commands, fanOut, warnings };
+}
+
+/** App-relative posix path for a printed command, absolute when the file lies outside the app repo. */
+function appPath(project: Pick<Project, 'appDir'>, path: string): string {
+  const rel = relative(project.appDir, path);
+  return rel && !rel.startsWith('..') ? toPosix(rel) : toPosix(path);
+}
+
+/**
+ * The Asset Library commands for the creative sets of this export: upload
+ * every file, then place the 01 file in each placement its size fills (the
+ * universal asset fills both). `<IMAGE_ID>` is what the upload prints.
+ */
+export function creativeCommands(
+  project: Pick<Project, 'appDir' | 'manifest'>,
+  locale: string,
+  files: readonly ExportFile[],
+): { commands: string[]; warnings: Warning[] } {
+  const creative = files.filter((file) => isCreativePreset(getPreset(file.sizeId)));
+  if (creative.length === 0) return { commands: [], warnings: [] };
+  const warnings: Warning[] = [];
+  const libraryId = project.manifest.app.assetLibraryId;
+  const localizationId = project.manifest.locales[locale]?.versionLocalizationId;
+  if (!libraryId) {
+    warnings.push(
+      makeWarning(
+        'manifest-incomplete',
+        'No app.assetLibraryId in the manifest; the creative asset upload commands have a placeholder. ' +
+          'Fill it in from `asc asset-library view --app <appId>` (see asc-upload.md section 13).',
+      ),
+    );
+  }
+  if (!localizationId) {
+    warnings.push(
+      makeWarning(
+        'manifest-incomplete',
+        `No versionLocalizationId for ${locale} in the manifest; the creative asset placement commands have a placeholder.`,
+      ),
+    );
+  }
+  // A placement holds one asset. A dedicated header or search asset is the
+  // one the author made for that slot, so it wins it; the universal asset
+  // fills only the slots no dedicated set of this export fills.
+  const dedicated = new Set(
+    creative
+      .map((file) => getPreset(file.sizeId).creative?.placements ?? [])
+      .filter((placements) => placements.length === 1)
+      .flat(),
+  );
+  const commands: string[] = [];
+  const appName = project.manifest.app.name || 'app';
+  for (const file of creative) {
+    const preset = getPreset(file.sizeId);
+    commands.push(
+      formatCommand('asc', [
+        'asset-library',
+        'images',
+        'upload',
+        '--library-id',
+        libraryId ?? '<ASSET_LIBRARY_ID>',
+        '--file',
+        appPath(project, file.to),
+        '--reference-name',
+        `${appName} ${preset.id.replace('creative-', '')} ${locale} ${formatOrdinal(file.ordinal)}-${file.screenId}`,
+      ]),
+    );
+    if (file.ordinal !== 1) continue;
+    const placements = preset.creative?.placements ?? [];
+    for (const placement of placements) {
+      if (placements.length > 1 && dedicated.has(placement)) continue;
+      commands.push(
+        formatCommand('asc', [
+          'localizations',
+          'placements',
+          'create',
+          '--localization-id',
+          localizationId ?? '<VERSION_LOCALIZATION_ID>',
+          '--image-id',
+          `<IMAGE_ID of ${formatOrdinal(file.ordinal)}-${file.screenId}>`,
+          '--placement-type',
+          placement,
+        ]),
+      );
+    }
+  }
+  return { commands, warnings };
 }
 
 // ---------------------------------------------------------------------------
@@ -615,6 +710,9 @@ export async function exportProject(project: Project, opts: ExportOptions): Prom
   ];
   const upload = uploadCommands(project, locale, root, sets, duplicateDims.length > 0);
   warnings.push(...upload.warnings);
+  const creative = creativeCommands(project, locale, files);
+  // The screenshot commands already warned about a missing localization id.
+  warnings.push(...creative.warnings.filter((w) => !warnings.some((other) => other.message.includes('versionLocalizationId') && w.message.includes('versionLocalizationId'))));
 
   // A dry run validates nothing: the folders still hold the previous export.
   const asc = opts.asc === false || opts.dryRun === true ? null : (await findAsc()) === null ? null : await validateWithAsc(sets, project.appDir);
@@ -633,6 +731,7 @@ export async function exportProject(project: Project, opts: ExportOptions): Prom
     asc,
     uploadCommands: upload.commands,
     fanOutCommands: upload.fanOut,
+    creativeCommands: creative.commands,
     ok: !warnings.some((w) => w.level === 'error') && (asc ?? []).every((r) => r.ok),
   };
 

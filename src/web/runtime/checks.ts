@@ -39,6 +39,32 @@ function bleeds(el: Element): boolean {
   return el.closest('[data-s1s-allow-bleed]') !== null;
 }
 
+/** Under this share of the canvas height a device's UI is hard to read where the store shows the asset. */
+export const CREATIVE_MIN_DEVICE_HEIGHT = 0.5;
+
+/**
+ * Devices on a creative canvas: one device must never hide part of another
+ * (a cut-off screenshot), and each must be tall enough to read. Leaving the
+ * canvas is the generic `overflow` check on the frame itself.
+ */
+function creativeDeviceChecks(canvas: HTMLElement, bounds: DOMRect): Warning[] {
+  const out: Warning[] = [];
+  const devices = [...canvas.querySelectorAll<HTMLElement>('[data-s1s-device] [data-s1s-id="device"]')];
+  const rects = devices.map((el) => el.getBoundingClientRect());
+  rects.forEach((a, i) => {
+    const el = devices[i]!;
+    if (a.height < bounds.height * CREATIVE_MIN_DEVICE_HEIGHT - EPS) {
+      const share = Math.round((a.height / bounds.height) * 100);
+      out.push(makeWarning('device-small', `${hint(el.parentElement ?? el)} is ${share}% of the canvas height; its UI is hard to read at store size. Show fewer devices or less text`, hint(el.parentElement ?? el)));
+    }
+    rects.slice(i + 1).forEach((b) => {
+      const overlap = a.left < b.right - EPS && b.left < a.right - EPS && a.top < b.bottom - EPS && b.top < a.bottom - EPS;
+      if (overlap) out.push(makeWarning('device-overlap', `${hint(el.parentElement ?? el)} overlaps another device and hides part of its screen`, hint(el.parentElement ?? el)));
+    });
+  });
+  return out;
+}
+
 /** Warnings from the DOM: overflow flags, geometry, broken images, bezel and font fallbacks. */
 export function domChecks(root: ParentNode = document): Warning[] {
   const out: Warning[] = [];
@@ -72,6 +98,20 @@ export function domChecks(root: ParentNode = document): Warning[] {
           out.push(makeWarning('text-clipped', `${hint(el)} leaves its text slot: "${snippet(el)}"`, hint(el)));
         }
       }
+    }
+    // A creative asset's Art Safe Area: what leaves it is cropped away on
+    // some App Store layout (iPhone portrait shows least of the canvas).
+    const safeArea = canvas.querySelector<HTMLElement>('[data-s1s-safe-area]');
+    if (safeArea) {
+      const safeRect = safeArea.getBoundingClientRect();
+      for (const el of canvas.querySelectorAll<HTMLElement>('[data-s1s-safe]')) {
+        const rect = el.getBoundingClientRect();
+        if (rect.width === 0 && rect.height === 0) continue;
+        if (outside(rect, safeRect)) {
+          out.push(makeWarning('safe-area', `${hint(el)} leaves the Art Safe Area; some App Store layouts crop it`, hint(el)));
+        }
+      }
+      out.push(...creativeDeviceChecks(canvas, bounds));
     }
     out.push(...fontChecks(canvas));
   }

@@ -182,6 +182,7 @@ Optional fields are marked `?`. Unknown fields anywhere are kept by the CLI
 | `bundleId` | string | init, agent | `s1s init --bundle-id`; default `com.example.<slug>` |
 | `watchBundleId?` | string | agent | Watch app bundle id |
 | `appId?` | string | init, agent | ASC app id; `s1s init --app-id` |
+| `assetLibraryId?` | string | agent | Asset Library id for creative asset uploads: `asc asset-library view --app <appId>` (asc-upload.md section 13) |
 | `project?`, `scheme?` | string | agent | Build facts from P0 |
 | `deviceFamilies` | `("iphone"\|"ipad"\|"watch"\|"duo")[]` | init, agent | Derived from the sizes at init; `duo` is iPhone Duo |
 | `sourceLocale` | string | init | First `--locales` entry. `''` means "first locale in screens.ts" |
@@ -194,7 +195,9 @@ Optional fields are marked `?`. Unknown fields anywhere are kept by the CLI
 Keys are size ids: `iphone-6.9`, `iphone-6.7` (alias of 6.9, own export
 folder), `iphone-6.5`, `iphone-6.1`, `iphone-duo`, `iphone-duo-landscape`,
 `iphone-duo-outer` (at most one of the three), `ipad-13`, `ipad-11`,
-`watch-s10`, `watch-ultra`.
+`watch-s10`, `watch-ultra`, and the creative assets `creative-universal`,
+`creative-header`, `creative-search` (creative-assets.md; empty `token` and
+`simulator`, folders under `metadata/creative-assets/`).
 
 | Field | Type | Owner | Notes |
 |---|---|---|---|
@@ -220,6 +223,9 @@ Preset facts (from `src/config/presets.ts`):
 | `ipad-11` | `APP_IPAD_PRO_3GEN_11` | `IPAD_PRO_3GEN_11` | 1668x2420 | iPad Pro 11-inch (M5) |
 | `watch-s10` | `APP_WATCH_SERIES_10` | `WATCH_SERIES_10` | 416x496 (passthrough) | Apple Watch Series 11 (46mm) |
 | `watch-ultra` | `APP_WATCH_ULTRA` | `WATCH_ULTRA` | 422x514 (passthrough) | Apple Watch Ultra 3 (49mm) |
+| `creative-universal` | `CREATIVE_UNIVERSAL` | - | 5244x2950 (header and search, PNG) | none |
+| `creative-header` | `CREATIVE_HEADER` | - | 3840x1646 (header, PNG) | none |
+| `creative-search` | `CREATIVE_SEARCH` | - | 3840x2560 (search results) | none |
 
 ### `demoData?`
 
@@ -291,6 +297,7 @@ was skipped for this locale), placeholder (fallback `placeholder`,
 | `exportSha256?` | string | CLI | sha256 of the exported file |
 | `storeFileName?` | string | CLI | `s1s export` writes the name it wrote (`NN.png`); the agent may correct it from `asc screenshots list` |
 | `uploadedAt?` | ISO | CLI | `s1s status --set uploaded`, once per call, after you verified the upload |
+| `assetImageId?` | string | agent | Creative assets only: the Asset Library image id `asc asset-library images upload` printed; a later swap or standalone review names it |
 | `wasUploaded?` | boolean | CLI | `s1s render` sets `true` when the hash changes on an `uploaded` image; `s1s export` sets it when it repoints one (new store file name or new bytes). `s1s status --set uploaded` clears it |
 
 Warning codes and default levels: `capture-missing` error,
@@ -375,11 +382,11 @@ CLI-owned. Never type these by hand; re-run the command instead:
 
 Agent-owned. Edit these with small JSON edits:
 
-- `app.*` facts the init flags did not cover (`watchBundleId`, `project`, `scheme`, `appId`, `preflightAt`)
+- `app.*` facts the init flags did not cover (`watchBundleId`, `project`, `scheme`, `appId`, `assetLibraryId`, `preflightAt`)
 - `demoData.*` including the free-form keys `baselineFile`, `launchApprovedAt`, `launchApprovedBy`, `watchPatch`
 - `screens[]` including `capture.steps`
 - `locales.<l>.{copyStatus, captureSource, versionId, versionString, versionLocalizationId}`
-- `ImageState.{status, captureRating, captureNotes, storeFileName}`
+- `ImageState.{status, captureRating, captureNotes, storeFileName, assetImageId}`
 
 `uploadedAt` and clearing `wasUploaded` are CLI-owned too, but the agent
 decides when: both happen inside `s1s status --set uploaded`.

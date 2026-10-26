@@ -6,6 +6,7 @@
 // pixel size below comes from sheet-model.ts so Node can predict the output.
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { getPreset, isSizeId } from '../../config/presets.ts';
+import type { Rect } from '../../config/types.ts';
 import type { RenderReport } from '../../config/types.ts';
 import { ErrorPanel } from '../components/ErrorPanel.tsx';
 import { acquire } from '../runtime/ready.ts';
@@ -83,7 +84,32 @@ function Placeholder({ tile }: { tile: SheetTile }) {
   );
 }
 
-function Tile({ tile, layout }: { tile: SheetTile; layout: SheetLayout }) {
+/**
+ * A creative asset's Art Safe Area as a dashed outline over the tile: the
+ * reviewer sees what every App Store layout keeps. Drawn on the sheet only,
+ * never on the PNG that uploads.
+ */
+function SafeAreaOutline({ safe, px, layout }: { safe: Rect; px: { width: number; height: number }; layout: SheetLayout }) {
+  const kx = layout.tileWidth / px.width;
+  const ky = layout.tileHeight / px.height;
+  return (
+    <div
+      data-s1s-sheet-safe-area=""
+      style={{
+        position: 'absolute',
+        left: safe.x * kx,
+        top: safe.y * ky,
+        width: safe.width * kx,
+        height: safe.height * ky,
+        border: '2px dashed rgba(74, 222, 128, 0.9)',
+        boxSizing: 'border-box',
+        pointerEvents: 'none',
+      }}
+    />
+  );
+}
+
+function Tile({ tile, layout, safe, px }: { tile: SheetTile; layout: SheetLayout; safe: Rect | undefined; px: { width: number; height: number } }) {
   const { caption, border } = SHEET_CHROME;
   return (
     <figure
@@ -117,6 +143,7 @@ function Tile({ tile, layout }: { tile: SheetTile; layout: SheetLayout }) {
             style={{ position: 'absolute', inset: 0, display: 'block', width: layout.tileWidth, height: layout.tileHeight }}
           />
         ) : null}
+        {safe ? <SafeAreaOutline safe={safe} px={px} layout={layout} /> : null}
       </div>
     </figure>
   );
@@ -181,7 +208,7 @@ export function SheetPage({ locale, sizeId, params }: SheetPageProps) {
       </header>
       <div style={{ display: 'grid', gridTemplateColumns: `repeat(${layout.columns}, ${layout.cellWidth}px)`, gap }}>
         {tiles.map((tile) => (
-          <Tile key={tile.key} tile={tile} layout={layout} />
+          <Tile key={tile.key} tile={tile} layout={layout} safe={preset.creative?.safeAreaPx} px={preset.px} />
         ))}
       </div>
     </div>

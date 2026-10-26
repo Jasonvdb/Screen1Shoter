@@ -160,7 +160,9 @@ jq -r '.items[] | select(.status == "failed") | "\(.key): \(.error)"' screenshot
    capture of its own and nobody declared a `reuse:` (an info-level one is a
    declared reuse and is expected); `bezel-fallback` means `s1s bezels install` has not run and
    `font-fallback` means the theme's font stack resolves to nothing on this
-   machine (install the family, or ship the files in `screenshots/fonts/`).
+   machine (install the family, or ship the files in `screenshots/fonts/`);
+   `safe-area` means text or a device left a creative asset's Art Safe Area
+   (creative-assets.md).
 2. Check pixel facts with `sips`, which needs no image viewer:
 
 ```sh

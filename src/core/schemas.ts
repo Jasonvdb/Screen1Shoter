@@ -19,7 +19,7 @@ import type {
 import { WARNING_LEVELS } from '../config/warnings.ts';
 import { S1sError, type S1sErrorCode } from './errors.ts';
 
-export const DEVICE_FAMILIES: readonly DeviceFamily[] = ['iphone', 'ipad', 'watch', 'duo'];
+export const DEVICE_FAMILIES: readonly DeviceFamily[] = ['iphone', 'ipad', 'watch', 'duo', 'creative'];
 const DISPLAY_TYPES = [...new Set(Object.values(SIZE_PRESETS).map((p) => p.displayType))] as AppDisplayType[];
 const WARNING_CODES = Object.keys(WARNING_LEVELS) as WarningCode[];
 
@@ -153,6 +153,7 @@ export const imageStateSchema = z.looseObject({
   exportSha256: optionalString,
   storeFileName: optionalString,
   uploadedAt: optionalString,
+  assetImageId: optionalString,
   wasUploaded: z.boolean().exactOptional(),
 });
 
@@ -174,6 +175,7 @@ export const manifestAppSchema = z.looseObject({
   bundleId: z.string(),
   watchBundleId: optionalString,
   appId: optionalString,
+  assetLibraryId: optionalString,
   project: optionalString,
   scheme: optionalString,
   deviceFamilies: z.array(deviceFamilySchema).default([]),

@@ -75,6 +75,9 @@ Notes:
 - The default project sizes are `iphone-6.9,ipad-13`. Add `watch-s10` with
   `s1s init --watch` or `--sizes iphone-6.9,ipad-13,watch-s10`.
 
+Creative assets (product page header and search results) are not
+screenshots and have their own sizes and rules: [creative-assets.md](creative-assets.md).
+
 ## 2. Required versus optional sets
 
 - iPhone apps: one 6.9" set is required. A 6.5" set can stand in for it.

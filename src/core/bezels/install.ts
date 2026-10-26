@@ -107,6 +107,8 @@ export function defaultBezelIds(): string[] {
 export function landscapeBezelIds(): string[] {
   const ids: string[] = [];
   for (const preset of Object.values(SIZE_PRESETS)) {
+    // A creative canvas is landscape but has no frame of its own.
+    if (preset.bezel === '') continue;
     if (presetOrientation(preset) === 'landscape' && !ids.includes(preset.bezel)) ids.push(preset.bezel);
   }
   return ids;

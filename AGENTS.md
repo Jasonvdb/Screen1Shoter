@@ -58,8 +58,14 @@ boundaries and the browser protocol; this file is about how to work here.
 - iPhone Duo's three sizes share `APP_IPHONE_DUO`, so `loadProject` refuses
   two of them in one project, and anything that maps a display-type folder
   back to a size passes the sizes it knows to `presetByDisplayType`.
-  `iphone-duo-landscape` is the one landscape preset: `presetOrientation`
+  `iphone-duo-landscape` is the one landscape device preset: `presetOrientation`
   picks the landscape bezel and the row layout from `px` alone.
+- The three `creative-*` sizes are iOS 27 creative assets, not screenshots:
+  no simulator, no bezel (`bezel: ''`; code that walks presets for bezels
+  skips them), opt-in through `only`, exported under
+  `metadata/creative-assets/` by `exportDir`. Their safe areas come from
+  Apple's templates; re-measure them from the PSD or Sketch file, never type
+  them from a blog.
 - `example/screenshots/` is the smoke-test project; its captures are
   generated and never committed. `s1s render` on it in place rewrites its
   `manifest.json` hashes and `runs`. Do not commit those changes.

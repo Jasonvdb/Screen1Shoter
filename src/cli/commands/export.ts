@@ -89,7 +89,10 @@ export function exportText(project: Project, report: ExportReport): string {
     ),
   ];
   const verb = report.dryRun ? 'would export' : 'exported';
-  lines.push('', `${report.files.length} file(s) ${verb} to ${report.metadataDir}${report.dryRun ? ' (dry run: nothing written)' : ''}.`);
+  // Creative assets land beside the screenshot root (creative-assets/), so name every root written to.
+  const roots = [...new Set(report.files.map((file) => dirname(dirname(dirname(file.to)))))];
+  const where = roots.length > 0 ? roots.join(' and ') : report.metadataDir;
+  lines.push('', `${report.files.length} file(s) ${verb} to ${where}${report.dryRun ? ' (dry run: nothing written)' : ''}.`);
 
   if (report.pruned.length > 0) {
     lines.push('', `${report.dryRun ? 'Would prune' : 'Pruned'}:`, bullets(report.pruned.map((p) => relative(project.appDir, p))));
@@ -126,6 +129,15 @@ export function exportText(project: Project, report: ExportReport): string {
       'Only when several locales are complete for one device, one run uploads them all',
       '(asc-upload.md section 8; --replace --confirm in place of --dry-run after you read it):',
       bullets(report.fanOutCommands),
+    );
+  }
+  if (report.creativeCommands.length > 0) {
+    lines.push(
+      '',
+      'Creative assets (asc-upload.md section 13). These commands have no dry run and change',
+      'App Store Connect: show them to the human first. Each upload prints the image id the',
+      'placement needs; a placement holds one asset, so only each set\'s 01 file is placed:',
+      bullets(report.creativeCommands),
     );
   }
   return lines.join('\n');

@@ -56,7 +56,8 @@ export function backgroundSpecFrom(value: unknown, fallback: string): Background
   return { type: 'solid', color: fallback };
 }
 
-function assetUrl(src: string): string {
+/** A project-relative path as the dev server serves it; absolute and data URLs pass through. */
+export function assetUrl(src: string): string {
   if (/^(https?:|data:|\/)/.test(src)) return src;
   return `/project/${src.split('/').map(encodeURIComponent).join('/')}`;
 }
@@ -72,7 +73,7 @@ const LAYER: CSSProperties = { position: 'absolute', inset: 0, zIndex: 0 };
  * A file that fails to load stays in the DOM with an empty alt, so the canvas
  * shows the theme background underneath and checks.ts reports `image-missing`.
  */
-function BackgroundImage({ src, style }: { src: string; style: CSSProperties }) {
+export function BackgroundImage({ src, style }: { src: string; style: CSSProperties }) {
   const [img, setImg] = useState<HTMLImageElement | null>(null);
   const [settledSrc, setSettledSrc] = useState<string | null>(null);
   const settled = settledSrc === src;

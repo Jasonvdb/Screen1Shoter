@@ -398,11 +398,31 @@ Ultra's rugged titanium case, not a Series 11. Two knobs, each with one job.
 | `ipad-11` | `APP_IPAD_PRO_3GEN_11` | 1668x2420 | iPad Pro 11-inch (M5) | |
 | `watch-s10` | `APP_WATCH_SERIES_10` | 416x496 | Apple Watch Series 11 (46mm) | passthrough, unframed |
 | `watch-ultra` | `APP_WATCH_ULTRA` | 422x514 | Apple Watch Ultra 3 (49mm) | passthrough, unframed; also accepts 410x502 |
+| `creative-universal` | `CREATIVE_UNIVERSAL` | 5244x2950 | none | iOS 27 creative asset: product page header and search results, PNG |
+| `creative-header` | `CREATIVE_HEADER` | 3840x1646 | none | creative asset: product page header only, PNG |
+| `creative-search` | `CREATIVE_SEARCH` | 3840x2560 | none | creative asset: search results only |
 
 The full table with points, scale and accepted dimensions is in
 `CONTRACTS.md` section 3. iPhone Duo needs Xcode 27.1; `s1s sim pose` folds and
 unfolds its simulator, and `s1s capture` shoots the inner display for the
 inner sizes.
+
+The three `creative-*` sizes are the iOS 27 product page header and search
+results artwork, not screenshots. Only screens whose `only` names `creative`
+or the size render on them, with the `creative-hero` template: background,
+a short headline inside the "Art Safe Area" of Apple's templates, and up to
+three whole devices side by side that show device captures by prefix
+(`'iphone-6.9:home'`). The render reports `safe-area`, `device-overlap`,
+`device-small` and `overflow`, and writes `store/NN-<id>-phone.png` (the size
+an iPhone shows) and `-safe.png` (the safe area at full size) for the skill's
+validation step; the contact sheet outlines the safe area. Key art goes in
+`props.art`: `s1s model render <file.stl> --out screenshots/assets/hero.png`
+renders a 3D model with SceneKit (physically based material, studio light,
+auto-smooth normals) to a transparent PNG trimmed to the object. `s1s export`
+writes them to `metadata/creative-assets/<locale>/CREATIVE_*/NN.png`, beside
+the screenshot root, and prints the `asc asset-library` upload and
+`asc localizations placements` commands. Guide:
+`skills/app-store-screenshots/references/creative-assets.md`.
 
 ## Bezels
 
@@ -474,6 +494,7 @@ rules.
 | W6 | Opt-in templates (`bleed-bottom`, `tilted`, `watch-caption`), panorama backgrounds, project fonts, de-DE localization dry run | done |
 | W7 | Apple Watch bezels, cross-size capture refs, `phone-watch` template | done |
 | W8 | Apple Watch Ultra 3 bezel, `watch-ultra` size, a choosable watch model in `phone-watch` | done |
+| W9 | iOS 27 creative assets: `creative-universal`, `creative-header`, `creative-search`, `creative-hero` template, Asset Library commands | done |
 
 Still open: retiring the three old screenshot skills
 (`scripts/install-skills.sh --retire`) needs the user's word, because it

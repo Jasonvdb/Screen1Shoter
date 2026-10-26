@@ -4,7 +4,7 @@
 // funnel their bytes through postProcess().
 import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import sharp, { type Metadata, type OutputInfo } from 'sharp';
 import { dimsEqual, formatDims } from '../config/presets.ts';
 import type { Dims, SizePreset, Theme } from '../config/types.ts';
@@ -87,4 +87,52 @@ export async function writePreview(png: Buffer, previewPath: string, scale: numb
   const width = Math.max(1, Math.round(meta.width * scale));
   await mkdir(dirname(previewPath), { recursive: true });
   await sharp(png).resize({ width, kernel: 'lanczos3' }).png({ compressionLevel: 9 }).toFile(previewPath);
+}
+
+/**
+ * Width in pt an iPhone shows a creative asset at: the search card measured
+ * about 365 pt in App Store Connect Preview; the header fills a 402 pt screen
+ * after about 8% is cut from each side, so the whole canvas spans ~478 pt.
+ * Both are third-party measurements (references/creative-assets.md), close
+ * enough to judge whether the UI in the asset can still be read.
+ */
+export const CREATIVE_PHONE_WIDTH_PT: Readonly<Record<string, number>> = {
+  CREATIVE_SEARCH: 365,
+  CREATIVE_HEADER: 478,
+  CREATIVE_UNIVERSAL: 478,
+};
+
+/** Share of the header's width an iPhone cuts from each side (third-party measurement). */
+export const HEADER_SIDE_CUT = 0.08;
+
+/** Paths of the review views `writeCreativeViews` writes for one output PNG. */
+export function creativeViewPaths(outPath: string): { safe: string; phone: string } {
+  const dir = join(dirname(outPath), 'store');
+  const stem = basename(outPath, '.png');
+  return { safe: join(dir, `${stem}-safe.png`), phone: join(dir, `${stem}-phone.png`) };
+}
+
+/**
+ * Two review views of a creative asset, never uploaded: `-safe` is the Art
+ * Safe Area at full resolution (what every App Store layout keeps), `-phone`
+ * the whole asset at the pixel width an iPhone shows it (@3x). The agent's
+ * validation step reads both; a preview at 1/3 hides what these show.
+ */
+export async function writeCreativeViews(png: Buffer, preset: SizePreset, outPath: string): Promise<{ safe: string; phone: string } | null> {
+  const safe = preset.creative?.safeAreaPx;
+  if (safe === undefined) return null;
+  const paths = creativeViewPaths(outPath);
+  await mkdir(dirname(paths.safe), { recursive: true });
+  await sharp(png).extract({ left: safe.x, top: safe.y, width: safe.width, height: safe.height }).png({ compressionLevel: 9 }).toFile(paths.safe);
+  // The header fills a 402 pt iPhone screen after about 8% is cut from each
+  // side, so its phone view shows exactly that part; search shows it whole.
+  const header = preset.displayType === 'CREATIVE_HEADER';
+  const cut = header ? Math.round(preset.px.width * HEADER_SIDE_CUT) : 0;
+  const widthPt = header ? 402 : (CREATIVE_PHONE_WIDTH_PT[preset.displayType] ?? 478);
+  await sharp(png)
+    .extract({ left: cut, top: 0, width: preset.px.width - 2 * cut, height: preset.px.height })
+    .resize({ width: widthPt * 3, kernel: 'lanczos3' })
+    .png({ compressionLevel: 9 })
+    .toFile(paths.phone);
+  return paths;
 }

@@ -14,6 +14,7 @@ import { registerDoctor } from './commands/doctor.ts';
 import { registerExport } from './commands/export.ts';
 import { registerInit } from './commands/init.ts';
 import { registerLink } from './commands/link.ts';
+import { registerModel } from './commands/model.ts';
 import { registerRender } from './commands/render.ts';
 import { registerSheet } from './commands/sheet.ts';
 import { registerSim } from './commands/sim.ts';
@@ -45,6 +46,7 @@ export function buildProgram(): Command {
   registerRender(program);
   registerSheet(program);
   registerCapture(program);
+  registerModel(program);
   registerSim(program);
   registerBezels(program);
   registerStatus(program);

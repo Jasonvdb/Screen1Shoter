@@ -193,6 +193,7 @@ async function listCommand(): Promise<CommandOutput> {
   }
   const presets: Record<string, string | null> = {};
   for (const id of Object.keys(SIZE_PRESETS) as SizeId[]) {
+    if (SIZE_PRESETS[id].bezel === '') continue; // creative canvases have no frame of their own
     const match = findBezel(index, SIZE_PRESETS[id]);
     presets[id] = match ? `${match.entry.id}/${match.entry.variant}${match.fallback ? ' (fallback)' : ''}` : null;
   }

@@ -1,6 +1,6 @@
 ---
 name: app-store-screenshots
-description: Create, localize, export and upload App Store screenshots for an iOS, iPadOS or watchOS app with the s1s CLI (Screen1Shoter). Real Simulator captures sit in Apple product bezels, copy is real text in React templates, headless Chromium renders exact-pixel PNGs, exports land in metadata/screenshots, uploads go through asc, and all state lives in screenshots/manifest.json so any session can resume. Replaces aso-appstore-screenshots, asc-localize-screenshots and localize-app-store-screenshots. Use when the user says App Store screenshots, store screenshots, screenshot set, marketing screenshots, screenshot copy or captions, benefit headlines, screenshot keywords, localize or translate screenshots, add a screenshot language, upload screenshots to App Store Connect, iPhone 6.9 or iPad 13 or watch or iPhone Duo screenshot sizes, screenshot status, or resume the screenshot workflow.
+description: Create, localize, export and upload App Store screenshots for an iOS, iPadOS or watchOS app with the s1s CLI (Screen1Shoter). Real Simulator captures sit in Apple product bezels, copy is real text in React templates, headless Chromium renders exact-pixel PNGs, exports land in metadata/screenshots, uploads go through asc, and all state lives in screenshots/manifest.json so any session can resume. Replaces aso-appstore-screenshots, asc-localize-screenshots and localize-app-store-screenshots. Use when the user says App Store screenshots, store screenshots, screenshot set, marketing screenshots, screenshot copy or captions, benefit headlines, screenshot keywords, localize or translate screenshots, add a screenshot language, upload screenshots to App Store Connect, iPhone 6.9 or iPad 13 or watch or iPhone Duo screenshot sizes, product page header or search results creative assets, screenshot status, or resume the screenshot workflow.
 user-invocable: true
 argument-hint: "[status | plan | capture | compose | review | export | upload | <locale> | cleanup]"
 allowed-tools: Bash(s1s:*), Bash(xcrun simctl:*), Bash(xcodebuild:*), Bash(asc:*), Bash(git status:*), Bash(git diff:*), Bash(git switch:*), Bash(git add:*), Bash(git commit:*), Bash(git branch:*), Bash(git apply:*), Bash(git rev-parse:*), Bash(git check-ignore:*), Bash(node:*), Bash(jq:*), Bash(sips:*), Bash(find:*), Bash(grep:*), Bash(mkdir:*), Bash(ls:*), Bash(cat:*), Bash(sleep:*), Bash(pkill:*), Read, Write, Edit, Grep, Glob, AskUserQuestion
@@ -20,6 +20,7 @@ Default sizes: `iphone-6.9` (1320x2868, `APP_IPHONE_69`) and `ipad-13` (2064x275
 `APP_IPAD_PRO_3GEN_129`); for a watch target, `watch-s10` (416x496 raw) or `watch-ultra`
 (422x514 raw) - one watch set satisfies Apple. iPhone Duo (`APP_IPHONE_DUO`, required from
 April 2027) takes ONE of `iphone-duo-landscape` (2853x2007), `iphone-duo` or `iphone-duo-outer`.
+iOS 27 creative assets (product page header, search results) are opt-in sizes; see section 10.
 All paths below are relative to the app repo. Run every command from the app repo root.
 
 ## 2. Golden rules
@@ -30,7 +31,8 @@ All paths below are relative to the app repo. Run every command from the app rep
 - Caption text is an App Store search signal. Ask for target keywords before writing any copy.
 - Every step has a shell path. Claude Code tools (XcodeBuildMCP, AskUserQuestion, Read on
   images) are alternatives, never requirements. See section 13.
-- Never Read a full-size render. Read the contact sheet first, then only warned previews.
+- Never Read a full-size render. Read the contact sheet first, then the previews. Never show a
+  set to the human before you validated it yourself (P3 checklist; creative assets: gate V).
 - Never resize, crop or retouch a PNG by hand. Fix the source (copy, `screens.ts`, `theme.ts`,
   capture) and re-render. `s1s` guarantees exact pixels, RGB, no alpha.
 - Demo data is temporary: a branch plus a patch, all `#if DEBUG` and env-gated, reverted before
@@ -60,6 +62,7 @@ screenshots/                      # source of truth, committed
   out/<locale>/                   # ignored: renders, previews, report.json, review.md, sheet-<size>.png
   out/preview/                    # ignored: sips previews of captures
 metadata/screenshots/<locale>/<APP_DISPLAY_TYPE>/NN.png   # export, what asc uploads
+metadata/creative-assets/<locale>/CREATIVE_*/NN.png       # creative asset export (section 10)
 ```
 
 Image status, per locale x size x screen, forward by any number of steps, or back only to
@@ -124,18 +127,9 @@ xcrun simctl list devices booted
    `captures/<l>/`, never `captures/<locale>/`. A missing render at `image-approved` or above
    means re-render (`out/` is gitignored): an unchanged hash keeps the status, a changed hash
    sets `generated`. Never upgrade on files alone except `uploaded` from the store.
-4. Print the progress table, the demo-patch state (`demoData.appliedAt`, `revertedAt`, the
-   current branch, whether branch `s1s/demo-data` exists), the booted sims and the dirty-file
-   count:
-
-```
-locale  size        screens  pending  copy-ok  captured  generated  img-ok  exported  uploaded
-en-US   iphone-6.9  6        0        0        0         6          0       0         0
-en-US   ipad-13     5        0        0        5         0          0       0         0
-demo patch: applied 2026-09-02T10:12Z, not reverted, on main, branch s1s/demo-data present
-sims booted: none
-git: 3 dirty files (2 outside screenshots/)
-```
+4. Print the progress table (one row per locale x size: screens, then a count per status), the
+   demo-patch state (`demoData.appliedAt`, `revertedAt`, the current branch, whether branch
+   `s1s/demo-data` exists), the booted sims and the dirty-file count.
 
 5. Confirm the resume point in one question, then continue (`status` argument: print the table and stop).
 
@@ -348,11 +342,7 @@ Autonomous fixes, at most 3 rounds per screen, only these three: explicit line b
 font-scale field; headline sizes are fixed per template. Any other change (a shorter word, a
 dropped word, the brand colour, the appearance, a capture, the meaning) needs the user.
 Repeat with `--sizes ipad-13`, `--sizes watch-s10` (passthrough: only dims are checked), then the Duo size.
-Finish with a full run and require exit 0:
-
-```sh
-s1s render --locale en-US && s1s sheet --locale en-US
-```
+Finish with a full run and require exit 0: `s1s render --locale en-US && s1s sheet --locale en-US`.
 
 The CLI sets `generated`. Do not edit render fields by hand.
 
@@ -383,18 +373,14 @@ asc screenshots validate --path metadata/screenshots/en-US/APP_IPAD_PRO_3GEN_129
 asc screenshots validate --path metadata/screenshots/en-US/APP_WATCH_SERIES_10 --device-type WATCH_SERIES_10   # watch only; Duo: APP_IPHONE_DUO, IPHONE_DUO
 ```
 
-Never copy PNGs into `metadata/screenshots/` by hand; `s1s export` owns that folder. It refuses an
-incomplete set or one with error-level warnings, writes `NN.png` only when the hash changed, warns
-about sibling `APP_*` folders with identical dims (asc fan-out uploads them twice), sets `exported`
-(an image already `uploaded` keeps it and gets `wasUploaded: true`), and prints the section 7
-upload command per display type with `--dry-run`. An unapproved set is not refused: it warns
-`export-unapproved` and exports anyway, so G3 is yours to enforce. `--prune` deletes every
-`NN.png|jpg|jpeg` the run did not write (else they are listed as `stale` and still upload),
-`--dry-run` shows the plan, `--no-asc` skips the asc validation, `--metadata-dir <dir>` (also on
-`s1s validate`, same value for both) points at an export root other than `app.metadataDir`.
-`s1s validate` checks names `01..NN`, 1 to 10 files, accepted dims, no alpha, RGB, uniform dims,
-and all-or-nothing over every locale folder (`--locale` narrows the table, never that rule). Size
-and format rules: [references/apple-rules.md](references/apple-rules.md).
+Never copy PNGs into `metadata/screenshots/` by hand; `s1s export` owns it. It refuses an
+incomplete set or error-level warnings, writes `NN.png` only on a hash change, warns about sibling
+`APP_*` folders with identical dims, sets `exported` (an `uploaded` image keeps it and gets
+`wasUploaded: true`) and prints the section 7 upload commands with `--dry-run`. An unapproved set
+only warns `export-unapproved`: G3 is yours. `--prune` deletes `NN.*` files the run did not write
+(else listed as `stale`; they still upload); also `--dry-run`, `--no-asc`, `--metadata-dir <dir>`
+(same value on `s1s validate`). `s1s validate` checks names, 1 to 10 files, dims, alpha, RGB and
+all-or-nothing over every locale. Rules: [references/apple-rules.md](references/apple-rules.md).
 Offer a commit: `ios: export en-US App Store screenshots`.
 
 Upload only when the user asks (argument `upload` or an explicit request), one device set per
@@ -417,6 +403,21 @@ gate. Exact commands, the editable-version rule and the verify query:
    sets `uploaded` and clears `wasUploaded`. `s1s export` already wrote `storeFileName`.
 5. Repeat for `IPAD_PRO_3GEN_129`, then `WATCH_SERIES_10` and `IPHONE_DUO`. Offer a commit:
    `ios: upload en-US App Store screenshots`.
+
+### Creative assets: product page header and search results
+
+Optional, after the screenshot set, when the user agrees: [references/creative-assets.md](references/creative-assets.md).
+
+1. Gate C, art direction (creative-assets.md section 3): write `screenshots/creative-brief.md`,
+   pitch three concepts per placement with their key art, and let the user pick. Search: one
+   large real screen and 2 to 6 words (make it first). Header and universal: key art (a product
+   hero via `s1s model render`, a real photo, brand art), never screenshots alone.
+2. Add the sizes and one screen each: `only: ['creative-search']`, template `creative-hero`,
+   props `text`, `art`, `glow`, `background`, captures with a size prefix; copy under the id.
+3. Render, then gate V: Read every `out/<l>/CREATIVE_*/store/*-phone.png` and `*-safe.png` and
+   pass the 8-item list in creative-assets.md section 4. Fail: fix, re-render, repeat. Then G3
+   with the list, `s1s export` and `s1s validate` with `--sizes` (to `metadata/creative-assets/`).
+4. Upload only at G4: `s1s export` prints the commands; no dry run, so ask first (asc-upload.md 13).
 
 ## 11. P6 Localize `<locale>` (gates G5, G6, G7)
 
@@ -480,19 +481,16 @@ xcrun simctl list devices booted
 xcrun simctl shutdown all
 ```
 
-Stop the gallery server started at G3 and G6; it is a background process and does not exit with
-the session. In Claude Code, kill the background Bash shell by its id instead of `pkill`.
+Stop the gallery server from G3 and G6 (it outlives the session); in Claude Code kill its shell by id.
 Ask before `xcrun simctl delete <udid>`; a kept sim makes a re-shoot cheaper. Write manifest
 `demoData.revertedAt`. Print a summary: screens per locale and size, statuses, export folders,
 what is uploaded, what is still open. Never run `git clean`.
 
 ## 13. Tool equivalence
 
-This file names the task, not the tool. When you have XcodeBuildMCP, AskUserQuestion or image
-Read, use them; otherwise use the shell column. The table for build, run, boot, appearance,
-status bar, find UI and tap, screenshot to disk, view image, ask user, and invoke skill:
-[references/agent-tooling.md](references/agent-tooling.md). An agent that cannot view images
-relies on `review.md` warnings and asks the human to review the gallery at G3 and G6.
+Use XcodeBuildMCP, AskUserQuestion or image Read when you have them, else the shell column of
+[references/agent-tooling.md](references/agent-tooling.md). Without image viewing, rely on
+`review.md` warnings and ask the human to review the gallery at G3 and G6.
 
 ## 14. Commit conventions
 

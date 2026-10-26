@@ -82,11 +82,26 @@ export function metadataDir(project: Pick<Project, 'appDir' | 'manifest'>): stri
 /**
  * <metadataDir>/<locale>/<APP_DISPLAY_TYPE>: the folder `s1s export` fills
  * with NN.png and `asc screenshots upload --path <metadataDir>` fans out over.
+ * A CREATIVE_* folder goes under creativeRoot() instead.
  * Takes the root rather than the project so `s1s export --metadata-dir` can
  * point somewhere else without a second manifest.
  */
 export function exportDir(metadataRoot: string, locale: string, displayType: AppDisplayType): string {
+  if (isCreativeDisplayType(displayType)) return join(creativeRoot(metadataRoot), locale, displayType);
   return join(metadataRoot, locale, displayType);
+}
+
+/**
+ * <metadataDir>/../creative-assets: where creative assets export. A sibling,
+ * never a child: `asc screenshots upload --path <metadataDir>` walks every
+ * folder under the screenshot root, and these files are not screenshots.
+ */
+export function creativeRoot(metadataRoot: string): string {
+  return join(dirname(metadataRoot), 'creative-assets');
+}
+
+export function isCreativeDisplayType(displayType: string): boolean {
+  return displayType.startsWith('CREATIVE_');
 }
 
 /**

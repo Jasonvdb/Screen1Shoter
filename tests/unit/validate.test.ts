@@ -266,3 +266,33 @@ describe('validateExport', () => {
     expect(narrowed.ok).toBe(true);
   });
 });
+
+describe('validateExport: creative assets under metadata/creative-assets', () => {
+  const creativeDir = (displayType: AppDisplayType) => join(tmp.dir, 'metadata', 'creative-assets', 'en-US', displayType);
+
+  it('checks each creative set beside the screenshot sets, at its one exact size', async () => {
+    const project = await makeValidateProject(tmp.dir, ['iphone-6.9', 'creative-universal', 'creative-search']);
+    await writeExportSet(setDir(tmp.dir, 'en-US', 'APP_IPHONE_69'), NAMES(1), IPHONE_69);
+    await writeExportSet(creativeDir('CREATIVE_UNIVERSAL'), NAMES(1), { width: 5244, height: 2950 });
+    // A rotated creative file is not "the landscape form": a placement has one shape.
+    await writeExportSet(creativeDir('CREATIVE_SEARCH'), NAMES(1), { width: 2560, height: 3840 });
+
+    const report = await validateExport(project, {});
+    expect(setFor(report, 'en-US', 'CREATIVE_UNIVERSAL').problems).toEqual([]);
+    const search = setFor(report, 'en-US', 'CREATIVE_SEARCH');
+    expect(search.problems.map((p) => [p.code, p.level])).toEqual([['dims-unaccepted', 'error']]);
+    expect(report.ok).toBe(false);
+  });
+
+  it('refuses a JPEG where the Asset Library takes PNG only', async () => {
+    const project = await makeValidateProject(tmp.dir, ['iphone-6.9', 'creative-header']);
+    await writeExportSet(setDir(tmp.dir, 'en-US', 'APP_IPHONE_69'), NAMES(1), IPHONE_69);
+    const dir = creativeDir('CREATIVE_HEADER');
+    await mkdir(dir, { recursive: true });
+    const sharp = (await import('sharp')).default;
+    await sharp({ create: { width: 3840, height: 1646, channels: 3, background: { r: 20, g: 30, b: 40 } } }).jpeg().toFile(join(dir, '01.jpg'));
+
+    const report = await validateExport(project, {});
+    expect(codes(setFor(report, 'en-US', 'CREATIVE_HEADER').problems)).toEqual(['format-unaccepted']);
+  });
+});

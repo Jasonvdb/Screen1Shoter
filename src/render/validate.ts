@@ -24,7 +24,7 @@ import {
 import type { AppDisplayType, Dims, SizePreset } from '../config/types.ts';
 import { S1sError } from '../core/errors.ts';
 import { errorMessage, isEnoent } from '../core/fs.ts';
-import { assertLocaleSegment, exportDir, metadataDir } from '../core/paths.ts';
+import { assertLocaleSegment, creativeRoot, exportDir, metadataDir } from '../core/paths.ts';
 import type { Project } from '../core/project.ts';
 
 export type ValidateCode =
@@ -37,7 +37,9 @@ export type ValidateCode =
   | 'has-alpha'
   | 'not-an-image'
   | 'locale-incomplete'
-  | 'duplicate-dims';
+  | 'duplicate-dims'
+  /** A creative asset in a file type its Asset Library spec refuses (the universal and header sizes are PNG only). */
+  | 'format-unaccepted';
 
 export interface ValidateProblem {
   code: ValidateCode;
@@ -156,6 +158,8 @@ interface Probed {
   /** sharp's colour-space name ('srgb', 'b-w', 'cmyk', ...). */
   space: string;
   channels: number;
+  /** sharp's container name: 'png', 'jpeg', ... */
+  format: string;
 }
 
 /** Colour spaces App Store Connect reads as RGB (apple-rules.md section 3). */
@@ -167,7 +171,7 @@ async function probe(path: string): Promise<Probed | { error: string }> {
     const meta = await sharp(path).metadata();
     // hasAlpha is the field App Store Connect rejects on: a fully opaque
     // alpha channel is still an alpha channel.
-    return { dims: { width: meta.width, height: meta.height }, hasAlpha: meta.hasAlpha, space: meta.space, channels: meta.channels };
+    return { dims: { width: meta.width, height: meta.height }, hasAlpha: meta.hasAlpha, space: meta.space, channels: meta.channels, format: meta.format };
   } catch (err) {
     return { error: errorMessage(err) };
   }
@@ -261,9 +265,14 @@ async function checkSet(locale: string, preset: SizePreset, dir: string): Promis
       // Store Connect rejects a greyscale file, so this is a warn.
       problems.push(problem('not-an-image', 'warn', `${label}/${name} is ${result.space} with ${result.channels} channel(s); App Store Connect expects RGB or sRGB.`, path));
     }
+    const formats = preset.creative?.formats;
+    if (formats !== undefined && !formats.includes(result.format as 'png' | 'jpeg')) {
+      problems.push(problem('format-unaccepted', 'error', `${label}/${name} is ${result.format}; the Asset Library takes ${formats.join(' or ')} for ${displayType}.`, path));
+    }
     if (!isAcceptedDims(preset, result.dims)) {
       const rotated: Dims = { width: result.dims.height, height: result.dims.width };
-      if (isAcceptedDims(preset, rotated)) {
+      // A creative asset has one orientation: its placement is a fixed shape.
+      if (isAcceptedDims(preset, rotated) && formats === undefined) {
         // Every accepted size is also accepted rotated (apple-rules.md
         // section 2); one orientation per set is enforced by dims-mixed.
         problems.push(problem('dims-unaccepted', 'warn', `${label}/${name} is ${formatDims(result.dims)}, the landscape form of ${formatDims(rotated)}; App Store Connect accepts a rotated size, but every file in the set must keep that one orientation.`, path));
@@ -444,6 +453,21 @@ async function legacyDuplicateDims(
   return problems;
 }
 
+/** Every CREATIVE_* set under creativeRoot(dir) for the reported locales; [] when nothing was exported there. */
+async function creativeSets(dir: string, locales: readonly string[], allowed: ReadonlySet<AppDisplayType> | null): Promise<ValidateSet[]> {
+  const root = creativeRoot(dir);
+  const sets: ValidateSet[] = [];
+  for (const locale of locales) {
+    for (const entry of (await listDir(join(root, locale))) ?? []) {
+      const preset = entry.isDirectory ? presetByDisplayType(entry.name) : undefined;
+      if (preset === undefined || preset.creative === undefined) continue;
+      if (allowed && !allowed.has(preset.displayType)) continue;
+      sets.push(await checkSet(locale, preset, exportDir(dir, locale, preset.displayType)));
+    }
+  }
+  return sets;
+}
+
 /**
  * Checks an export tree without touching the network or the manifest. Returns
  * `ok: false` for anything App Store Connect would reject; throws only when
@@ -510,10 +534,15 @@ export async function validateExport(project: Project, opts: ValidateOptions = {
     allSets.push(...localeSets);
     shapes.push({ locale, sets: localeSets.map((set) => ({ displayType: set.displayType, count: set.count })) });
   }
-  const sets = allowed ? allSets.filter((set) => allowed.has(set.displayType)) : allSets;
+  const sets = (allowed ? allSets.filter((set) => allowed.has(set.displayType)) : allSets).slice();
   const compared = allowed
     ? shapes.map((shape) => ({ ...shape, sets: shape.sets.filter((set) => allowed.has(set.displayType)) }))
     : shapes;
+
+  // Creative assets live beside the screenshot root and take no part in the
+  // cross-locale rules: a locale without a header simply keeps its screenshots.
+  const creative = await creativeSets(dir, locales, allowed);
+  sets.push(...creative);
 
   const crossSet = [...localeProblems(compared, opts.locale), ...duplicateDimsProblems(allSets)];
   const all = [...problems, ...sets.flatMap((set) => set.problems), ...crossSet];

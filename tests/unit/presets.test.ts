@@ -11,12 +11,14 @@ import {
   formatDims,
   getPreset,
   isAcceptedDims,
+  isCreativePreset,
   isSizeId,
   presetByDisplayType,
   presetOrientation,
   presetsByFamily,
   presetsFor,
   renderTarget,
+  safeAreaPt,
 } from '../../src/config/presets.ts';
 import type { AppDisplayType, DeviceFamily, Dims, SizeId } from '../../src/config/types.ts';
 
@@ -45,6 +47,10 @@ const APPLE_TABLE: Record<SizeId, AppleRow> = {
   'ipad-11': { family: 'ipad', displayType: 'APP_IPAD_PRO_3GEN_11', token: 'IPAD_PRO_3GEN_11', px: d(1668, 2420), pt: d(834, 1210), scale: 2, simulator: 'iPad Pro 11-inch (M5)' },
   'watch-s10': { family: 'watch', displayType: 'APP_WATCH_SERIES_10', token: 'WATCH_SERIES_10', px: d(416, 496), pt: d(416, 496), scale: 1, simulator: 'Apple Watch Series 11 (46mm)' },
   'watch-ultra': { family: 'watch', displayType: 'APP_WATCH_ULTRA', token: 'WATCH_ULTRA', px: d(422, 514), pt: d(422, 514), scale: 1, simulator: 'Apple Watch Ultra 3 (49mm)' },
+  // `asc asset-library specs` imageSpecs (2026-10-26): no device type, no simulator.
+  'creative-universal': { family: 'creative', displayType: 'CREATIVE_UNIVERSAL', token: '', px: d(5244, 2950), pt: d(2622, 1475), scale: 2, simulator: '' },
+  'creative-header': { family: 'creative', displayType: 'CREATIVE_HEADER', token: '', px: d(3840, 1646), pt: d(1920, 823), scale: 2, simulator: '' },
+  'creative-search': { family: 'creative', displayType: 'CREATIVE_SEARCH', token: '', px: d(3840, 2560), pt: d(1920, 1280), scale: 2, simulator: '' },
 };
 
 /** Sizes App Store Connect accepts per display type (verified facts only). */
@@ -62,7 +68,7 @@ const ACCEPTED_FACTS: Partial<Record<AppDisplayType, Dims[]>> = {
 const ids: SizeId[] = [...ALL_SIZE_IDS];
 
 describe('SIZE_PRESETS', () => {
-  it('lists exactly the eleven Apple size classes, once each', () => {
+  it('lists exactly the eleven Apple size classes and the three creative assets, once each', () => {
     expect(ids).toEqual(Object.keys(APPLE_TABLE));
     expect(new Set(ids).size).toBe(ids.length);
   });
@@ -99,6 +105,7 @@ describe('SIZE_PRESETS', () => {
   it('display type is the token prefixed with APP_ (upload token <-> export folder)', () => {
     for (const id of ids) {
       const p = SIZE_PRESETS[id];
+      if (isCreativePreset(p)) continue;
       expect(p.displayType).toBe(`APP_${p.deviceTypeToken}`);
       expect(displayFolder(p)).toBe(p.displayType);
     }
@@ -124,7 +131,7 @@ describe('SIZE_PRESETS', () => {
   });
 
   it('marks only the Ultra and iPhone Duo frames optional, so the default bezel install does not grow', () => {
-    const optional = ids.filter((id) => SIZE_PRESETS[id].bezelOptional);
+    const optional = ids.filter((id) => SIZE_PRESETS[id].bezelOptional && !isCreativePreset(SIZE_PRESETS[id]));
     expect(optional).toEqual(['iphone-duo', 'iphone-duo-landscape', 'iphone-duo-outer', 'watch-ultra']);
     // An optional frame is one no default set needs: a passthrough preset
     // renders its capture unframed, so only phone-watch ever draws the Ultra;
@@ -150,9 +157,9 @@ describe('SIZE_PRESETS', () => {
     expect(SIZE_PRESETS['iphone-duo-landscape'].bezel).toBe(SIZE_PRESETS['iphone-duo'].bezel);
   });
 
-  it('every other preset is portrait', () => {
+  it('every other device preset is portrait', () => {
     for (const id of ids) {
-      if (id !== 'iphone-duo-landscape') expect(presetOrientation(SIZE_PRESETS[id]), id).toBe('portrait');
+      if (id !== 'iphone-duo-landscape' && !isCreativePreset(SIZE_PRESETS[id])) expect(presetOrientation(SIZE_PRESETS[id]), id).toBe('portrait');
     }
   });
 
@@ -164,10 +171,50 @@ describe('SIZE_PRESETS', () => {
     }
   });
 
-  it('every preset names a bezel id', () => {
+  it('every device preset names a bezel id', () => {
     for (const id of ids) {
+      if (isCreativePreset(SIZE_PRESETS[id])) continue;
       expect(SIZE_PRESETS[id].bezel.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('creative asset sizes', () => {
+  const creative = ids.filter((id) => isCreativePreset(SIZE_PRESETS[id]));
+
+  it('are the universal, header and search canvases, landscape, with no bezel or simulator', () => {
+    expect(creative).toEqual(['creative-universal', 'creative-header', 'creative-search']);
+    for (const id of creative) {
+      const p = SIZE_PRESETS[id];
+      expect(presetOrientation(p), id).toBe('landscape');
+      expect(p.bezel, id).toBe('');
+      expect(p.bezelOptional, id).toBe(true);
+      expect(p.simulatorName, id).toBe('');
+      expect(p.acceptedDims, id).toEqual([p.px]);
+      expect(DEFAULT_SIZES, id).not.toContain(id);
+    }
+  });
+
+  it('fill the placements Apple lists, and only the universal one fills both', () => {
+    expect(SIZE_PRESETS['creative-universal'].creative?.placements).toEqual(['PRODUCT_PAGE_HEADER_ASSET', 'APP_STORE_SEARCH_RESULTS_ASSET']);
+    expect(SIZE_PRESETS['creative-header'].creative?.placements).toEqual(['PRODUCT_PAGE_HEADER_ASSET']);
+    expect(SIZE_PRESETS['creative-search'].creative?.placements).toEqual(['APP_STORE_SEARCH_RESULTS_ASSET']);
+    expect(SIZE_PRESETS['creative-universal'].creative?.formats).toEqual(['png']);
+    expect(SIZE_PRESETS['creative-header'].creative?.formats).toEqual(['png']);
+  });
+
+  it("keep the Art Safe Area of Apple's templates, centred horizontally", () => {
+    // Measured from Apple's Photoshop and Sketch templates (identical in both).
+    expect(SIZE_PRESETS['creative-universal'].creative?.safeAreaPx).toEqual({ x: 1921, y: 660, width: 1402, height: 962 });
+    expect(SIZE_PRESETS['creative-header'].creative?.safeAreaPx).toEqual({ x: 1097, y: 493, width: 1646, height: 661 });
+    expect(SIZE_PRESETS['creative-search'].creative?.safeAreaPx).toEqual({ x: 836, y: 765, width: 2168, height: 1030 });
+    for (const id of creative) {
+      const p = SIZE_PRESETS[id];
+      const rect = p.creative!.safeAreaPx;
+      expect(Math.abs(rect.x + rect.width / 2 - p.px.width / 2), id).toBeLessThanOrEqual(1);
+      expect(safeAreaPt(p), id).toEqual({ x: rect.x / 2, y: rect.y / 2, width: rect.width / 2, height: rect.height / 2 });
+    }
+    expect(safeAreaPt(SIZE_PRESETS['iphone-6.9'])).toBeNull();
   });
 });
 
