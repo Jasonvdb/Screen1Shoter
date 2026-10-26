@@ -535,7 +535,7 @@ not a safety net.
 2. Stop at "ready to upload" unless the user asked for the upload. This is
    gate G7: show the exact command, the version string and the device set,
    and get a yes.
-3. Upload with a dry run first, then for real with `--replace` so order and
+3. Upload with a dry run first, then for real with `--replace --confirm` so order and
    dims stay uniform. Use the per-localization form (one folder into one
    set) from `asc-upload.md` section 7; `$LOC_TARGET` is the target locale's
    `versionLocalizationId`:
@@ -544,7 +544,7 @@ not a safety net.
    asc screenshots upload --version-localization "$LOC_TARGET" \
      --path metadata/screenshots/de-DE/APP_IPHONE_69 --device-type IPHONE_69 --dry-run --pretty
    asc screenshots upload --version-localization "$LOC_TARGET" \
-     --path metadata/screenshots/de-DE/APP_IPHONE_69 --device-type IPHONE_69 --replace --pretty
+     --path metadata/screenshots/de-DE/APP_IPHONE_69 --device-type IPHONE_69 --replace --confirm --pretty
    ```
 
    The fan-out form (`--app --version --path metadata/screenshots`) touches

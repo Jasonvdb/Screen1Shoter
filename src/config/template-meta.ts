@@ -37,8 +37,8 @@ export const TWO_DEVICE_IPAD_VARIANT =
 export const BUILTIN_TEMPLATES: readonly TemplateMeta[] = [
   {
     id: 'hero-top-text',
-    families: ['iphone', 'ipad'],
-    ipadVariant: 'Device width up to 84% (iPhone 82%); text block keeps two lines.',
+    families: ['iphone', 'ipad', 'duo'],
+    ipadVariant: 'Device width up to 84% (iPhone 82%); text block keeps two lines. A portrait iPhone Duo set uses the iPad layout; a landscape one puts the text column left of the device.',
     compliant: true,
     implemented: true,
     phase: 'W1',
@@ -46,7 +46,7 @@ export const BUILTIN_TEMPLATES: readonly TemplateMeta[] = [
   },
   {
     id: 'text-bottom',
-    families: ['iphone', 'ipad'],
+    families: ['iphone', 'ipad', 'duo'],
     compliant: true,
     implemented: true,
     phase: 'W1',
@@ -73,7 +73,7 @@ export const BUILTIN_TEMPLATES: readonly TemplateMeta[] = [
   },
   {
     id: 'raw',
-    families: ['iphone', 'ipad', 'watch'],
+    families: ['iphone', 'ipad', 'watch', 'duo'],
     compliant: true,
     implemented: true,
     phase: 'W1',
@@ -122,6 +122,7 @@ export const DEFAULT_TEMPLATE: Record<DeviceFamily, string> = {
   iphone: 'hero-top-text',
   ipad: 'hero-top-text',
   watch: 'raw',
+  duo: 'hero-top-text',
 };
 
 export function templateMeta(id: string): TemplateMeta | undefined {

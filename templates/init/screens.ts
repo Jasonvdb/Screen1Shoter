@@ -17,19 +17,19 @@ export default defineScreens({
     {
       id: 'home',
       template: 'hero-top-text',
-      only: ['iphone', 'ipad'],
+      only: ['iphone', 'ipad', 'duo'],
       notes: 'The biggest reason to download. Headline on top, whole device below.',
     },
     {
       id: 'detail',
       template: 'text-bottom',
-      only: ['iphone', 'ipad'],
+      only: ['iphone', 'ipad', 'duo'],
       notes: 'The core loop. Device on top, headline below.',
     },
     {
       id: 'share',
       template: 'hero-top-text',
-      only: ['iphone', 'ipad'],
+      only: ['iphone', 'ipad', 'duo'],
       notes: 'A differentiator. Uses the optional badge from the copy.',
     },
     // More built-in templates (worked examples in example/screenshots/screens.ts):

@@ -3,11 +3,11 @@
 // was observed in the W2 Stage A spike (see docs/bezels.md); nothing is typed
 // from memory. The install step walks `pngDir` of a mounted DMG, runs every
 // file through `normaliseBezelFilename` and measures the ones it keeps.
-import type { Dims, Rect } from '../../config/types.ts';
+import type { CornerRadii, Dims, Rect } from '../../config/types.ts';
 
 export type BezelOrientation = 'portrait' | 'landscape';
 
-export type BezelDmgId = 'iphone-17' | 'ipad-pro-m5' | 'apple-watch-11' | 'apple-watch-ultra-3';
+export type BezelDmgId = 'iphone-17' | 'iphone-duo' | 'ipad-pro-m5' | 'apple-watch-11' | 'apple-watch-ultra-3';
 
 export interface BezelDmg {
   /** Apple CDN URL. No login, but `hdiutil attach` prints an SLA and waits for "Y" on stdin. */
@@ -25,6 +25,12 @@ export const BEZEL_DMGS: Readonly<Record<BezelDmgId, BezelDmg>> = {
     url: 'https://devimages-cdn.apple.com/design/resources/download/Bezel-iPhone-17.dmg',
     dmgName: 'Bezel-iPhone-17.dmg',
     bytes: 265_205_982,
+    pngDir: 'PNG',
+  },
+  'iphone-duo': {
+    url: 'https://devimages-cdn.apple.com/design/resources/download/Bezel-iPhone-Duo.dmg',
+    dmgName: 'Bezel-iPhone-Duo.dmg',
+    bytes: 452_785_429,
     pngDir: 'PNG',
   },
   'ipad-pro-m5': {
@@ -59,6 +65,8 @@ export type BezelSourceId =
   | 'iphone-17-pro'
   | 'iphone-17'
   | 'iphone-air'
+  | 'iphone-duo-inner-open'
+  | 'iphone-duo-outer-closed'
   | 'ipad-pro-13-m5'
   | 'ipad-pro-11-m5'
   | 'apple-watch-series-11-46mm'
@@ -82,6 +90,8 @@ export interface BezelPortraitFacts {
    * corner spans, and 1-2 px under the hand-fit maximum (docs/bezels.md).
    */
   cornerRadius: number;
+  /** Per-corner radii when the corners differ (iPhone Duo's outer display); `cornerRadius` is the top-left one. */
+  cornerRadii?: CornerRadii;
 }
 
 export interface BezelSource {
@@ -90,6 +100,11 @@ export interface BezelSource {
   model: string;
   /** Sub-folder under `pngDir`; '' when the DMG is flat. */
   subDir: string;
+  /**
+   * Display and pose words before the orientation, when the file names them:
+   * `iPhone Duo - <Colour> - Inner Open Portrait.png` has 'Inner Open'.
+   */
+  display?: string;
   /** Colour slugs observed. `variants[0]` is the default for `bezelVariant: 'auto'`. */
   variants: readonly string[];
   /** Native bezel pixels per Apple point (PNG dpi / 72). */
@@ -168,6 +183,42 @@ export const BEZEL_SOURCES: Readonly<Record<BezelSourceId, BezelSource>> = {
       screenRect: rect(60, 72, 1260, 2736),
       islandRect: rect(503, 133, 374, 108),
       cornerRadius: 189,
+    },
+  },
+  // PNG/iPhone Duo - {Night Sky,Star White} - {Inner Open,Outer Closed} {Portrait,Landscape}.png
+  // (flat folder). A foldable has two displays, so the third part names the
+  // display and pose before the orientation, and that pair joins the id.
+  // `iPhone Duo - <Colour> - Outer Open.png` shows both displays side by side,
+  // has no single cut-out and is skipped; Partially Open ships as PSD only.
+  'iphone-duo-inner-open': {
+    dmg: 'iphone-duo',
+    model: 'iPhone Duo',
+    subDir: '',
+    display: 'Inner Open',
+    variants: ['night-sky', 'star-white'],
+    pxPerPt: 3,
+    portrait: {
+      imageSize: { width: 2247, height: 3093 },
+      deviceRect: rect(50, 50, 2139, 2985),
+      screenRect: rect(120, 120, 2007, 2853),
+      cornerRadius: 160,
+    },
+  },
+  // Square on the hinge side, round on the free side, with a camera ring in
+  // the top right corner of the screen: the one bezel with `cornerRadii`.
+  'iphone-duo-outer-closed': {
+    dmg: 'iphone-duo',
+    model: 'iPhone Duo',
+    subDir: '',
+    display: 'Outer Closed',
+    variants: ['night-sky', 'star-white'],
+    pxPerPt: 3,
+    portrait: {
+      imageSize: { width: 1574, height: 2194 },
+      deviceRect: rect(11, 24, 1531, 2138),
+      screenRect: rect(88, 80, 1398, 2034),
+      cornerRadius: 24,
+      cornerRadii: { topLeft: 24, topRight: 175, bottomRight: 174, bottomLeft: 24 },
     },
   },
   // PNG/iPad Pro (M5) 13" - {Silver,Space Black} - {Portrait,Landscape}.png   (flat folder, ASCII inch mark)
@@ -380,6 +431,9 @@ const IPAD_CHIP_SIZE = /^(ipad(?:-[a-z]+)?)-(m\d+)-(\d+(?:\.\d+)?)$/;
 
 const PART_SEPARATOR = ' - ';
 
+/** Third part of an iPhone Duo file name: display and pose words, then the orientation. */
+const DISPLAY_ORIENTATION = /^(.+?)\s+(Portrait|Landscape)$/i;
+
 /** Second part of an Apple Watch file name: the case size, where a phone names the orientation. */
 const WATCH_CASE_SIZE = /^\d{2}mm$/;
 
@@ -415,6 +469,7 @@ interface NameParts {
  *   `<model> - <NNmm> - <Case> + <Band>.png`          two case sizes in one DMG (Series 11)
  *   `<model> - <Case> + <Band>.png`                   one case size (Ultra 3)
  *   `<model> - <Colour> - <Portrait|Landscape>.png`   iPhone, iPad
+ *   `<model> - <Colour> - <Display> <Pose> <Portrait|Landscape>.png`   iPhone Duo
  */
 function nameShape(parts: readonly string[]): NameParts | null {
   const [model, second, third] = parts;
@@ -425,6 +480,9 @@ function nameShape(parts: readonly string[]): NameParts | null {
   if (parts.length !== 3 || third === undefined) return null;
   // The case size takes the slot a phone spends on the colour, so it joins the model.
   if (WATCH_CASE_SIZE.test(second)) return { rawModel: `${model} ${second}`, variantText: third, orientationText: 'portrait' };
+  // A foldable names the display and pose before the orientation; they join the model.
+  const display = DISPLAY_ORIENTATION.exec(third);
+  if (display?.[1] && display[2]) return { rawModel: `${model} ${display[1]}`, variantText: second, orientationText: display[2].toLowerCase() };
   return { rawModel: model, variantText: second, orientationText: third.toLowerCase() };
 }
 

@@ -8,13 +8,20 @@
 // Devices and sizes
 // ---------------------------------------------------------------------------
 
-export type DeviceFamily = 'iphone' | 'ipad' | 'watch';
+/**
+ * `duo` is iPhone Duo: its own family because its displays are neither iPhone
+ * nor iPad sized, so its captures need their own folder (captures/<l>/duo/).
+ */
+export type DeviceFamily = 'iphone' | 'ipad' | 'watch' | 'duo';
 
 export type SizeId =
   | 'iphone-6.9'
   | 'iphone-6.7'
   | 'iphone-6.5'
   | 'iphone-6.1'
+  | 'iphone-duo'
+  | 'iphone-duo-landscape'
+  | 'iphone-duo-outer'
   | 'ipad-13'
   | 'ipad-11'
   | 'watch-s10'
@@ -26,6 +33,7 @@ export type AppDisplayType =
   | 'APP_IPHONE_67'
   | 'APP_IPHONE_65'
   | 'APP_IPHONE_61'
+  | 'APP_IPHONE_DUO'
   | 'APP_IPAD_PRO_3GEN_129'
   | 'APP_IPAD_PRO_3GEN_11'
   | 'APP_WATCH_SERIES_10'
@@ -50,13 +58,17 @@ export interface SizePreset {
   displayType: AppDisplayType;
   /** Value for `asc screenshots upload --device-type`. */
   deviceTypeToken: string;
-  /** Exact output PNG size. Always equals pt * scale. */
+  /** Exact output PNG size. Always equals pt * scale. Wider than tall = a landscape set and a landscape bezel. */
   px: Dims;
   /** Browser viewport in CSS px (= Apple points). */
   pt: Dims;
   /** Playwright deviceScaleFactor. */
   scale: number;
-  /** Every portrait size App Store Connect accepts for `displayType`. */
+  /**
+   * Every portrait size App Store Connect accepts for `displayType`. A display
+   * type whose sizes differ in more than orientation (APP_IPHONE_DUO: outer
+   * and inner display) lists every size in both orientations.
+   */
   acceptedDims: Dims[];
   /** Preferred bezel id in the bezel cache (see BezelEntry.id). */
   bezel: string;
@@ -73,6 +85,12 @@ export interface SizePreset {
   captureDims: Dims;
   /** `xcrun simctl` device name that produces `captureDims`. */
   simulatorName: string;
+  /**
+   * `simctl io --display` screen the capture comes from, on a device with
+   * more than one: iPhone Duo's inner display is 'primary-1'. Absent = the
+   * default screen, which on a Duo is the outer one.
+   */
+  captureDisplay?: string;
   /** The capture is copied to the output unchanged; the browser is skipped. */
   passthrough?: boolean;
   /** Renders once as the target preset; exports to this preset's own folder. */
@@ -302,6 +320,12 @@ export interface BezelEntry {
   /** Transparent screen cut-out. */
   screenRect: Rect;
   cornerRadius: number;
+  /**
+   * Per-corner radii, present only when the corners differ: iPhone Duo's
+   * outer display is square on the hinge side and round on the free side.
+   * `cornerRadius` stays the top-left value.
+   */
+  cornerRadii?: CornerRadii;
   /** Opaque Dynamic Island inside the screen, when present. */
   islandRect?: Rect;
   orientation: 'portrait' | 'landscape';
@@ -309,6 +333,13 @@ export interface BezelEntry {
   screenAspect: number;
   /** Bezel pixels per Apple point, from the matching preset. */
   pxPerPt?: number;
+}
+
+export interface CornerRadii {
+  topLeft: number;
+  topRight: number;
+  bottomRight: number;
+  bottomLeft: number;
 }
 
 export interface BezelIndex {

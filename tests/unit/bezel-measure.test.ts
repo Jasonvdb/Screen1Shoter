@@ -12,6 +12,8 @@ import { isS1sError } from '../../src/core/errors.ts';
 import {
   TRIM_PAD,
   cornerProfile,
+  cornerRadiiOf,
+  diagonalRadius,
   loadRawImage,
   matchPreset,
   measureBezel,
@@ -257,6 +259,63 @@ describe('measureRaw orientation and failures', () => {
       }
     }
     expect(() => measureRaw({ width: 40, height: 40, data: Buffer.alloc(10) })).toThrow(/RGBA/);
+  });
+});
+
+/**
+ * A bezel drawn pixel by pixel: an opaque body whose corners are round by
+ * `screen radius + border`, and a transparent screen whose four corners take
+ * their own radius, as iPhone Duo's outer display has them.
+ */
+function cornerBezel(radii: { topLeft: number; topRight: number; bottomRight: number; bottomLeft: number }): { img: RawImage; screen: Rect } {
+  const width = 400;
+  const height = 520;
+  const border = 20;
+  const pad = 10;
+  const screen = rect(pad + border, pad + border, width - 2 * (pad + border), height - 2 * (pad + border));
+  const inside = (x: number, y: number, box: Rect, r: (cx: 'l' | 'r', cy: 't' | 'b') => number): boolean => {
+    if (x < box.x || y < box.y || x >= box.x + box.width || y >= box.y + box.height) return false;
+    const cx = x < box.x + box.width / 2 ? 'l' : 'r';
+    const cy = y < box.y + box.height / 2 ? 't' : 'b';
+    const radius = r(cx, cy);
+    const ox = cx === 'l' ? box.x + radius : box.x + box.width - radius;
+    const oy = cy === 't' ? box.y + radius : box.y + box.height - radius;
+    const dx = cx === 'l' ? Math.min(0, x + 0.5 - ox) : Math.max(0, x + 0.5 - ox);
+    const dy = cy === 't' ? Math.min(0, y + 0.5 - oy) : Math.max(0, y + 0.5 - oy);
+    return dx * dx + dy * dy <= radius * radius;
+  };
+  const screenR = (cx: 'l' | 'r', cy: 't' | 'b'): number =>
+    cy === 't' ? (cx === 'l' ? radii.topLeft : radii.topRight) : cx === 'l' ? radii.bottomLeft : radii.bottomRight;
+  const body = rect(pad, pad, width - 2 * pad, height - 2 * pad);
+  const data = Buffer.alloc(width * height * 4);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const opaque = inside(x, y, body, (cx, cy) => screenR(cx, cy) + border) && !inside(x, y, screen, screenR);
+      data[(y * width + x) * 4 + 3] = opaque ? 255 : 0;
+    }
+  }
+  return { img: { width, height, data }, screen };
+}
+
+describe('diagonalRadius and cornerRadiiOf', () => {
+  it('reads each corner within 3 px, square hinge side and round free side', () => {
+    const drawn = { topLeft: 6, topRight: 90, bottomRight: 90, bottomLeft: 6 };
+    const { img, screen } = cornerBezel(drawn);
+    for (const corner of ['topLeft', 'topRight', 'bottomRight', 'bottomLeft'] as const) {
+      expect(Math.abs(diagonalRadius(img, screen, corner) - drawn[corner]), corner).toBeLessThanOrEqual(3);
+    }
+    const radii = cornerRadiiOf(img, screen);
+    expect(radii).toBeDefined();
+    expect(radii!.topRight).toBeGreaterThan(radii!.topLeft * 5);
+    const m = measureRaw(img);
+    expect(m.cornerRadii).toEqual(radii);
+  });
+
+  it('leaves cornerRadii out when the corners agree, as on every iPhone, iPad and watch', () => {
+    const { img, screen } = cornerBezel({ topLeft: 60, topRight: 60, bottomRight: 60, bottomLeft: 60 });
+    expect(Math.abs(diagonalRadius(img, screen, 'bottomRight') - 60)).toBeLessThanOrEqual(3);
+    expect(cornerRadiiOf(img, screen)).toBeUndefined();
+    expect(measureRaw(img).cornerRadii).toBeUndefined();
   });
 });
 

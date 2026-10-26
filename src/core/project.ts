@@ -222,7 +222,23 @@ function panoramaProblems(
   return problems;
 }
 
-/** Cross-field checks zod cannot express: ids, alias keys, template availability, the panorama. */
+/**
+ * Two sizes that export into one display-type folder would overwrite each
+ * other's NN.png. Only the iPhone Duo presets share one (APP_IPHONE_DUO):
+ * App Store Connect holds one Duo set per locale, in one pixel size.
+ */
+function displayTypeProblems(sizes: readonly SizeId[]): string[] {
+  const byType = new Map<string, SizeId[]>();
+  for (const id of new Set(sizes)) {
+    const type = SIZE_PRESETS[id].displayType;
+    byType.set(type, [...(byType.get(type) ?? []), id]);
+  }
+  return [...byType]
+    .filter(([, ids]) => ids.length > 1)
+    .map(([type, ids]) => `sizes ${ids.join(' and ')} both export to ${type}, which holds one set per locale; keep one of them`);
+}
+
+/** Cross-field checks zod cannot express: ids, alias keys, display types, template availability, the panorama. */
 function validateScreens(config: ScreensConfig, screensPath: string, templatesPath: string | null, locales: string[]): void {
   const problems: string[] = [];
   const ids = new Set<string>();
@@ -235,6 +251,7 @@ function validateScreens(config: ScreensConfig, screensPath: string, templatesPa
     }
   }
   const targets = uniqueTargets(config.sizes ?? DEFAULT_SIZES);
+  problems.push(...displayTypeProblems(config.sizes ?? DEFAULT_SIZES));
   problems.push(...panoramaProblems(config, targets, locales, templatesPath !== null));
   const seen = new Set<string>();
   for (const screen of config.screens) {

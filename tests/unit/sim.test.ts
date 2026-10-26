@@ -3,7 +3,11 @@
 // watchOS short-circuit in statusBar with xcrun stubbed out.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { run, runOk } from '../../src/core/exec.ts';
-import { STATUS_BAR_FLAGS, parseSimctlDevices, pickSim, statusBar, type SimDevice } from '../../src/core/sim.ts';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import sharp from 'sharp';
+import { STATUS_BAR_FLAGS, parseSimctlDevices, pickSim, screenshot, statusBar, type SimDevice } from '../../src/core/sim.ts';
 
 vi.mock('../../src/core/exec.ts', () => ({
   run: vi.fn(),
@@ -161,5 +165,32 @@ describe('statusBar', () => {
       return { code: 0, stdout: '', stderr: '' };
     });
     expect(await statusBar(IPHONE_SHUTDOWN)).toEqual({ supported: false });
+  });
+});
+
+describe('screenshot', () => {
+  beforeEach(() => {
+    vi.mocked(run).mockReset();
+    vi.mocked(runOk).mockReset();
+    vi.mocked(run).mockImplementation(async () => ({ code: 0, stdout: '/Applications/Xcode.app/Contents/Developer\n', stderr: '' }));
+    vi.mocked(runOk).mockImplementation(async () => ({ code: 0, stdout: '', stderr: '' }));
+  });
+
+  it('names the screen only when asked: iPhone Duo inner display is primary-1', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 's1s-shot-'));
+    try {
+      const out = join(dir, 'shot.png');
+      // simctl is stubbed, so stand in the file it would have written.
+      await sharp({ create: { width: 30, height: 20, channels: 3, background: '#000000' } }).png().toFile(out);
+      expect(await screenshot(IPHONE_BOOTED, out, 'primary-1')).toEqual({ width: 30, height: 20 });
+      await screenshot(IPHONE_BOOTED, out);
+      const calls = vi.mocked(runOk).mock.calls.map(([, args]) => args);
+      expect(calls).toEqual([
+        ['simctl', 'io', IPHONE_BOOTED, 'screenshot', '--type=png', '--mask=ignored', '--display=primary-1', out],
+        ['simctl', 'io', IPHONE_BOOTED, 'screenshot', '--type=png', '--mask=ignored', out],
+      ]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

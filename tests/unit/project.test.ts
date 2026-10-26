@@ -47,6 +47,19 @@ describe('loadProject', () => {
     expect(findTemplatesEntry(dir)).toBe(project.templatesPath);
   });
 
+  it('refuses two sizes that export into one display-type folder (the iPhone Duo sizes)', async () => {
+    const source = screensSource().replace("sizes: ['iphone-6.9']", "sizes: ['iphone-6.9', 'iphone-duo', 'iphone-duo-landscape']");
+    await writeFile(join(dir, 'screens.ts'), source);
+    const error = await catchS1sError(loadProject({ projectDir: dir }));
+    expect(error.code).toBe('config-invalid');
+    expect(error.message).toContain('sizes iphone-duo and iphone-duo-landscape both export to APP_IPHONE_DUO');
+
+    await writeFile(join(dir, 'screens.ts'), screensSource().replace("sizes: ['iphone-6.9']", "sizes: ['iphone-6.9', 'iphone-duo-landscape']"));
+    const project = await loadProject({ projectDir: dir, reload: true });
+    expect(project.sizes).toEqual(['iphone-6.9', 'iphone-duo-landscape']);
+    expect(project.manifest.app.deviceFamilies).toEqual(['iphone', 'duo']);
+  });
+
   it('reload: true picks up an edited screens.ts within one process', async () => {
     const first = await loadProject({ projectDir: dir, reload: true });
     expect(first.screens.screens.map((s) => s.id)).toEqual(['home']);

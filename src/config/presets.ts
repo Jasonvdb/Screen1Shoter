@@ -7,6 +7,11 @@ const d = (width: number, height: number): Dims => ({ width, height });
 
 const IPHONE_69_ACCEPTED: Dims[] = [d(1320, 2868), d(1290, 2796), d(1260, 2736)];
 
+// APP_IPHONE_DUO takes the outer display (1398x2034) and the inner one
+// (2007x2853), each in both orientations (`asc screenshots sizes --all`,
+// 5.16.1, 2026-10-26). One set still holds one pixel size (dims-mixed).
+const IPHONE_DUO_ACCEPTED: Dims[] = [d(1398, 2034), d(2007, 2853), d(2034, 1398), d(2853, 2007)];
+
 export const SIZE_PRESETS: Record<SizeId, SizePreset> = {
   'iphone-6.9': {
     id: 'iphone-6.9',
@@ -64,6 +69,59 @@ export const SIZE_PRESETS: Record<SizeId, SizePreset> = {
     bezelFallbacks: ['iphone-17', 'iphone-16-pro', 'iphone-17-pro-max'],
     captureDims: d(1206, 2622),
     simulatorName: 'iPhone 17 Pro',
+  },
+  // iPhone Duo: three presets, one display type, so a project lists at most
+  // one of them (loadProject refuses two). The inner display opened flat is
+  // the Duo layout; the outer display is the phone closed. `simctl io`
+  // screenshots the outer display unless told `--display primary-1`, which
+  // returns the inner one in the orientation the UI has. The bezel DMG is
+  // 453 MB, so it installs only on request: `s1s bezels install --device <id>`.
+  'iphone-duo': {
+    id: 'iphone-duo',
+    family: 'duo',
+    displayType: 'APP_IPHONE_DUO',
+    deviceTypeToken: 'IPHONE_DUO',
+    px: d(2007, 2853),
+    pt: d(669, 951),
+    scale: 3,
+    acceptedDims: IPHONE_DUO_ACCEPTED,
+    bezel: 'iphone-duo-inner-open',
+    bezelFallbacks: [],
+    captureDims: d(2007, 2853),
+    simulatorName: 'iPhone Duo',
+    captureDisplay: 'primary-1',
+    bezelOptional: true,
+  },
+  'iphone-duo-landscape': {
+    id: 'iphone-duo-landscape',
+    family: 'duo',
+    displayType: 'APP_IPHONE_DUO',
+    deviceTypeToken: 'IPHONE_DUO',
+    px: d(2853, 2007),
+    pt: d(951, 669),
+    scale: 3,
+    acceptedDims: IPHONE_DUO_ACCEPTED,
+    bezel: 'iphone-duo-inner-open',
+    bezelFallbacks: [],
+    captureDims: d(2853, 2007),
+    simulatorName: 'iPhone Duo',
+    captureDisplay: 'primary-1',
+    bezelOptional: true,
+  },
+  'iphone-duo-outer': {
+    id: 'iphone-duo-outer',
+    family: 'duo',
+    displayType: 'APP_IPHONE_DUO',
+    deviceTypeToken: 'IPHONE_DUO',
+    px: d(1398, 2034),
+    pt: d(466, 678),
+    scale: 3,
+    acceptedDims: IPHONE_DUO_ACCEPTED,
+    bezel: 'iphone-duo-outer-closed',
+    bezelFallbacks: [],
+    captureDims: d(1398, 2034),
+    simulatorName: 'iPhone Duo',
+    bezelOptional: true,
   },
   'ipad-13': {
     id: 'ipad-13',
@@ -179,13 +237,27 @@ export function displayFolder(preset: SizePreset): AppDisplayType {
   return preset.displayType;
 }
 
-const PRESET_BY_DISPLAY_TYPE = new Map<string, SizePreset>(
-  Object.values(SIZE_PRESETS).map((preset) => [preset.displayType, preset]),
-);
+export type Orientation = 'portrait' | 'landscape';
 
-/** The preset that renders into a display-type folder; undefined for a folder no preset writes. */
-export function presetByDisplayType(displayType: string): SizePreset | undefined {
-  return PRESET_BY_DISPLAY_TYPE.get(displayType);
+/** A preset wider than tall renders a landscape set inside a landscape bezel. */
+export function presetOrientation(preset: Pick<SizePreset, 'px'>): Orientation {
+  return preset.px.width > preset.px.height ? 'landscape' : 'portrait';
+}
+
+/** The first preset per display type, in table order (iphone-duo for APP_IPHONE_DUO). */
+const PRESET_BY_DISPLAY_TYPE = new Map<string, SizePreset>();
+for (const preset of Object.values(SIZE_PRESETS)) {
+  if (!PRESET_BY_DISPLAY_TYPE.has(preset.displayType)) PRESET_BY_DISPLAY_TYPE.set(preset.displayType, preset);
+}
+
+/**
+ * The preset that renders into a display-type folder; undefined for a folder
+ * no preset writes. Several presets share APP_IPHONE_DUO, so a caller that
+ * knows which sizes it rendered passes them in `among` to get the right one.
+ */
+export function presetByDisplayType(displayType: string, among?: readonly string[]): SizePreset | undefined {
+  const own = among?.map((id) => (isSizeId(id) ? SIZE_PRESETS[id] : undefined)).find((p) => p?.displayType === displayType);
+  return own ?? PRESET_BY_DISPLAY_TYPE.get(displayType);
 }
 
 /**

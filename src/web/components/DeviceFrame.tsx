@@ -1,11 +1,11 @@
 // A capture inside an Apple bezel. The outer box has deviceRect's aspect; the
 // capture <img> sits at screenRect (as fractions of deviceRect) grown by one
-// bezel px, clipped by cornerRadius; the bezel image is drawn on top so its
+// bezel px, clipped by cornerRadius (or cornerRadii); the bezel image is drawn on top so its
 // opaque Dynamic Island covers the capture. No bezel -> GenericBezel plus a
 // data-s1s-bezel-fallback flag (checks.ts turns it into a warning).
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import type { CaptureSource, Dims, SizePreset, Theme } from '../../config/types.ts';
-import { frameBox, frameLayout, type FrameCrop } from '../hooks/bezel.ts';
+import { frameBox, frameLayout, screenBorderRadius, type FrameCrop } from '../hooks/bezel.ts';
 import { useBezel } from '../hooks/useBezel.ts';
 import { placeholderCapture, useCapture } from '../hooks/useCapture.ts';
 import { acquire } from '../runtime/ready.ts';
@@ -184,7 +184,7 @@ export function DeviceFrame({
     top: layout.screen.y,
     width: layout.screen.width,
     height: layout.screen.height,
-    borderRadius: layout.screen.radius,
+    borderRadius: screenBorderRadius(layout.screen),
     overflow: 'hidden',
     background: '#000',
     zIndex: 1,

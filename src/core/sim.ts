@@ -198,10 +198,11 @@ export async function imageDims(path: string): Promise<Dims> {
 }
 
 /** `simctl io <udid> screenshot --type=png --mask=ignored <outPath>`; returns the pixel size. */
-export async function screenshot(udid: string, outPath: string): Promise<Dims> {
+/** `display` picks the screen on a device with more than one (SizePreset.captureDisplay). */
+export async function screenshot(udid: string, outPath: string, display?: string): Promise<Dims> {
   await mkdir(dirname(outPath), { recursive: true });
   await xcrunOk(
-    ['simctl', 'io', udid, 'screenshot', '--type=png', '--mask=ignored', outPath],
+    ['simctl', 'io', udid, 'screenshot', '--type=png', '--mask=ignored', ...(display ? [`--display=${display}`] : []), outPath],
     'The simulator must be booted and the app in the foreground.',
   );
   return imageDims(outPath);
@@ -215,6 +216,6 @@ export interface CaptureResult {
 
 /** screenshot + sha256 + the shared capture-dims rule in one call. */
 export async function captureScreenshot(udid: string, outPath: string, preset: SizePreset): Promise<CaptureResult> {
-  const dims = await screenshot(udid, outPath);
+  const dims = await screenshot(udid, outPath, preset.captureDisplay);
   return { dims, sha256: await sha256File(outPath), warning: captureDimsWarning(dims, preset) };
 }

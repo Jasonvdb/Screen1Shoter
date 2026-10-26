@@ -72,9 +72,9 @@ const MANIFEST = 'manifest.json';
 
 /** Mirrors templates/init/screens.ts. Keep both in sync. */
 const EXAMPLE_SCREENS: ReadonlyArray<{ id: string; template?: string; families: DeviceFamily[] }> = [
-  { id: 'home', template: 'hero-top-text', families: ['iphone', 'ipad'] },
-  { id: 'detail', template: 'text-bottom', families: ['iphone', 'ipad'] },
-  { id: 'share', template: 'hero-top-text', families: ['iphone', 'ipad'] },
+  { id: 'home', template: 'hero-top-text', families: ['iphone', 'ipad', 'duo'] },
+  { id: 'detail', template: 'text-bottom', families: ['iphone', 'ipad', 'duo'] },
+  { id: 'share', template: 'hero-top-text', families: ['iphone', 'ipad', 'duo'] },
   { id: 'watch-stats', families: ['watch'] },
 ];
 const WATCH_SCREEN = 'watch-stats';
@@ -272,6 +272,8 @@ function renderFile(rel: string, text: string, vars: InitVars): string {
 function destinationFor(rel: string, vars: InitVars): string | null {
   const captures = `captures/${TEMPLATE_LOCALE}/`;
   if (!vars.watch && rel.startsWith(`${captures}watch/`)) return null;
+  const duo = vars.sizes.some((id) => getPreset(id).family === 'duo');
+  if (!duo && rel.startsWith(`${captures}duo/`)) return null;
   if (rel.startsWith(captures)) return `captures/${vars.sourceLocale}/${rel.slice(captures.length)}`;
   if (rel === `copy/${TEMPLATE_LOCALE}.json`) return `copy/${vars.sourceLocale}.json`;
   return rel;
@@ -360,12 +362,16 @@ export async function initProject(dir: string, vars: InitVars, opts: InitProject
 }
 
 function nextSteps(vars: InitVars): string[] {
-  const iphone = vars.sizes.map(getPreset).find((p) => p.family === 'iphone');
-  const sim = iphone?.simulatorName ?? 'iPhone 17 Pro Max';
+  // The first framed size leads: an iPhone, else an iPad, else an iPhone Duo.
+  const presets = vars.sizes.map(getPreset);
+  const lead = (['iphone', 'ipad', 'duo'] as const).map((f) => presets.find((p) => p.family === f)).find((p) => p !== undefined);
+  const sim = lead?.simulatorName ?? 'iPhone 17 Pro Max';
+  const family = lead?.family ?? 'iphone';
   return [
     's1s doctor',
     `s1s sim list   # find the "${sim}" udid, then: s1s sim status-bar <udid>`,
-    `s1s capture --udid "${sim}" --name home --device iphone`,
+    ...(family === 'duo' ? ['s1s sim pose <udid> open   # the inner display; closed for iphone-duo-outer'] : []),
+    `s1s capture --udid "${sim}" --name home --device ${family}`,
     `s1s render --locale ${vars.sourceLocale} --allow-placeholder   # until captures exist; drop the flag once they do`,
     's1s dev --open',
   ];

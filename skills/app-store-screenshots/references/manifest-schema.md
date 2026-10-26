@@ -183,7 +183,7 @@ Optional fields are marked `?`. Unknown fields anywhere are kept by the CLI
 | `watchBundleId?` | string | agent | Watch app bundle id |
 | `appId?` | string | init, agent | ASC app id; `s1s init --app-id` |
 | `project?`, `scheme?` | string | agent | Build facts from P0 |
-| `deviceFamilies` | `("iphone"\|"ipad"\|"watch")[]` | init, agent | Derived from the sizes at init |
+| `deviceFamilies` | `("iphone"\|"ipad"\|"watch"\|"duo")[]` | init, agent | Derived from the sizes at init; `duo` is iPhone Duo |
 | `sourceLocale` | string | init | First `--locales` entry. `''` means "first locale in screens.ts" |
 | `appLocales` | string[] | init, agent | Locales the app ships; drives `captureSource` |
 | `metadataDir` | string | init | Default `metadata/screenshots` |
@@ -192,8 +192,9 @@ Optional fields are marked `?`. Unknown fields anywhere are kept by the CLI
 ### `sizes.<sizeId>`
 
 Keys are size ids: `iphone-6.9`, `iphone-6.7` (alias of 6.9, own export
-folder), `iphone-6.5`, `iphone-6.1`, `ipad-13`, `ipad-11`, `watch-s10`,
-`watch-ultra`.
+folder), `iphone-6.5`, `iphone-6.1`, `iphone-duo`, `iphone-duo-landscape`,
+`iphone-duo-outer` (at most one of the three), `ipad-13`, `ipad-11`,
+`watch-s10`, `watch-ultra`.
 
 | Field | Type | Owner | Notes |
 |---|---|---|---|
@@ -212,6 +213,9 @@ Preset facts (from `src/config/presets.ts`):
 | `iphone-6.7` | `APP_IPHONE_67` | `IPHONE_67` | 1320x2868 (alias, rendered once) | iPhone 17 Pro Max |
 | `iphone-6.5` | `APP_IPHONE_65` | `IPHONE_65` | 1284x2778 | iPhone 14 Plus |
 | `iphone-6.1` | `APP_IPHONE_61` | `IPHONE_61` | 1206x2622 | iPhone 17 Pro |
+| `iphone-duo` | `APP_IPHONE_DUO` | `IPHONE_DUO` | 2007x2853 (inner display, portrait) | iPhone Duo |
+| `iphone-duo-landscape` | `APP_IPHONE_DUO` | `IPHONE_DUO` | 2853x2007 (inner display, landscape) | iPhone Duo |
+| `iphone-duo-outer` | `APP_IPHONE_DUO` | `IPHONE_DUO` | 1398x2034 (outer display) | iPhone Duo |
 | `ipad-13` | `APP_IPAD_PRO_3GEN_129` | `IPAD_PRO_3GEN_129` | 2064x2752 | iPad Pro 13-inch (M5) |
 | `ipad-11` | `APP_IPAD_PRO_3GEN_11` | `IPAD_PRO_3GEN_11` | 1668x2420 | iPad Pro 11-inch (M5) |
 | `watch-s10` | `APP_WATCH_SERIES_10` | `WATCH_SERIES_10` | 416x496 (passthrough) | Apple Watch Series 11 (46mm) |

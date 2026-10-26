@@ -2,6 +2,7 @@
 // the entry for a preset, merge freshly installed entries and write it back.
 // The download / mount / measure pipeline lives in install.ts.
 import { join } from 'node:path';
+import { presetOrientation } from '../../config/presets.ts';
 import type { BezelEntry, BezelIndex, SizePreset } from '../../config/types.ts';
 import { S1sError } from '../errors.ts';
 import { errorMessage, readJsonFile, writeJsonAtomic } from '../fs.ts';
@@ -88,15 +89,17 @@ export interface BezelMatch {
 }
 
 /**
- * Picks the portrait bezel for a preset: preset.bezel first, then
+ * Picks the bezel for a preset, in the preset's orientation (portrait, or
+ * landscape for a set wider than tall): preset.bezel first, then
  * bezelFallbacks in order. `variant` 'auto' (or an uninstalled variant) takes
  * the first one installed for that id. null -> GenericBezel + 'bezel-fallback' warning.
  */
 export function findBezel(index: BezelIndex | null, preset: SizePreset, variant = 'auto'): BezelMatch | null {
   if (!index) return null;
+  const orientation = presetOrientation(preset);
   const ids = [preset.bezel, ...preset.bezelFallbacks];
   for (const [position, id] of ids.entries()) {
-    const entries = index.entries.filter((e) => e.id === id && e.orientation === 'portrait');
+    const entries = index.entries.filter((e) => e.id === id && e.orientation === orientation);
     const entry = (variant !== 'auto' ? entries.find((e) => e.variant === variant) : undefined) ?? entries[0];
     if (entry) return { entry, fallback: position > 0 };
   }

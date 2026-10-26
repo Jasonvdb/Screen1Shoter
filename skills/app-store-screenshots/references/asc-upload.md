@@ -140,6 +140,7 @@ prefix. The upload and validate flag takes the same name without the prefix.
 | `ipad-13` | `APP_IPAD_PRO_3GEN_129` | `IPAD_PRO_3GEN_129` | 2064x2752 |
 | `watch-s10` | `APP_WATCH_SERIES_10` | `WATCH_SERIES_10` | 416x496 |
 | `watch-ultra` | `APP_WATCH_ULTRA` | `WATCH_ULTRA` | 422x514 |
+| `iphone-duo-landscape`, `iphone-duo`, `iphone-duo-outer` (one per project) | `APP_IPHONE_DUO` | `IPHONE_DUO` | 2853x2007, 2007x2853, 1398x2034 |
 
 Read the token for a size from the manifest instead of retyping it:
 
@@ -208,11 +209,12 @@ you expect. Then upload:
 
 ```sh
 asc screenshots upload --version-localization "$LOC_ID" \
-  --path "metadata/screenshots/$LOCALE/$FOLDER" --device-type "$TOKEN" --replace --pretty
+  --path "metadata/screenshots/$LOCALE/$FOLDER" --device-type "$TOKEN" --replace --confirm --pretty
 ```
 
 - `--replace` deletes every screenshot in the target set first, then uploads.
   This is what keeps order and dims uniform. Use it for every full-set upload.
+  `asc` 5.16 refuses `--replace` without `--confirm`; pass both.
 - `--skip-existing` skips files whose MD5 already exists in the set. Use it
   only to add a single missing file to an otherwise verified set. It never
   reorders.
@@ -227,6 +229,13 @@ asc screenshots upload --version-localization "$LOC_ID" \
 
   If `--replace` was interrupted, the set can be empty or partial. Verify
   (section 9), then run the full `--replace` command again if needed.
+- `asc` waits for Apple to process each file before it sends the next. A new
+  display type (first `APP_IPHONE_DUO` set, October 2026) took about 30
+  minutes for its first file, so the default request timeout fails the run
+  with `timed out waiting for screenshot ... checksum settlement` after one
+  file. The file is not lost: it reaches `COMPLETE` later. Check the set with
+  section 9, then resume with a long timeout:
+  `ASC_TIMEOUT=60m asc screenshots upload --resume "<failures-file>.json"`.
 
 Repeat for each device folder: iPhone, then iPad, then Watch. Verify each set
 before you start the next.
@@ -249,7 +258,7 @@ Then:
 
 ```sh
 asc screenshots upload --app "$APP_ID" --version "$VERSION" \
-  --path metadata/screenshots --device-type IPHONE_69 --replace --pretty
+  --path metadata/screenshots --device-type IPHONE_69 --replace --confirm --pretty
 ```
 
 `--version-id "$VERSION_ID"` works in place of `--version "$VERSION"`.
@@ -409,7 +418,7 @@ Stop here and show the human the dry-run output (gate G4/G7). On approval:
 for PAIR in APP_IPHONE_69:IPHONE_69 APP_IPAD_PRO_3GEN_129:IPAD_PRO_3GEN_129; do
   FOLDER=${PAIR%%:*}; TOKEN=${PAIR##*:}
   asc screenshots upload --version-localization "$LOC_ID" \
-    --path "metadata/screenshots/$LOCALE/$FOLDER" --device-type "$TOKEN" --replace --pretty
+    --path "metadata/screenshots/$LOCALE/$FOLDER" --device-type "$TOKEN" --replace --confirm --pretty
 done
 asc screenshots list --version-localization "$LOC_ID" --output json \
   | jq -r '.sets[] | .set.attributes.screenshotDisplayType as $dt
@@ -417,7 +426,9 @@ asc screenshots list --version-localization "$LOC_ID" --output json \
 ```
 
 Add the app's watch pair to both loops for a watch app:
-`APP_WATCH_SERIES_10:WATCH_SERIES_10` or `APP_WATCH_ULTRA:WATCH_ULTRA`. Every
+`APP_WATCH_SERIES_10:WATCH_SERIES_10` or `APP_WATCH_ULTRA:WATCH_ULTRA`, and
+`APP_IPHONE_DUO:IPHONE_DUO` when the project has a Duo size (asc 5.16 or
+later; older asc rejects the token). Every
 line must end in `COMPLETE` and the per-type counts must match the export.
 Then run `s1s status --set uploaded --locale "$LOCALE" --sizes iphone-6.9,ipad-13 --yes`
 and offer the `ios:` commit.

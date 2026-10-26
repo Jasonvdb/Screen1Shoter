@@ -1,6 +1,6 @@
 ---
 name: app-store-screenshots
-description: Create, localize, export and upload App Store screenshots for an iOS, iPadOS or watchOS app with the s1s CLI (Screen1Shoter). Real Simulator captures sit in Apple product bezels, copy is real text in React templates, headless Chromium renders exact-pixel PNGs, exports land in metadata/screenshots, uploads go through asc, and all state lives in screenshots/manifest.json so any session can resume. Replaces aso-appstore-screenshots, asc-localize-screenshots and localize-app-store-screenshots. Use when the user says App Store screenshots, store screenshots, screenshot set, marketing screenshots, screenshot copy or captions, benefit headlines, screenshot keywords, localize or translate screenshots, add a screenshot language, upload screenshots to App Store Connect, iPhone 6.9 or iPad 13 or watch screenshot sizes, screenshot status, or resume the screenshot workflow.
+description: Create, localize, export and upload App Store screenshots for an iOS, iPadOS or watchOS app with the s1s CLI (Screen1Shoter). Real Simulator captures sit in Apple product bezels, copy is real text in React templates, headless Chromium renders exact-pixel PNGs, exports land in metadata/screenshots, uploads go through asc, and all state lives in screenshots/manifest.json so any session can resume. Replaces aso-appstore-screenshots, asc-localize-screenshots and localize-app-store-screenshots. Use when the user says App Store screenshots, store screenshots, screenshot set, marketing screenshots, screenshot copy or captions, benefit headlines, screenshot keywords, localize or translate screenshots, add a screenshot language, upload screenshots to App Store Connect, iPhone 6.9 or iPad 13 or watch or iPhone Duo screenshot sizes, screenshot status, or resume the screenshot workflow.
 user-invocable: true
 argument-hint: "[status | plan | capture | compose | review | export | upload | <locale> | cleanup]"
 allowed-tools: Bash(s1s:*), Bash(xcrun simctl:*), Bash(xcodebuild:*), Bash(asc:*), Bash(git status:*), Bash(git diff:*), Bash(git switch:*), Bash(git add:*), Bash(git commit:*), Bash(git branch:*), Bash(git apply:*), Bash(git rev-parse:*), Bash(git check-ignore:*), Bash(node:*), Bash(jq:*), Bash(sips:*), Bash(find:*), Bash(grep:*), Bash(mkdir:*), Bash(ls:*), Bash(cat:*), Bash(sleep:*), Bash(pkill:*), Read, Write, Edit, Grep, Glob, AskUserQuestion
@@ -17,9 +17,9 @@ and, only on request, upload with `asc`. Localization is the same phases re-run 
 The tool is `s1s` (Screen1Shoter). Run `s1s <command> --help` when unsure about a flag; for a
 nested command both `s1s <group> <cmd> --help` and `s1s <group> help <cmd>` print its flags.
 Default sizes: `iphone-6.9` (1320x2868, `APP_IPHONE_69`) and `ipad-13` (2064x2752,
-`APP_IPAD_PRO_3GEN_129`); for a watch target, `watch-s10` (416x496 raw,
-`APP_WATCH_SERIES_10`) or `watch-ultra` (422x514 raw, `APP_WATCH_ULTRA`) - one watch set
-satisfies Apple, so pick the watch the app's audience wears.
+`APP_IPAD_PRO_3GEN_129`); for a watch target, `watch-s10` (416x496 raw) or `watch-ultra`
+(422x514 raw) - one watch set satisfies Apple. iPhone Duo (`APP_IPHONE_DUO`, required from
+April 2027) takes ONE of `iphone-duo-landscape` (2853x2007), `iphone-duo` or `iphone-duo-outer`.
 All paths below are relative to the app repo. Run every command from the app repo root.
 
 ## 2. Golden rules
@@ -137,8 +137,7 @@ sims booted: none
 git: 3 dirty files (2 outside screenshots/)
 ```
 
-5. Confirm the resume point with the user in one question. Then continue. Skip this step for
-   the `status` argument: print the table and stop.
+5. Confirm the resume point in one question, then continue (`status` argument: print the table and stop).
 
 ## 5. P0 Preflight (gate G0)
 
@@ -165,6 +164,7 @@ Decide: device families (`TARGETED_DEVICE_FAMILY` 1 = iPhone, 2 = iPad), app loc
 launch-approval rules in AGENTS.md or CLAUDE.md. Watch rule: any target with
 `SDKROOT = watchos`, or a `*.watchkitapp` bundle id in the `PRODUCT_BUNDLE_IDENTIFIER` grep,
 means `--watch` on `s1s init` (size `watch-s10`) and `app.watchBundleId` in the manifest.
+A Duo size also needs `s1s bezels install --device iphone-duo-inner-open,iphone-duo-outer-closed`.
 If `screenshots/` is missing, scaffold it:
 
 ```sh
@@ -303,8 +303,8 @@ mkdir -p screenshots/out/preview && sips -Z 900 --out screenshots/out/preview/<i
    `captureRating`, `captureNotes` and the exact `screens[].capture.steps` to the manifest.
 7. Shut down before the next family: `xcrun simctl shutdown "$IPHONE"`. Repeat 4 to 6 with the
    iPad (`--device ipad`, sim "iPad Pro 13-inch (M5)"), then the watch (`--device watch`, sim
-   "Apple Watch Series 11 (46mm)", watch scheme, scene env var per screen). `s1s sim status-bar`
-   reports "unsupported" on watchOS; that is not a failure.
+   "Apple Watch Series 11 (46mm)", watch scheme, scene env var per screen; `s1s sim status-bar`
+   reports "unsupported" there), then iPhone Duo (`--device duo`, `s1s sim pose`, playbook section 10).
 8. Return to main; the branch stays until P7 for re-shoots:
 
 ```sh
@@ -347,7 +347,7 @@ Autonomous fixes, at most 3 rounds per screen, only these three: explicit line b
 `props.deviceMaxWidth` on that screen when the set keeps one value per size. There is no
 font-scale field; headline sizes are fixed per template. Any other change (a shorter word, a
 dropped word, the brand colour, the appearance, a capture, the meaning) needs the user.
-Repeat with `--sizes ipad-13`, then `--sizes watch-s10` (passthrough: only dims are checked).
+Repeat with `--sizes ipad-13`, `--sizes watch-s10` (passthrough: only dims are checked), then the Duo size.
 Finish with a full run and require exit 0:
 
 ```sh
@@ -380,7 +380,7 @@ Export and validate every approved size; the default end of the skill is "ready 
 s1s export --locale en-US && s1s validate --locale en-US
 asc screenshots validate --path metadata/screenshots/en-US/APP_IPHONE_69 --device-type IPHONE_69
 asc screenshots validate --path metadata/screenshots/en-US/APP_IPAD_PRO_3GEN_129 --device-type IPAD_PRO_3GEN_129
-asc screenshots validate --path metadata/screenshots/en-US/APP_WATCH_SERIES_10 --device-type WATCH_SERIES_10   # watch only
+asc screenshots validate --path metadata/screenshots/en-US/APP_WATCH_SERIES_10 --device-type WATCH_SERIES_10   # watch only; Duo: APP_IPHONE_DUO, IPHONE_DUO
 ```
 
 Never copy PNGs into `metadata/screenshots/` by hand; `s1s export` owns that folder. It refuses an
@@ -409,13 +409,13 @@ gate. Exact commands, the editable-version rule and the verify query:
    The fan-out form (`--app --version --path metadata/screenshots`) is only for several
    complete locales at once and only when no sibling `APP_*` folder shares the dims
    (asc-upload.md section 8).
-3. G4: show the dry-run summary. Ask. On yes, run the same command with `--replace` instead
-   of `--dry-run`.
+3. G4: show the dry-run summary. Ask. On yes, run the same command with `--replace --confirm`
+   instead of `--dry-run` (asc 5.16 refuses `--replace` without `--confirm`).
 4. Verify with `asc screenshots list --version-localization "$LOC_ID" --output json` and
    compare `sets[].screenshots[]` file names and count. Then
    `s1s status --set uploaded --locale en-US --sizes iphone-6.9 --yes`: it writes `uploadedAt`,
    sets `uploaded` and clears `wasUploaded`. `s1s export` already wrote `storeFileName`.
-5. Repeat for `IPAD_PRO_3GEN_129`, then `WATCH_SERIES_10`. Offer a commit:
+5. Repeat for `IPAD_PRO_3GEN_129`, then `WATCH_SERIES_10` and `IPHONE_DUO`. Offer a commit:
    `ios: upload en-US App Store screenshots`.
 
 ## 11. P6 Localize `<locale>` (gates G5, G6, G7)

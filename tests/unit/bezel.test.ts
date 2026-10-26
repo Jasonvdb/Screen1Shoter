@@ -12,6 +12,7 @@ import {
   frameBox,
   frameLayout,
   genericGeometry,
+  screenBorderRadius,
   selectBezel,
 } from '../../src/web/hooks/bezel.ts';
 
@@ -47,6 +48,23 @@ function ipad13(variant: string): BezelEntry {
     orientation: 'portrait',
     screenAspect: 0.75,
     pxPerPt: 2,
+  };
+}
+
+/** Untrimmed iPhone Duo inner display, as measured from Apple's DMG. */
+function duoInner(orientation: BezelEntry['orientation']): BezelEntry {
+  const portrait = orientation === 'portrait';
+  return {
+    id: 'iphone-duo-inner-open',
+    variant: 'night-sky',
+    file: `iphone-duo-inner-open/night-sky${portrait ? '' : '-landscape'}.png`,
+    imageSize: portrait ? { width: 2247, height: 3093 } : { width: 3093, height: 2247 },
+    deviceRect: portrait ? rect(50, 50, 2139, 2985) : rect(58, 50, 2985, 2139),
+    screenRect: portrait ? rect(120, 120, 2007, 2853) : rect(120, 120, 2853, 2007),
+    cornerRadius: 160,
+    orientation,
+    screenAspect: portrait ? 2007 / 2853 : 2853 / 2007,
+    pxPerPt: 3,
   };
 }
 
@@ -98,6 +116,18 @@ describe('selectBezel', () => {
     const landscape: BezelEntry = { ...proMax('deep-blue'), orientation: 'landscape' };
     const empty: BezelEntry = { ...proMax('silver'), deviceRect: rect(0, 0, 0, 0) };
     expect(selectBezel(index([landscape, empty]), IPHONE).fallback).toBe('generic');
+  });
+
+  it('takes the landscape file for a landscape preset and the portrait one otherwise', () => {
+    const portrait = duoInner('portrait');
+    const landscape = duoInner('landscape');
+    const both = index([portrait, landscape]);
+    expect(selectBezel(both, getPreset('iphone-duo-landscape')).entry).toBe(landscape);
+    expect(selectBezel(both, getPreset('iphone-duo')).entry).toBe(portrait);
+    // No landscape file installed: the generic frame, never a portrait bezel turned on its side.
+    const got = selectBezel(index([portrait]), getPreset('iphone-duo-landscape'));
+    expect(got.fallback).toBe('generic');
+    expect(got.geometry.screenRect).toMatchObject({ width: 951, height: 669 });
   });
 
   it('falls back to the generic geometry without an index or a matching id', () => {
@@ -174,6 +204,22 @@ describe('frameLayout', () => {
     expect(layout.device).toEqual({ width: 1428, height: 2959 });
     expect(layout.screen).toEqual({ x: 75 - 21 - SCREEN_GROW, y: 66 - 20 - SCREEN_GROW, width: 1322, height: 2870, radius: 191 });
     expect(layout.image).toEqual({ x: -21, y: -20, width: 1470, height: 3000 });
+  });
+
+  it('clips each corner on its own when the bezel records cornerRadii', () => {
+    const outer: BezelEntry = {
+      ...proMax('night-sky'),
+      cornerRadius: 24,
+      cornerRadii: { topLeft: 24, topRight: 175, bottomRight: 174, bottomLeft: 24 },
+    };
+    const layout = frameLayout(outer, 1428 / 2);
+    expect(layout.screen.radius).toBeCloseTo(25 / 2, 9);
+    expect(layout.screen.radii).toEqual({ topLeft: 12.5, topRight: 88, bottomRight: 87.5, bottomLeft: 12.5 });
+    expect(screenBorderRadius(layout.screen)).toBe('12.5px 88px 87.5px 12.5px');
+    // Without cornerRadii the clip stays one number, as every iPhone and iPad has it.
+    const uniform = frameLayout(proMax('deep-blue'), 1428);
+    expect(uniform.screen.radii).toBeUndefined();
+    expect(screenBorderRadius(uniform.screen)).toBe(191);
   });
 
   it('scales every box by the rendered width', () => {

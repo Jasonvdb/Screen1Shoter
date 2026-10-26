@@ -149,7 +149,8 @@ function reportSizeIds(report: RenderReport): SizeId[] {
   const ids: SizeId[] = [];
   for (const item of report.items) {
     for (const displayType of item.displayTypes) {
-      const sizeId = presetByDisplayType(displayType)?.id;
+      // The item's own size first: the three iPhone Duo sizes share APP_IPHONE_DUO.
+      const sizeId = presetByDisplayType(displayType, [item.sizeId])?.id;
       if (sizeId !== undefined && !ids.includes(sizeId)) ids.push(sizeId);
     }
   }
@@ -453,7 +454,7 @@ function uploadLine(args: readonly string[]): string {
  * duplicate-dims siblings, so `duplicateDims` suppresses it outright.
  *
  * Every command carries `--dry-run`, because section 7 says to read a dry run
- * before every upload and the real command differs only in `--replace`. A
+ * before every upload and the real command differs only in `--replace --confirm`. A
  * missing id becomes an obvious placeholder plus a warning naming the manifest
  * field to fill in; a field no printed command uses is not warned about.
  */

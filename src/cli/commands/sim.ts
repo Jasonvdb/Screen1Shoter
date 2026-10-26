@@ -1,5 +1,8 @@
-// `s1s sim list | status-bar | appearance`: thin wrappers over src/core/sim.ts.
+// `s1s sim list | status-bar | appearance | pose`: thin wrappers over
+// src/core/sim.ts and src/core/pose.ts.
 import { Argument, type Command } from 'commander';
+import { S1sError } from '../../core/errors.ts';
+import { POSES, setPose, type Pose } from '../../core/pose.ts';
 import { appearance, findSim, listSims, statusBar } from '../../core/sim.ts';
 import { defineAction, table, type CommandOutput, type NoOpts } from '../output.ts';
 
@@ -47,6 +50,23 @@ async function appearanceCommand(target: string, mode: Appearance): Promise<Comm
   };
 }
 
+interface PoseFlags {
+  settle: string;
+}
+
+async function poseCommand(target: string, pose: Pose, opts: PoseFlags): Promise<CommandOutput> {
+  const device = await findSim(target);
+  if (device.state !== 'Booted') {
+    throw new S1sError('usage', `${device.name} is ${device.state}; boot it first.`, { hint: `xcrun simctl boot ${device.udid}` });
+  }
+  const settleMs = Number.parseInt(opts.settle, 10);
+  await setPose(device.udid, pose, Number.isFinite(settleMs) && settleMs >= 0 ? settleMs : 4000);
+  return {
+    data: { udid: device.udid, name: device.name, pose },
+    text: `Pose ${pose} on ${device.name} (${device.udid}).`,
+  };
+}
+
 export function registerSim(program: Command): void {
   const sim = program.command('sim').description('Simulator helpers built on `xcrun simctl`');
 
@@ -75,5 +95,15 @@ export function registerSim(program: Command): void {
       .argument('<udid|name>', 'simulator udid or exact device name')
       .addArgument(new Argument('<mode>', 'light or dark').choices([...APPEARANCES])),
     ({ args: [target, mode] }) => appearanceCommand(target, mode),
+  );
+
+  defineAction<PoseFlags, [string, Pose]>(
+    sim
+      .command('pose')
+      .description("Fold or unfold an iPhone Duo simulator by pressing Device Hub's pose button (Accessibility, no mouse)")
+      .argument('<udid|name>', 'simulator udid or exact device name')
+      .addArgument(new Argument('<pose>', 'closed shows the outer display, open the inner one').choices([...POSES]))
+      .option('--settle <ms>', 'wait after the press so the next screenshot sees the new display', '4000'),
+    ({ args: [target, pose], opts }) => poseCommand(target, pose, opts),
   );
 }

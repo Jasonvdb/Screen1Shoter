@@ -20,8 +20,9 @@ Sections:
 7. Rate every capture
 8. Record the navigation steps
 9. Watch captures
-10. Next device and teardown
-11. Troubleshooting
+10. iPhone Duo captures
+11. Next device and teardown
+12. Troubleshooting
 
 ---
 
@@ -480,6 +481,9 @@ the sha and size; or note the file in `captureNotes` so the fixer knows.
 | `ipad-11` | iPad Pro 11-inch (M5) | 1668 x 2420 | 1668 x 2420 | yes |
 | `watch-s10` | Apple Watch Series 11 (46mm) | 416 x 496 | 416 x 496 | no (raw) |
 | `watch-ultra` | Apple Watch Ultra 3 (49mm) | 422 x 514 | 422 x 514 | no (raw) |
+| `iphone-duo-landscape` | iPhone Duo, Open (`--display=primary-1`) | 2853 x 2007 | 2853 x 2007 | yes |
+| `iphone-duo` | iPhone Duo, Open, Rotate Right | 2007 x 2853 | 2007 x 2853 | yes |
+| `iphone-duo-outer` | iPhone Duo, Closed | 1398 x 2034 | 1398 x 2034 | yes |
 
 The capture must come from the listed simulator (or one with the same
 screen). A different iPhone size renders resampled with a `capture-dims`
@@ -663,10 +667,79 @@ s1s capture --udid "$WATCH" --name <scene-id> --device watch --locale en-US
 
 ---
 
-## 10. Next device and teardown
+## 10. iPhone Duo captures
 
-Work through devices in this order: iPhone, then iPad, then watch. Between
-devices:
+iPhone Duo is a foldable with two displays, and App Store Connect takes one
+`APP_IPHONE_DUO` set per locale in one of them. Pick ONE size per project
+(`s1s` refuses two, because all three export into the same folder):
+
+| Size id | Display and pose | Capture px | Choose it when |
+|---|---|---|---|
+| `iphone-duo-landscape` | inner, Open, landscape | 2853 x 2007 | the app has a Duo layout on the inner display (a split on the fold) |
+| `iphone-duo` | inner, Open, rotated to portrait | 2007 x 2853 | the app reads best tall on the big display |
+| `iphone-duo-outer` | outer, Closed | 1398 x 2034 | the app has no inner-display layout yet |
+
+The family is `duo`: captures live in `captures/<locale>/duo/`, so they never
+collide with the iPhone captures of the same name. `hero-top-text`,
+`text-bottom` and `raw` have a Duo layout; a landscape canvas puts the text
+column beside the device. Every other template is iPhone and iPad only.
+
+Prerequisites, once per machine:
+
+```sh
+s1s bezels install --device iphone-duo-inner-open,iphone-duo-outer-closed   # 453 MB DMG, not in the default install
+xcrun simctl list devicetypes | grep -i duo          # needs Xcode 27.1 or later
+DUO=$(s1s sim list --json | jq -r '.devices[] | select(.name=="S1S-<App>-iPhoneDuo") | .udid' | head -1)
+[ -n "$DUO" ] || DUO=$(xcrun simctl create "S1S-<App>-iPhoneDuo" "iPhone Duo" com.apple.CoreSimulator.SimRuntime.iOS-27-1)
+```
+
+Facts that decide the route (Xcode 27.1, 2026-10):
+
+- The pose is Closed after every boot, and nothing in `simctl`, `devicectl`
+  or XcodeBuildMCP sets it. `s1s sim pose "$DUO" <closed|partially-open|open|rotate-right>`
+  does: it presses the button in Device Hub's device window (Xcode 27.1's
+  Simulator) through the macOS Accessibility API, never with the Mac mouse,
+  and waits 4 s (`--settle <ms>`). The first run compiles a small helper
+  into `~/.screen1shoter/bin` with `xcrun swiftc`. The terminal needs System
+  Settings > Privacy & Security > Device Control and Data Access (macOS 27's
+  Accessibility list); without it the command exits 1 with that hint.
+- `xcrun simctl io <udid> screenshot` shoots the outer display. The inner one
+  is `--display=primary-1` and comes back in the orientation of the UI
+  (2853 x 2007 when Open). `s1s capture` passes the right display for the
+  size, so run it as usual; `--display` overrides it.
+- Simulated touches reach only the outer display. XcodeBuildMCP `tap` and
+  `swipe` (library lists) work there; a raw `axe tap` and every touch on the
+  inner display are lost. So navigate Closed, then press Open, then capture.
+  The app keeps its state across the fold, and sheets stay up.
+- An app may change on unfold, for example by opening a chat column scrolled
+  to its end. A scroll position on the inner display has to come from the
+  demo patch (a DEBUG default that anchors a list at its first row or at row
+  n), because no touch can scroll it.
+- A fresh simulator is a fresh install: a signed-in demo account and the
+  onboarding flag are not there. Prefer seeded demo data. When the set needs
+  an existing test account, copying `data/Library/Keychains/keychain-2-debug.db*`
+  and the app container's `Library/Preferences/*.plist` from the shut-down
+  iPhone sim into the shut-down Duo sim (after one install) carries the
+  account over; ask the user first, because it is their account.
+
+Per screen:
+
+```sh
+s1s sim pose "$DUO" closed
+# navigate with XcodeBuildMCP tap on the outer display
+s1s sim pose "$DUO" open                    # iphone-duo: then `s1s sim pose "$DUO" rotate-right`
+s1s capture --udid "$DUO" --name <id> --device duo --locale en-US
+```
+
+Record the Closed-side steps and the Open press in `screens[].capture.steps`.
+Status bar and appearance are per boot, as on any device (section 3).
+
+---
+
+## 11. Next device and teardown
+
+Work through devices in this order: iPhone, then iPad, then watch, then
+iPhone Duo. Between devices:
 
 ```sh
 xcrun simctl shutdown "$UDID"
@@ -693,7 +766,7 @@ is cheap while they exist.
 
 ---
 
-## 11. Troubleshooting
+## 12. Troubleshooting
 
 - `install_app_sim` fails with "405" or "Shutdown": the device name matched
   two simulators (OS twins). Use the UDID, or names unique in

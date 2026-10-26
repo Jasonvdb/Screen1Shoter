@@ -29,6 +29,35 @@ export interface FramedLayout {
 
 export type FramedFamily = 'iphone' | 'ipad';
 
+/**
+ * A landscape canvas (iphone-duo-landscape) lays the text block beside the
+ * device instead of above it. Numbers in pt at LANDSCAPE_REF_WIDTH (951); the
+ * text column has a fixed width so every screen in a set gets the same device.
+ */
+export interface FramedRowLayout {
+  padX: number;
+  padY: number;
+  /** Fixed width of the text column. */
+  textWidth: number;
+  /** Gap between the text column and the device. */
+  gap: number;
+  textGap: number;
+  headline: FontRange;
+  subline: FontRange;
+  badge: number;
+}
+
+export const ROW_LAYOUT: FramedRowLayout = {
+  padX: 36,
+  padY: 40,
+  textWidth: 250,
+  gap: 28,
+  textGap: 14,
+  headline: { min: 28, max: 48, maxLines: 3 },
+  subline: { min: 15, max: 22, maxLines: 3 },
+  badge: 13,
+};
+
 export const LAYOUT: Record<FramedFamily, FramedLayout> = {
   iphone: {
     padX: 30,

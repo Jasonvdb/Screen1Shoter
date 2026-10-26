@@ -10,7 +10,7 @@ import { basename, dirname, extname, join, relative, resolve } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
-import { SIZE_PRESETS } from '../../config/presets.ts';
+import { SIZE_PRESETS, presetOrientation } from '../../config/presets.ts';
 import type { BezelEntry, BezelIndex } from '../../config/types.ts';
 import { S1sError, isS1sError } from '../errors.ts';
 import { formatCommand, run } from '../exec.ts';
@@ -96,6 +96,18 @@ export function defaultBezelIds(): string[] {
     // asking for them by name ever draws: `--device <id>` or `--all` gets them.
     if (preset.bezelOptional) continue;
     if (isBezelSourceId(preset.bezel) && !ids.includes(preset.bezel)) ids.push(preset.bezel);
+  }
+  return ids;
+}
+
+/**
+ * Bezels some preset draws in landscape (iphone-duo-landscape). Their
+ * landscape files install with the portrait ones, without `--landscape`.
+ */
+export function landscapeBezelIds(): string[] {
+  const ids: string[] = [];
+  for (const preset of Object.values(SIZE_PRESETS)) {
+    if (presetOrientation(preset) === 'landscape' && !ids.includes(preset.bezel)) ids.push(preset.bezel);
   }
   return ids;
 }
@@ -316,6 +328,7 @@ function toEntry(name: BezelFileName, m: BezelMeasurement): BezelEntry {
     screenAspect: m.screenAspect,
   };
   if (m.islandRect) entry.islandRect = m.islandRect;
+  if (m.cornerRadii) entry.cornerRadii = m.cornerRadii;
   if (m.pxPerPt !== undefined) entry.pxPerPt = m.pxPerPt;
   return entry;
 }
@@ -370,7 +383,7 @@ async function installFromRoot(root: BezelSourceRoot, plan: Plan, opts: InstallO
       result.skipped.push({ file: rel, reason: `${name.id} not requested`, level: 'info' });
       continue;
     }
-    if (name.orientation === 'landscape' && !opts.landscape) {
+    if (name.orientation === 'landscape' && !opts.landscape && !landscapeBezelIds().includes(name.id)) {
       result.skipped.push({ file: rel, reason: 'landscape (pass --landscape to install it)', level: 'info' });
       continue;
     }
@@ -392,10 +405,13 @@ async function installFromRoot(root: BezelSourceRoot, plan: Plan, opts: InstallO
   }
 }
 
-/** Ids of a DMG that the existing index already provides in portrait. */
+/** Ids of a DMG that the existing index already provides in portrait, and in landscape where a preset needs it. */
 function coveredByIndex(index: BezelIndex | null, ids: readonly string[]): boolean {
   if (!index) return false;
-  return ids.every((id) => index.entries.some((e) => e.id === id && e.orientation === 'portrait'));
+  const has = (id: string, orientation: BezelEntry['orientation']) =>
+    index.entries.some((e) => e.id === id && e.orientation === orientation);
+  const landscape = landscapeBezelIds();
+  return ids.every((id) => has(id, 'portrait') && (!landscape.includes(id) || has(id, 'landscape')));
 }
 
 /** The existing index, or null after moving an unreadable one aside (this run rebuilds it). */

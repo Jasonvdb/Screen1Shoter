@@ -31,7 +31,7 @@ function RawScreen({ screen, preset, theme }: TemplateProps) {
 
 const raw: TemplateModule = {
   id: 'raw',
-  families: ['iphone', 'ipad', 'watch'],
+  families: ['iphone', 'ipad', 'watch', 'duo'],
   compliant: true,
   Component: (props) => <RawScreen {...props} />,
 };

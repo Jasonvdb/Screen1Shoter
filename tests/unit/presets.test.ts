@@ -12,6 +12,8 @@ import {
   getPreset,
   isAcceptedDims,
   isSizeId,
+  presetByDisplayType,
+  presetOrientation,
   presetsByFamily,
   presetsFor,
   renderTarget,
@@ -36,6 +38,9 @@ const APPLE_TABLE: Record<SizeId, AppleRow> = {
   'iphone-6.7': { family: 'iphone', displayType: 'APP_IPHONE_67', token: 'IPHONE_67', px: d(1320, 2868), pt: d(440, 956), scale: 3, simulator: 'iPhone 17 Pro Max' },
   'iphone-6.5': { family: 'iphone', displayType: 'APP_IPHONE_65', token: 'IPHONE_65', px: d(1284, 2778), pt: d(428, 926), scale: 3, simulator: 'iPhone 14 Plus' },
   'iphone-6.1': { family: 'iphone', displayType: 'APP_IPHONE_61', token: 'IPHONE_61', px: d(1206, 2622), pt: d(402, 874), scale: 3, simulator: 'iPhone 17 Pro' },
+  'iphone-duo': { family: 'duo', displayType: 'APP_IPHONE_DUO', token: 'IPHONE_DUO', px: d(2007, 2853), pt: d(669, 951), scale: 3, simulator: 'iPhone Duo' },
+  'iphone-duo-landscape': { family: 'duo', displayType: 'APP_IPHONE_DUO', token: 'IPHONE_DUO', px: d(2853, 2007), pt: d(951, 669), scale: 3, simulator: 'iPhone Duo' },
+  'iphone-duo-outer': { family: 'duo', displayType: 'APP_IPHONE_DUO', token: 'IPHONE_DUO', px: d(1398, 2034), pt: d(466, 678), scale: 3, simulator: 'iPhone Duo' },
   'ipad-13': { family: 'ipad', displayType: 'APP_IPAD_PRO_3GEN_129', token: 'IPAD_PRO_3GEN_129', px: d(2064, 2752), pt: d(1032, 1376), scale: 2, simulator: 'iPad Pro 13-inch (M5)' },
   'ipad-11': { family: 'ipad', displayType: 'APP_IPAD_PRO_3GEN_11', token: 'IPAD_PRO_3GEN_11', px: d(1668, 2420), pt: d(834, 1210), scale: 2, simulator: 'iPad Pro 11-inch (M5)' },
   'watch-s10': { family: 'watch', displayType: 'APP_WATCH_SERIES_10', token: 'WATCH_SERIES_10', px: d(416, 496), pt: d(416, 496), scale: 1, simulator: 'Apple Watch Series 11 (46mm)' },
@@ -48,6 +53,7 @@ const ACCEPTED_FACTS: Partial<Record<AppDisplayType, Dims[]>> = {
   APP_IPHONE_67: [d(1320, 2868)],
   APP_IPHONE_65: [d(1284, 2778), d(1242, 2688)],
   APP_IPHONE_61: [d(1206, 2622)],
+  APP_IPHONE_DUO: [d(1398, 2034), d(2007, 2853), d(2034, 1398), d(2853, 2007)],
   APP_IPAD_PRO_3GEN_129: [d(2064, 2752), d(2048, 2732)],
   APP_WATCH_SERIES_10: [d(416, 496)],
   APP_WATCH_ULTRA: [d(422, 514), d(410, 502)],
@@ -56,7 +62,7 @@ const ACCEPTED_FACTS: Partial<Record<AppDisplayType, Dims[]>> = {
 const ids: SizeId[] = [...ALL_SIZE_IDS];
 
 describe('SIZE_PRESETS', () => {
-  it('lists exactly the eight Apple size classes, once each', () => {
+  it('lists exactly the eleven Apple size classes, once each', () => {
     expect(ids).toEqual(Object.keys(APPLE_TABLE));
     expect(new Set(ids).size).toBe(ids.length);
   });
@@ -117,12 +123,37 @@ describe('SIZE_PRESETS', () => {
     expect(SIZE_PRESETS['watch-ultra'].acceptedDims).toEqual([d(422, 514), d(410, 502)]);
   });
 
-  it('marks only the Ultra frame optional, so the default bezel install does not grow', () => {
+  it('marks only the Ultra and iPhone Duo frames optional, so the default bezel install does not grow', () => {
     const optional = ids.filter((id) => SIZE_PRESETS[id].bezelOptional);
-    expect(optional).toEqual(['watch-ultra']);
-    // An optional frame must be one no set needs on its own: a passthrough
-    // preset renders its capture unframed, so only phone-watch ever draws it.
-    for (const id of optional) expect(SIZE_PRESETS[id].passthrough).toBe(true);
+    expect(optional).toEqual(['iphone-duo', 'iphone-duo-landscape', 'iphone-duo-outer', 'watch-ultra']);
+    // An optional frame is one no default set needs: a passthrough preset
+    // renders its capture unframed, so only phone-watch ever draws the Ultra;
+    // the 453 MB Duo DMG serves only a project that lists a Duo size.
+    for (const id of optional) {
+      const p = SIZE_PRESETS[id];
+      expect(p.passthrough === true || p.family === 'duo', id).toBe(true);
+      expect(DEFAULT_SIZES, id).not.toContain(id);
+    }
+  });
+
+  it('iPhone Duo sizes share one display type and one bezel DMG, one orientation each', () => {
+    const duo = ids.filter((id) => SIZE_PRESETS[id].family === 'duo');
+    expect(duo).toEqual(['iphone-duo', 'iphone-duo-landscape', 'iphone-duo-outer']);
+    expect(duo.map((id) => presetOrientation(SIZE_PRESETS[id]))).toEqual(['portrait', 'landscape', 'portrait']);
+    for (const id of duo) {
+      expect(SIZE_PRESETS[id].acceptedDims).toEqual(ACCEPTED_FACTS.APP_IPHONE_DUO);
+      expect(presetByDisplayType('APP_IPHONE_DUO', [id])?.id).toBe(id);
+    }
+    // Without a hint the folder maps to the first, so validate reads its accepted dims.
+    expect(presetByDisplayType('APP_IPHONE_DUO')?.id).toBe('iphone-duo');
+    expect(presetByDisplayType('APP_IPHONE_DUO', ['iphone-6.9'])?.id).toBe('iphone-duo');
+    expect(SIZE_PRESETS['iphone-duo-landscape'].bezel).toBe(SIZE_PRESETS['iphone-duo'].bezel);
+  });
+
+  it('every other preset is portrait', () => {
+    for (const id of ids) {
+      if (id !== 'iphone-duo-landscape') expect(presetOrientation(SIZE_PRESETS[id]), id).toBe('portrait');
+    }
   });
 
   it('iPhone classes share one layout: aspect ratio within 0.459-0.463', () => {

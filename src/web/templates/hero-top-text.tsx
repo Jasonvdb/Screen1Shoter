@@ -1,5 +1,6 @@
-// Default template: text block on top, whole upright device below.
-// `FramedScreen` is shared with text-bottom (same layout, flipped order).
+// Default template: text block on top, whole upright device below; on a
+// landscape canvas the text column stands left of the device (`FramedRow`).
+// `FramedScreen` and `FramedRow` are shared with text-bottom (flipped order).
 import type { ReactNode } from 'react';
 import type { TemplateModule, TemplateProps } from '../../runtime/index.ts';
 import { Background, backgroundSpecFrom } from '../components/Background.tsx';
@@ -8,13 +9,19 @@ import { layoutScale } from '../components/Canvas.tsx';
 import { Caption } from '../components/Caption.tsx';
 import { DeviceFrame } from '../components/DeviceFrame.tsx';
 import { Headline } from '../components/Headline.tsx';
-import { LAYOUT, type FramedFamily, type FramedLayout } from './framed-layout.ts';
+import { presetOrientation } from '../../config/presets.ts';
+import { LAYOUT, ROW_LAYOUT, type FramedFamily, type FramedLayout, type FramedRowLayout } from './framed-layout.ts';
 
-export { LAYOUT } from './framed-layout.ts';
-export type { FontRange, FramedFamily, FramedLayout } from './framed-layout.ts';
+export { LAYOUT, ROW_LAYOUT } from './framed-layout.ts';
+export type { FontRange, FramedFamily, FramedLayout, FramedRowLayout } from './framed-layout.ts';
 
+/** iPhone Duo's portrait canvases have an iPad's shape, so they take the iPad layout. */
 export function framedFamily(props: TemplateProps): FramedFamily {
-  return props.preset.family === 'ipad' ? 'ipad' : 'iphone';
+  return props.preset.family === 'ipad' || props.preset.family === 'duo' ? 'ipad' : 'iphone';
+}
+
+export function isLandscape(props: TemplateProps): boolean {
+  return presetOrientation(props.preset) === 'landscape';
 }
 
 export type FramedAlign = 'left' | 'center';
@@ -31,23 +38,25 @@ export function framedDeviceMaxWidth(props: TemplateProps, layout: FramedLayout)
 }
 
 /**
- * Badge, headline and subline in a fixed-height slot. Shared with phone-watch
- * so a set can mix the two templates and keep one copy band at one y.
+ * Badge, headline and subline in a fixed-height slot, or in a fixed-width
+ * column centred on the device when the layout is a row. Shared with
+ * phone-watch so a set can mix the two templates and keep one copy band at one y.
  */
-export function FramedText({ props, layout, align }: { props: TemplateProps; layout: FramedLayout; align: FramedAlign }) {
+export function FramedText({ props, layout, align }: { props: TemplateProps; layout: FramedLayout | FramedRowLayout; align: FramedAlign }) {
   const { screen, theme, copy, preset } = props;
   const s = layoutScale(preset);
   const px = (value: number) => Math.round(value * s);
+  const box = 'textWidth' in layout ? { width: px(layout.textWidth) } : { height: px(layout.textHeight) };
   return (
     <div
       data-s1s-slot=""
       data-s1s-id="text"
       style={{
         flex: 'none',
-        height: px(layout.textHeight),
+        ...box,
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'flex-start',
+        justifyContent: 'textWidth' in layout ? 'center' : 'flex-start',
         alignItems: align === 'center' ? 'center' : 'flex-start',
         gap: px(layout.textGap),
         textAlign: align,
@@ -135,12 +144,47 @@ export function FramedScreen({ props, layout, order }: FramedScreenProps) {
   );
 }
 
+/** Row layout of a landscape canvas: [text, device] or [device, text]; the device fills what the text column leaves. */
+export function FramedRow({ props, order }: { props: TemplateProps; order: FramedScreenProps['order'] }) {
+  const { screen, preset, theme } = props;
+  const layout = ROW_LAYOUT;
+  const s = layoutScale(preset);
+  const px = (value: number) => Math.round(value * s);
+  const text = <FramedText props={props} layout={layout} align={framedAlign(props)} />;
+  const device = <DeviceFrame captures={screen.captures} preset={preset} theme={theme} />;
+  return (
+    <>
+      <Background spec={backgroundSpecFrom(screen.props['background'], theme.background)} />
+      <div
+        style={{
+          position: 'relative',
+          zIndex: 1,
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'row',
+          gap: px(layout.gap),
+          padding: `${px(layout.padY)}px ${px(layout.padX)}px`,
+        }}
+      >
+        {order === 'text-first' ? text : device}
+        {order === 'text-first' ? device : text}
+      </div>
+    </>
+  );
+}
+
 const heroTopText: TemplateModule = {
   id: 'hero-top-text',
-  families: ['iphone', 'ipad'],
-  ipadVariant: 'Device width up to 84% (iPhone 82%); text block keeps two lines.',
+  families: ['iphone', 'ipad', 'duo'],
+  ipadVariant: 'Device width up to 84% (iPhone 82%); text block keeps two lines. A portrait iPhone Duo set uses the iPad layout; a landscape one puts the text column left of the device.',
   compliant: true,
-  Component: (props) => <FramedScreen props={props} layout={LAYOUT[framedFamily(props)]} order="text-first" />,
+  Component: (props) =>
+    isLandscape(props) ? (
+      <FramedRow props={props} order="text-first" />
+    ) : (
+      <FramedScreen props={props} layout={LAYOUT[framedFamily(props)]} order="text-first" />
+    ),
 };
 
 export default heroTopText;

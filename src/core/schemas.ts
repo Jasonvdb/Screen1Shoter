@@ -19,7 +19,7 @@ import type {
 import { WARNING_LEVELS } from '../config/warnings.ts';
 import { S1sError, type S1sErrorCode } from './errors.ts';
 
-export const DEVICE_FAMILIES: readonly DeviceFamily[] = ['iphone', 'ipad', 'watch'];
+export const DEVICE_FAMILIES: readonly DeviceFamily[] = ['iphone', 'ipad', 'watch', 'duo'];
 const DISPLAY_TYPES = [...new Set(Object.values(SIZE_PRESETS).map((p) => p.displayType))] as AppDisplayType[];
 const WARNING_CODES = Object.keys(WARNING_LEVELS) as WarningCode[];
 
@@ -248,6 +248,9 @@ export const bezelEntrySchema = z.looseObject({
   deviceRect: rectSchema,
   screenRect: rectSchema,
   cornerRadius: z.number(),
+  cornerRadii: z
+    .object({ topLeft: z.number(), topRight: z.number(), bottomRight: z.number(), bottomLeft: z.number() })
+    .exactOptional(),
   islandRect: rectSchema.exactOptional(),
   orientation: z.enum(['portrait', 'landscape']),
   screenAspect: z.number(),

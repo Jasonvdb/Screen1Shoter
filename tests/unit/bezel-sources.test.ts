@@ -69,6 +69,12 @@ const REAL_FILES: Array<[string, BezelFileName]> = [
     'PNG/Trail Loop/AW Ultra 3 - Natural + Trail Loop Blue Bright Blue.png',
     { id: 'apple-watch-ultra-3', variant: 'natural-trail-loop-blue-bright-blue', orientation: 'portrait' },
   ],
+  // iPhone Duo: a foldable names the display and pose before the orientation,
+  // and they join the id, because each display is its own frame.
+  ['PNG/iPhone Duo - Night Sky - Inner Open Portrait.png', { id: 'iphone-duo-inner-open', variant: 'night-sky', orientation: 'portrait' }],
+  ['PNG/iPhone Duo - Star White - Inner Open Landscape.png', { id: 'iphone-duo-inner-open', variant: 'star-white', orientation: 'landscape' }],
+  ['PNG/iPhone Duo - Night Sky - Outer Closed Portrait.png', { id: 'iphone-duo-outer-closed', variant: 'night-sky', orientation: 'portrait' }],
+  ['PNG/iPhone Duo - Star White - Outer Closed Landscape.png', { id: 'iphone-duo-outer-closed', variant: 'star-white', orientation: 'landscape' }],
 ];
 
 /** Everything else the DMGs contain. */
@@ -85,6 +91,10 @@ const NOT_BEZELS = [
   'Photoshop/Apple Watch S11 - 46mm - Aluminum Jet Black + Sport Band Black.psd',
   'PNG/Alpine Loop/.DS_Store',
   'Photoshop/AW Ultra 3 - Black + Alpine Loop Black.psd',
+  // Both displays side by side: no single cut-out, so not a frame.
+  'PNG/iPhone Duo - Night Sky - Outer Open.png',
+  'Photoshop/iPhone Duo - Star White - Inner Partially Open Portrait.psd',
+  '.DropDMGBackground/Bezel-iPhoneDuo@2x.png',
 ];
 
 describe('normaliseBezelFilename', () => {
@@ -153,7 +163,7 @@ describe('sourceForFile', () => {
 });
 
 describe('BEZEL_SOURCES', () => {
-  it('lists the nine models seen in the four DMGs', () => {
+  it('lists the eleven models seen in the five DMGs', () => {
     expect([...BEZEL_SOURCE_IDS].sort()).toEqual([
       'apple-watch-series-11-42mm',
       'apple-watch-series-11-46mm',
@@ -164,14 +174,28 @@ describe('BEZEL_SOURCES', () => {
       'iphone-17-pro',
       'iphone-17-pro-max',
       'iphone-air',
+      'iphone-duo-inner-open',
+      'iphone-duo-outer-closed',
     ]);
+  });
+
+  it('records the iPhone Duo cut-outs App Store Connect accepts for APP_IPHONE_DUO', () => {
+    const inner = BEZEL_SOURCES['iphone-duo-inner-open'].portrait;
+    const outer = BEZEL_SOURCES['iphone-duo-outer-closed'].portrait;
+    expect(inner.screenRect).toMatchObject({ width: 2007, height: 2853 });
+    expect(outer.screenRect).toMatchObject({ width: 1398, height: 2034 });
+    // Only the outer display has corners that differ: square on the hinge side.
+    expect(inner.cornerRadii).toBeUndefined();
+    expect(outer.cornerRadii).toEqual({ topLeft: 24, topRight: 175, bottomRight: 174, bottomLeft: 24 });
+    expect(outer.cornerRadius).toBe(outer.cornerRadii?.topLeft);
   });
 
   it('round-trips its own model names through the normaliser', () => {
     for (const id of BEZEL_SOURCE_IDS) {
       const source = BEZEL_SOURCES[id];
       // A watch model already holds its case size and its files carry no orientation part.
-      const file = isWatchModel(id) ? `${source.model} - X.png` : `${source.model} - X - Portrait.png`;
+      const display = source.display ? `${source.display} ` : '';
+      const file = isWatchModel(id) ? `${source.model} - X.png` : `${source.model} - X - ${display}Portrait.png`;
       const path = [BEZEL_DMGS[source.dmg].pngDir, source.subDir, file].filter(Boolean).join('/');
       expect(normaliseBezelFilename(path)?.id, id).toBe(id);
       expect(normaliseBezelFilename(path)?.orientation, id).toBe('portrait');
@@ -194,7 +218,8 @@ describe('BEZEL_SOURCES', () => {
       expect(p.screenRect.height % pxPerPt).toBe(0);
       // Only an iPhone has a Dynamic Island; a watch's very round corners must
       // not be mistaken for one (they were, before the region-span guard).
-      if (id.startsWith('iphone')) {
+      // iPhone Duo has none: its outer display has a camera ring in a corner.
+      if (id.startsWith('iphone') && !id.startsWith('iphone-duo')) {
         expect(p.islandRect).toBeDefined();
         const island = p.islandRect!;
         const islandCentre = island.x + island.width / 2;
@@ -213,7 +238,8 @@ describe('BEZEL_SOURCES', () => {
       const source = BEZEL_SOURCES[preset.bezel];
       expect(source.pxPerPt).toBe(preset.scale);
       const bezelAspect = source.portrait.screenRect.width / source.portrait.screenRect.height;
-      const presetAspect = preset.px.width / preset.px.height;
+      // A landscape preset (iphone-duo-landscape) draws the same bezel turned.
+      const presetAspect = Math.min(preset.px.width, preset.px.height) / Math.max(preset.px.width, preset.px.height);
       expect(Math.abs(bezelAspect - presetAspect) / presetAspect).toBeLessThan(0.01);
     }
     // The default sizes use bezels whose cut-out is exactly the App Store size.

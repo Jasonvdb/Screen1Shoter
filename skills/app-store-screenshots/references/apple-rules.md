@@ -27,6 +27,7 @@ must have the same pixel size (see section 3).
 | `APP_IPHONE_67` | `IPHONE_67` | `iphone-6.7` (alias of `iphone-6.9`) | 1320x2868, 1290x2796, 1260x2736 | Optional; same pixels as 6.9" |
 | `APP_IPHONE_65` | `IPHONE_65` | `iphone-6.5` | 1284x2778, 1242x2688 | Optional; satisfies the iPhone requirement if 6.9" is absent |
 | `APP_IPHONE_61` | `IPHONE_61` | `iphone-6.1` | 1206x2622, 1179x2556 | Optional |
+| `APP_IPHONE_DUO` | `IPHONE_DUO` | ONE of `iphone-duo-landscape`, `iphone-duo`, `iphone-duo-outer` | 2007x2853 (inner), 1398x2034 (outer), and both rotated | Optional until April 2027, then required for apps built with the iOS 27.1 SDK or later; adds a "Made for iPhone Duo" badge |
 | `APP_IPAD_PRO_3GEN_129` ("iPad 13-inch" in App Store Connect) | `IPAD_PRO_3GEN_129` | `ipad-13` | 2064x2752, 2048x2732 | Required if the app runs on iPad |
 | `APP_IPAD_PRO_129` (2nd-gen 12.9") | `IPAD_PRO_129` (not verified) | none | 2064x2752, 2048x2732 | Optional; legacy slot, same pixels as the 13" set |
 | `APP_IPAD_PRO_3GEN_11` | `IPAD_PRO_3GEN_11` | `ipad-11` | 1668x2420, 1668x2388, 1640x2360, 1488x2266 | Optional |
@@ -41,12 +42,21 @@ Notes:
 
 - Tokens marked "not verified" follow the pattern of dropping the `APP_`
   prefix. `IPHONE_69`, `IPHONE_67`, `IPHONE_65`, `IPHONE_61`,
-  `IPAD_PRO_3GEN_129`, `IPAD_PRO_3GEN_11`, `WATCH_SERIES_10` and
-  `WATCH_ULTRA` are the values `s1s` and the verified `asc` calls use
-  (`WATCH_ULTRA` confirmed on 2026-09-03 with `asc screenshots validate --path
-  <dir> --device-type WATCH_ULTRA`: `errorCount: 0`).
-- `s1s` renders the eight presets in the third column. It writes 1320x2868
+  `IPAD_PRO_3GEN_129`, `IPAD_PRO_3GEN_11`, `WATCH_SERIES_10`,
+  `WATCH_ULTRA` and `IPHONE_DUO` are the values `s1s` and the verified `asc`
+  calls use (`WATCH_ULTRA` confirmed on 2026-09-03 with `asc screenshots
+  validate --path <dir> --device-type WATCH_ULTRA`: `errorCount: 0`;
+  `IPHONE_DUO` on 2026-10-26 with asc 5.16.1 on a 2853x2007 set: `errorCount:
+  0`. asc 5.3 does not know `IPHONE_DUO`).
+- `APP_IPHONE_DUO` is the one display type whose accepted sizes differ in
+  more than orientation: the outer display and the inner one. A set still
+  holds one pixel size (`dims-mixed`), so a project lists one Duo preset and
+  `s1s` refuses two. `iphone-duo-landscape` (2853x2007, inner display opened
+  flat) is the landscape set the tool renders natively; it is the pose that
+  shows a Duo layout split on the fold.
+- `s1s` renders the eleven presets in the third column. It writes 1320x2868
   for `iphone-6.9`, 1284x2778 for `iphone-6.5`, 1206x2622 for `iphone-6.1`,
+  2853x2007, 2007x2853 or 1398x2034 for the Duo presets,
   2064x2752 for `ipad-13`, 1668x2420 for `ipad-11`, and copies the watch
   capture as is (416x496 for `watch-s10`, 422x514 for `watch-ultra`). It never
   resizes a render to another accepted size.
@@ -78,6 +88,11 @@ Notes:
   (`watch-ultra`, 422x514). Ship the one that matches the watch the app's
   audience wears, and ask the user before shipping both - the two sets are
   separate uploads with separate copy to keep in step.
+- iPhone Duo: optional now, and the product page shows a Duo badge when a
+  set exists. From April 2027 every submission built with the iOS 27.1 SDK
+  or later needs an `APP_IPHONE_DUO` set. An app built with an older SDK runs
+  on Duo in an iPhone-shaped compatibility area; ship a Duo set only when the
+  app has a real inner-display layout, or use `iphone-duo-outer`.
 - Mac: a Mac App Store listing needs an `APP_DESKTOP` set. The tool does not
   produce it.
 - Localized sets are optional per locale. App Store Connect falls back to the
@@ -135,6 +150,9 @@ size, so it drops into the bezel 1:1.
 | `iphone-6.1` | 402x874 | @3x | 1206x2622 | iPhone 17 Pro |
 | `ipad-13` | 1032x1376 | @2x | 2064x2752 | iPad Pro 13-inch (M5) |
 | `ipad-11` | 834x1210 | @2x | 1668x2420 | iPad Pro 11-inch (M5) |
+| `iphone-duo-landscape` | 951x669 | @3x | 2853x2007 | iPhone Duo, Open (inner display) |
+| `iphone-duo` | 669x951 | @3x | 2007x2853 | iPhone Duo, Open, Rotate Right |
+| `iphone-duo-outer` | 466x678 | @3x | 1398x2034 | iPhone Duo, Closed (outer display) |
 | `watch-s10` | 416x496 | @1x in the tool (passthrough) | 416x496 | Apple Watch Series 11 (46mm) |
 | `watch-ultra` | 422x514 | @1x in the tool (passthrough) | 422x514 | Apple Watch Ultra 3 (49mm) |
 
@@ -144,7 +162,9 @@ Consequences:
   96 device pixels tall.
 - Length budgets scale with the viewport, not with the pixel count. The
   iPhone viewports share an aspect of 0.460 to 0.462, so one iPhone layout
-  serves every iPhone preset. iPad (0.75) is a separate layout branch.
+  serves every iPhone preset. iPad (0.75) is a separate layout branch, and
+  the portrait Duo canvases (0.70, 0.69) use it too. A landscape canvas
+  (`iphone-duo-landscape`) lays the text column beside the device.
 - `s1s capture` accepts an exact match of the capture size. A file with the
   same aspect within 1% is stored with a `capture-dims` warning. Anything
   else is an error that names the expected simulator.
@@ -227,13 +247,20 @@ PNGs (used) and PSDs (ignored) and shows a licence on mount.
 | iPad Pro (M5) | `https://devimages-cdn.apple.com/design/resources/download/Bezel-iPad-Pro-(M5).dmg` | 6.8 MB | `ipad-pro-13-m5`, `ipad-pro-11-m5` |
 | Apple Watch Series 11 | `https://devimages-cdn.apple.com/design/resources/download/Bezel-Apple-Watch-Series-11-2025.dmg` | 341 MB | `apple-watch-series-11-46mm`, `apple-watch-series-11-42mm` |
 | Apple Watch Ultra 3 | `https://devimages-cdn.apple.com/design/resources/download/Bezel-Apple-Watch-Ultra-3-2025.dmg` | 314 MB | `apple-watch-ultra-3` |
+| iPhone Duo | `https://devimages-cdn.apple.com/design/resources/download/Bezel-iPhone-Duo.dmg` | 453 MB | `iphone-duo-inner-open` (portrait and landscape), `iphone-duo-outer-closed` |
 
 A watch SET needs no bezel: both watch presets are passthroughs that copy the
 capture unframed. The watch bezels exist for `phone-watch`, which stands one
 beside the phone or iPad. `s1s bezels install` with no `--device` installs
 every frame a preset names EXCEPT `apple-watch-ultra-3`, which is marked
 optional so a project that never asks for it does not pay 314 MB; get it with
-`s1s bezels install --device apple-watch-ultra-3`.
+`s1s bezels install --device apple-watch-ultra-3`. The iPhone Duo frames are
+optional for the same reason (453 MB): a project with a Duo size runs
+`s1s bezels install --device iphone-duo-inner-open,iphone-duo-outer-closed`
+once. The landscape file of `iphone-duo-inner-open` installs with it, because
+`iphone-duo-landscape` draws it; other landscape files still need `--landscape`.
+The Duo DMG also holds `Outer Open` (both displays side by side, no single
+cut-out) and Partially Open PSDs; the tool skips both.
 
 Other Apple DMGs (`Bezel-iPhone-16.dmg`, `Bezel-iPad-Air-(M4).dmg`,
 `Bezel-Apple-Watch-Ultra-2-2024.dmg` and the Mac, Studio Display and Apple TV
@@ -269,6 +296,8 @@ Measured geometry of the installed portrait bezels (image pixels):
 | `iphone-air` | none | 1260x2736 | 0.4605 | 374x108 | 189 | `space-black` (auto), `cloud-white`, `light-gold`, `sky-blue` |
 | `ipad-pro-13-m5` | `ipad-13` | 2064x2752 | 0.7500 | none | 58 | `space-black` (auto), `silver` |
 | `ipad-pro-11-m5` | `ipad-11` | 1668x2420 | 0.6893 | none | 58 | `space-black` (auto), `silver` |
+| `iphone-duo-inner-open` | `iphone-duo`, `iphone-duo-landscape` (landscape file) | 2007x2853 | 0.7035 | none | 160 | `night-sky` (auto), `star-white` |
+| `iphone-duo-outer-closed` | `iphone-duo-outer` | 1398x2034 | 0.6873 | none (camera ring in the top right corner) | 24 / 175 / 174 / 24 (square on the hinge side) | `night-sky` (auto), `star-white` |
 
 What this means when you compose:
 
@@ -303,6 +332,9 @@ watch.
 | iPad Pro 13-inch (M5) | 2064x2752 | `ipad` | `ipad-13` | yes, `ipad-pro-13-m5` | `APP_IPAD_PRO_3GEN_129` | `IPAD_PRO_3GEN_129` |
 | iPad Pro 11-inch (M5) | 1668x2420 | `ipad` | `ipad-11` | yes, `ipad-pro-11-m5` | `APP_IPAD_PRO_3GEN_11` | `IPAD_PRO_3GEN_11` |
 | Apple Watch Series 11 (46mm) | 416x496 | `watch` | `watch-s10` | no (raw) | `APP_WATCH_SERIES_10` | `WATCH_SERIES_10` |
+| iPhone Duo, `s1s sim pose ... open` | 2853x2007 | `duo` | `iphone-duo-landscape` | yes, `iphone-duo-inner-open` (landscape) | `APP_IPHONE_DUO` | `IPHONE_DUO` |
+| iPhone Duo, `open` then `rotate-right` | 2007x2853 | `duo` | `iphone-duo` | yes, `iphone-duo-inner-open` | `APP_IPHONE_DUO` | `IPHONE_DUO` |
+| iPhone Duo, `closed` | 1398x2034 | `duo` | `iphone-duo-outer` | yes, `iphone-duo-outer-closed` | `APP_IPHONE_DUO` | `IPHONE_DUO` |
 
 Captures land in `screenshots/captures/<locale>/<family>/<name>.png`; one
 capture per family serves every preset of that family unless

@@ -46,6 +46,7 @@ export const DEFAULT_CAPTURE_SIZE: Record<DeviceFamily, SizeId> = {
   iphone: 'iphone-6.9',
   ipad: 'ipad-13',
   watch: 'watch-s10',
+  duo: 'iphone-duo',
 };
 
 /**

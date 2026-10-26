@@ -136,16 +136,27 @@ Presets (verified against `asc screenshots sizes --all`):
 | iphone-6.7 | iphone | APP_IPHONE_67 | IPHONE_67 | 1320x2868 | 440x956 @3 | iPhone 17 Pro Max | aliasOf iphone-6.9 |
 | iphone-6.5 | iphone | APP_IPHONE_65 | IPHONE_65 | 1284x2778 | 428x926 @3 | iPhone 14 Plus | |
 | iphone-6.1 | iphone | APP_IPHONE_61 | IPHONE_61 | 1206x2622 | 402x874 @3 | iPhone 17 Pro | |
+| iphone-duo | duo | APP_IPHONE_DUO | IPHONE_DUO | 2007x2853 | 669x951 @3 | iPhone Duo | inner display, captureDisplay primary-1, bezelOptional |
+| iphone-duo-landscape | duo | APP_IPHONE_DUO | IPHONE_DUO | 2853x2007 | 951x669 @3 | iPhone Duo | landscape, captureDisplay primary-1, bezelOptional |
+| iphone-duo-outer | duo | APP_IPHONE_DUO | IPHONE_DUO | 1398x2034 | 466x678 @3 | iPhone Duo | outer display, bezelOptional |
 | ipad-13 | ipad | APP_IPAD_PRO_3GEN_129 | IPAD_PRO_3GEN_129 | 2064x2752 | 1032x1376 @2 | iPad Pro 13-inch (M5) | default |
 | ipad-11 | ipad | APP_IPAD_PRO_3GEN_11 | IPAD_PRO_3GEN_11 | 1668x2420 | 834x1210 @2 | iPad Pro 11-inch (M5) | |
 | watch-s10 | watch | APP_WATCH_SERIES_10 | WATCH_SERIES_10 | 416x496 | 416x496 @1 | Apple Watch Series 11 (46mm) | passthrough |
 | watch-ultra | watch | APP_WATCH_ULTRA | WATCH_ULTRA | 422x514 | 422x514 @1 | Apple Watch Ultra 3 (49mm) | passthrough, bezelOptional (W8) |
 
 `bezelOptional` keeps a preset's `bezel` out of `defaultBezelIds()`, so
-`s1s bezels install` with no `--device` does not fetch it. Set on `watch-ultra`
-only: the preset is a passthrough, so nothing frames its own set, and the only
+`s1s bezels install` with no `--device` does not fetch it. Set on `watch-ultra`:
+the preset is a passthrough, so nothing frames its own set, and the only
 consumer is a `phone-watch` screen that names the frame. `--device
-apple-watch-ultra-3` or `--all` installs it.
+apple-watch-ultra-3` or `--all` installs it. Also set on the three iPhone Duo
+sizes, whose 453 MB DMG only a project with a Duo size needs. The Duo sizes
+share one display type, so a project lists at most one (`loadProject` refuses
+two); `presetByDisplayType(type, among)` takes the sizes a caller rendered to
+pick the right one. A preset whose `px` is wider than tall is landscape
+(`presetOrientation`): it takes the landscape bezel file and the row layout of
+`hero-top-text` / `text-bottom`. `acceptedDims` of the Duo sizes lists all four
+sizes App Store Connect takes for `APP_IPHONE_DUO`. `captureDisplay` is the
+`simctl io --display` screen `s1s capture` shoots.
 
 Resolution order in `resolveScreen`: base < `overrides[family]` <
 `overrides[sizeId]` < `locales[locale]`. `template` and `capture` replace;

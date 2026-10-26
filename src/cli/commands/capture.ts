@@ -55,6 +55,8 @@ interface CaptureOptions {
   /** Optional only when --name carries a `<sizeId>:` prefix, which names the family itself. */
   device?: DeviceFamily;
   locale?: string;
+  /** `simctl io --display` screen; default the preset's `captureDisplay`. */
+  display?: string;
 }
 
 interface UpdatedScreen {
@@ -64,13 +66,13 @@ interface UpdatedScreen {
   status: ImageStatus;
 }
 
-const FAMILIES: readonly DeviceFamily[] = ['iphone', 'ipad', 'watch'];
+const FAMILIES: readonly DeviceFamily[] = ['iphone', 'ipad', 'watch', 'duo'];
 
 /** Screenshot into a sibling temp file; the caller renames it over the real path only when the size is accepted. */
-async function screenshotToTemp(udid: string, outPath: string): Promise<{ tmpPath: string; dims: Dims }> {
+async function screenshotToTemp(udid: string, outPath: string, display?: string): Promise<{ tmpPath: string; dims: Dims }> {
   const tmpPath = `${outPath}.${process.pid}.tmp.png`;
   try {
-    return { tmpPath, dims: await screenshot(udid, tmpPath) };
+    return { tmpPath, dims: await screenshot(udid, tmpPath, display) };
   } catch (error) {
     await rm(tmpPath, { force: true });
     throw error;
@@ -169,7 +171,9 @@ async function captureCommand(globals: GlobalOpts, opts: CaptureOptions): Promis
   const device = await findSim(opts.udid);
   const outPath = capturePath(project, locale, family, ref);
   await mkdir(dirname(outPath), { recursive: true });
-  const { tmpPath, dims } = await screenshotToTemp(device.udid, outPath);
+  // A family's presets share one screen (a project holds one Duo size), so the first that names one decides.
+  const display = opts.display ?? presets.find((p) => p.captureDisplay !== undefined)?.captureDisplay;
+  const { tmpPath, dims } = await screenshotToTemp(device.udid, outPath, display);
 
   const exact = presets.filter((p) => captureDimsWarning(dims, p) === null);
   const matched = exact.length > 0 ? exact : presets.filter((p) => captureDimsWarning(dims, p)?.level === 'warn');
@@ -180,7 +184,10 @@ async function captureCommand(globals: GlobalOpts, opts: CaptureOptions): Promis
       ? `The existing ${relative(project.dir, outPath)} and its manifest entry are unchanged.`
       : 'Nothing was written.';
     throw new S1sError('capture-invalid', `${device.name} produced ${formatDims(dims)}; ${family} sizes expect ${expected}. ${kept}`, {
-      hint: `Capture on the "${presets[0]?.simulatorName}" simulator.`,
+      hint:
+        family === 'duo'
+          ? `Capture on the "${presets[0]?.simulatorName}" simulator, posed Open for the inner display or Closed for the outer one.`
+          : `Capture on the "${presets[0]?.simulatorName}" simulator.`,
     });
   }
   await rename(tmpPath, outPath);
@@ -265,7 +272,8 @@ export function registerCapture(program: Command): void {
       .requiredOption('--udid <udid|name>', 'simulator udid or exact device name')
       .requiredOption('--name <ref>', 'capture name, or "<sizeId>:<name>" as written in screens.ts (the prefix names the device)')
       .addOption(new Option('--device <family>', 'device family; optional when --name carries a "<sizeId>:" prefix').choices([...FAMILIES]))
-      .option('--locale <locale>', 'locale folder (default: the source locale)'),
+      .option('--locale <locale>', 'locale folder (default: the source locale)')
+      .option('--display <screen>', "simctl io screen on a device with two (default: the size's own, iPhone Duo inner = primary-1)"),
     ({ globals, opts }) => captureCommand(globals, opts),
   );
 }

@@ -391,13 +391,18 @@ Ultra's rugged titanium case, not a Series 11. Two knobs, each with one job.
 | `iphone-6.7` | `APP_IPHONE_67` | 1320x2868 | iPhone 17 Pro Max | alias of `iphone-6.9`, rendered once, exported twice |
 | `iphone-6.5` | `APP_IPHONE_65` | 1284x2778 | iPhone 14 Plus | |
 | `iphone-6.1` | `APP_IPHONE_61` | 1206x2622 | iPhone 17 Pro | |
+| `iphone-duo-landscape` | `APP_IPHONE_DUO` | 2853x2007 | iPhone Duo, open | inner display; text column beside the device; one Duo size per project |
+| `iphone-duo` | `APP_IPHONE_DUO` | 2007x2853 | iPhone Duo, open, rotated | inner display, portrait |
+| `iphone-duo-outer` | `APP_IPHONE_DUO` | 1398x2034 | iPhone Duo, closed | outer display |
 | `ipad-13` | `APP_IPAD_PRO_3GEN_129` | 2064x2752 | iPad Pro 13-inch (M5) | default |
 | `ipad-11` | `APP_IPAD_PRO_3GEN_11` | 1668x2420 | iPad Pro 11-inch (M5) | |
 | `watch-s10` | `APP_WATCH_SERIES_10` | 416x496 | Apple Watch Series 11 (46mm) | passthrough, unframed |
 | `watch-ultra` | `APP_WATCH_ULTRA` | 422x514 | Apple Watch Ultra 3 (49mm) | passthrough, unframed; also accepts 410x502 |
 
 The full table with points, scale and accepted dimensions is in
-`CONTRACTS.md` section 3.
+`CONTRACTS.md` section 3. iPhone Duo needs Xcode 27.1; `s1s sim pose` folds and
+unfolds its simulator, and `s1s capture` shoots the inner display for the
+inner sizes.
 
 ## Bezels
 

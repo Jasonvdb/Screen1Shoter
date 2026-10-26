@@ -6,7 +6,7 @@
 // the unit test can feed it a synthetic bezel.
 import sharp from 'sharp';
 import { ALL_SIZE_IDS, SIZE_PRESETS } from '../../config/presets.ts';
-import type { Dims, Rect, SizeId, SizePreset } from '../../config/types.ts';
+import type { CornerRadii, Dims, Rect, SizeId, SizePreset } from '../../config/types.ts';
 import { S1sError } from '../errors.ts';
 import type { BezelOrientation } from './sources.ts';
 
@@ -20,6 +20,8 @@ const HALF_ALPHA = 128;
 export const TRIM_PAD = 2;
 /** A circle of radius r crosses its corner diagonal at r * (1 - 1/sqrt(2)) from the corner. */
 const DIAGONAL_FACTOR = 1 - Math.SQRT1_2;
+/** Corners further apart than this share of the largest radius are recorded one by one. */
+const CORNER_SPREAD = 0.25;
 
 export interface RawImage {
   width: number;
@@ -39,6 +41,8 @@ export interface BezelMeasurement {
   islandRect?: Rect;
   /** Largest CSS circle radius (bezel px) that leaves no background gap at the screen corners. */
   cornerRadius: number;
+  /** Per-corner radii, only when the corners differ (`cornerRadiiOf`). */
+  cornerRadii?: CornerRadii;
   /** screenRect.width / screenRect.height, 4 decimals. */
   screenAspect: number;
   /** Bezel pixels per Apple point (preset scale, else PNG dpi / 72). */
@@ -221,6 +225,60 @@ export function radiusFromProfile(offsets: readonly number[]): number {
   return first;
 }
 
+type Corner = keyof CornerRadii;
+
+const CORNER_STEP: Readonly<Record<Corner, { dx: 1 | -1; dy: 1 | -1 }>> = {
+  topLeft: { dx: 1, dy: 1 },
+  topRight: { dx: -1, dy: 1 },
+  bottomRight: { dx: -1, dy: -1 },
+  bottomLeft: { dx: 1, dy: -1 },
+};
+
+/**
+ * Radius of one screen corner from a walk along its 45 degree diagonal, from
+ * the corner of the screen box inward to the half-covered boundary. The same
+ * crossing `radiusFromProfile` reads off the row profile, but it needs no
+ * start column, so a camera ring beside the corner (iPhone Duo's outer
+ * display) cannot stop it the way an island stops a row scan. On a round
+ * corner the box corner lies outside the device body (see cornerProfile), so
+ * the walk first crosses that gap, then the bezel, and stops at the screen.
+ */
+export function diagonalRadius(img: RawImage, screen: Rect, corner: Corner): number {
+  const { dx, dy } = CORNER_STEP[corner];
+  const x0 = dx === 1 ? screen.x : screen.x + screen.width - 1;
+  const y0 = dy === 1 ? screen.y : screen.y + screen.height - 1;
+  const steps = Math.floor(Math.min(screen.width, screen.height) / 2);
+  let inBody = false;
+  let previous = 0;
+  for (let i = 0; i < steps; i++) {
+    const alpha = alphaAt(img, x0 + dx * i, y0 + dy * i);
+    if (alpha >= HALF_ALPHA) {
+      inBody = true;
+      previous = alpha;
+      continue;
+    }
+    if (!inBody) continue;
+    if (i === 0) return 0;
+    // Pixel centres sit half a pixel in; interpolate where alpha crosses half.
+    const crossing = i - 1 + (previous - HALF_ALPHA) / (previous - alpha) + 0.5;
+    return Math.round(crossing / DIAGONAL_FACTOR);
+  }
+  return 0;
+}
+
+/** All four corners, or undefined when they agree within CORNER_SPREAD (every iPhone, iPad and Watch). */
+export function cornerRadiiOf(img: RawImage, screen: Rect): CornerRadii | undefined {
+  const radii: CornerRadii = {
+    topLeft: diagonalRadius(img, screen, 'topLeft'),
+    topRight: diagonalRadius(img, screen, 'topRight'),
+    bottomRight: diagonalRadius(img, screen, 'bottomRight'),
+    bottomLeft: diagonalRadius(img, screen, 'bottomLeft'),
+  };
+  const values = Object.values(radii);
+  const largest = Math.max(...values);
+  return largest > 0 && (largest - Math.min(...values)) / largest > CORNER_SPREAD ? radii : undefined;
+}
+
 /** Preset whose screen aspect matches within 1% (exact px first, then the closest aspect; aliases and passthrough skipped). */
 export function matchPreset(screen: Dims, orientation: BezelOrientation): SizePreset | undefined {
   const portrait = orientation === 'portrait' ? screen : { width: screen.height, height: screen.width };
@@ -250,6 +308,7 @@ export function measureRaw(img: RawImage, opts: { density?: number } = {}): Beze
   const orientation: BezelOrientation = screenRect.width > screenRect.height ? 'landscape' : 'portrait';
   const islandRect = findIsland(img, screenRect, orientation);
   const cornerRadius = radiusFromProfile(cornerProfile(img, screenRect, islandRect));
+  const cornerRadii = cornerRadiiOf(img, screenRect);
   const preset = matchPreset(screenRect, orientation);
   const fromDensity = opts.density && opts.density % 72 === 0 ? opts.density / 72 : undefined;
   const pxPerPt = preset?.scale ?? fromDensity;
@@ -262,6 +321,7 @@ export function measureRaw(img: RawImage, opts: { density?: number } = {}): Beze
     screenAspect: round4(screenRect.width / screenRect.height),
   };
   if (islandRect) measurement.islandRect = islandRect;
+  if (cornerRadii) measurement.cornerRadii = cornerRadii;
   if (pxPerPt !== undefined) measurement.pxPerPt = pxPerPt;
   if (preset) measurement.presetId = preset.id;
   return measurement;

@@ -116,7 +116,7 @@ export function exportText(project: Project, report: ExportReport): string {
     lines.push(
       '',
       'Next, from the app repo root (asc-upload.md section 7). Read each dry run,',
-      'then re-run the same command with --replace in place of --dry-run:',
+      'then re-run the same command with --replace --confirm in place of --dry-run:',
       bullets(report.uploadCommands),
     );
   }
@@ -124,7 +124,7 @@ export function exportText(project: Project, report: ExportReport): string {
     lines.push(
       '',
       'Only when several locales are complete for one device, one run uploads them all',
-      '(asc-upload.md section 8; --replace in place of --dry-run after you read it):',
+      '(asc-upload.md section 8; --replace --confirm in place of --dry-run after you read it):',
       bullets(report.fanOutCommands),
     );
   }

@@ -1,6 +1,7 @@
 // The screenshot canvas: exactly preset.pt CSS px (= Apple points), a size
 // container so templates can use cqw/cqh, and the theme as CSS variables.
 import { Component, type CSSProperties, type ReactNode } from 'react';
+import { presetOrientation } from '../../config/presets.ts';
 import type { DeviceFamily, SizePreset, Theme } from '../../config/types.ts';
 import { ErrorPanel } from './ErrorPanel.tsx';
 
@@ -36,12 +37,20 @@ class TemplateBoundary extends Component<BoundaryProps, BoundaryState> {
   }
 }
 
-/** Reference canvas width per family; layouts are authored at this width and scaled. */
-export const REF_WIDTH: Record<DeviceFamily, number> = { iphone: 440, ipad: 1032, watch: 416 };
+/**
+ * Reference canvas width per family; layouts are authored at this width and
+ * scaled. A portrait iPhone Duo canvas has an iPad's shape (0.70 against
+ * 0.75), so `duo` takes the iPad numbers and the iPad reference.
+ */
+export const REF_WIDTH: Record<DeviceFamily, number> = { iphone: 440, ipad: 1032, watch: 416, duo: 1032 };
 
-/** Multiplier for layout numbers authored at REF_WIDTH (iphone-6.5 -> 0.97). */
+/** Reference width of a landscape canvas: iphone-duo-landscape, 951 pt. */
+export const LANDSCAPE_REF_WIDTH = 951;
+
+/** Multiplier for layout numbers authored at REF_WIDTH (iphone-6.5 -> 0.97), or LANDSCAPE_REF_WIDTH on a landscape canvas. */
 export function layoutScale(preset: SizePreset): number {
-  return preset.pt.width / REF_WIDTH[preset.family];
+  const ref = presetOrientation(preset) === 'landscape' ? LANDSCAPE_REF_WIDTH : REF_WIDTH[preset.family];
+  return preset.pt.width / ref;
 }
 
 function themeVars(preset: SizePreset, theme: Theme): Record<string, string> {

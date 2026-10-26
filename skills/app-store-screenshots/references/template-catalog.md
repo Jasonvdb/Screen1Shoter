@@ -13,11 +13,11 @@ All paths in this file are relative to the app repo. The CLI is `s1s`.
 
 | Template | Families | Captures | Copy fields used | Apple rules | Status |
 |---|---|---|---|---|---|
-| `hero-top-text` | iphone, ipad | 1 | headline, highlight, subline, badge | compliant | built (default for iPhone and iPad) |
-| `text-bottom` | iphone, ipad | 1 | headline, highlight, subline, badge | compliant | built |
+| `hero-top-text` | iphone, ipad, duo | 1 | headline, highlight, subline, badge | compliant | built (default for iPhone, iPad and iPhone Duo) |
+| `text-bottom` | iphone, ipad, duo | 1 | headline, highlight, subline, badge | compliant | built |
 | `two-device` | iphone, ipad | 2 (`capture: [a, b]`) | headline, highlight, subline, badge | compliant | built |
 | `feature-grid` | ipad only | 1 | headline, highlight, subline, badge, callouts (1-3) | compliant | built |
-| `raw` | iphone, ipad, watch | 1 | none | compliant (plain UI, no bezel) | built (default for watch) |
+| `raw` | iphone, ipad, watch, duo | 1 | none | compliant (plain UI, no bezel) | built (default for watch) |
 | `bleed-bottom` | iphone, ipad | 1 | headline, highlight, subline, badge | NOT compliant | built, opt-in |
 | `tilted` | iphone, ipad | 1 | headline, highlight, subline, badge | NOT compliant | built, opt-in |
 | `watch-caption` | watch | 1 | headline, highlight | compliant | built, opt-in |
@@ -34,6 +34,7 @@ A `screens.ts` that names an id no built-in and no `templates/index.ts` module
 provides fails with `config-invalid` (`unknown template "<id>" and no
 templates/index.ts / templates/index.tsx`). A built-in used on a family it has
 no layout for fails the same way (`has no <family> layout (families: ...)`).
+iPhone Duo (`duo`) has three layouts: `hero-top-text`, `text-bottom` and `raw`.
 
 ## How every built-in template works
 
@@ -115,6 +116,15 @@ set).
 iPad: same layout with iPad proportions and the larger text ranges. The iPad
 capture is 3:4, so the device is short and wide; the text block keeps two lines.
 
+iPhone Duo: the portrait Duo canvases (`iphone-duo` 669x951 pt,
+`iphone-duo-outer` 466x678 pt) have an iPad's shape and use the iPad numbers,
+scaled by canvas width from 1032 pt. A landscape canvas (`iphone-duo-landscape`,
+951x669 pt) lays out as a row: padding 40 / 36 pt (top-bottom / sides), a
+250 pt text column centred on the device, a 28 pt gap, then the device filling
+the rest. Headline 28-48 pt and subline 15-22 pt, up to 3 lines each; badge
+13 pt. Array headlines written for two iPhone lines often wrap to three in
+that column, which is fine as long as `review.md` has no `text-` warning.
+
 Apple rules: compliant. Whole bezel, upright, copy beside (above) the device.
 
 Example:
@@ -142,7 +152,8 @@ Copy fields: `headline`, `highlight`, `subline`, `badge`.
 
 Props: `align`, `background`, `deviceMaxWidth` (same defaults as `hero-top-text`).
 
-iPad: same as `hero-top-text`, flipped.
+iPad: same as `hero-top-text`, flipped. Landscape iPhone Duo: the device on
+the left, the text column on the right.
 
 Apple rules: compliant.
 

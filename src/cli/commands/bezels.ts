@@ -32,7 +32,7 @@ function usedBy(index: BezelIndex, entry: BezelEntry): string[] {
   const out: string[] = [];
   for (const id of Object.keys(SIZE_PRESETS) as SizeId[]) {
     const match = findBezel(index, SIZE_PRESETS[id]);
-    if (match?.entry.id === entry.id) out.push(`${id}${match.fallback ? ' (fallback)' : ''}`);
+    if (match?.entry.id === entry.id && match.entry.orientation === entry.orientation) out.push(`${id}${match.fallback ? ' (fallback)' : ''}`);
   }
   return out;
 }
@@ -45,7 +45,7 @@ function entryRows(index: BezelIndex, entries: readonly BezelEntry[]): string[][
     `${e.imageSize.width}x${e.imageSize.height}`,
     rectText(e.screenRect),
     e.screenAspect.toFixed(4),
-    String(e.cornerRadius),
+    e.cornerRadii ? [e.cornerRadii.topLeft, e.cornerRadii.topRight, e.cornerRadii.bottomRight, e.cornerRadii.bottomLeft].join('/') : String(e.cornerRadius),
     rectText(e.islandRect),
     e.pxPerPt === undefined ? '-' : String(e.pxPerPt),
     usedBy(index, e).join(',') || '-',

@@ -52,8 +52,14 @@ boundaries and the browser protocol; this file is about how to work here.
   and must gain a row in the same commit.
 - A new preset adds its `bezel` to `defaultBezelIds()`, and every Apple Watch
   DMG is over 300 MB. Set `bezelOptional: true` when nothing but a template
-  that names the frame would ever draw it, so `s1s bezels install` with no
-  `--device` does not grow. Today that is `watch-ultra` only.
+  that names the frame would ever draw it, or when only a size no default
+  set lists draws it, so `s1s bezels install` with no `--device` does not
+  grow. Today that is `watch-ultra` and the three iPhone Duo sizes (453 MB).
+- iPhone Duo's three sizes share `APP_IPHONE_DUO`, so `loadProject` refuses
+  two of them in one project, and anything that maps a display-type folder
+  back to a size passes the sizes it knows to `presetByDisplayType`.
+  `iphone-duo-landscape` is the one landscape preset: `presetOrientation`
+  picks the landscape bezel and the row layout from `px` alone.
 - `example/screenshots/` is the smoke-test project; its captures are
   generated and never committed. `s1s render` on it in place rewrites its
   `manifest.json` hashes and `runs`. Do not commit those changes.
@@ -89,7 +95,10 @@ Facts that bit us:
 
 - The UDID in `MotoFit/.xcodebuildmcp/config.yaml` is stale. Create fresh
   `S1S-MotoFit-*` simulators and never edit that file.
-- One live simulator at a time: iPhone, then iPad, then Watch.
+- One live simulator at a time: iPhone, then iPad, then Watch, then iPhone
+  Duo. Duo touches reach only the outer display (XcodeBuildMCP `tap`; raw
+  `axe tap` is lost), so navigate under `s1s sim pose <udid> closed` and
+  capture under `open`.
 - HealthKit cannot be pre-granted with `simctl privacy`; the app's
   screenshot mode bypasses it.
 - `build_run_sim` has no `env`; the flow is `build_sim` ->

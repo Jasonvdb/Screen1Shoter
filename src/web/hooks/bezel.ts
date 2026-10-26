@@ -5,7 +5,8 @@
 // Geometry units are whatever the source uses (bezel px for an index entry,
 // pt for the generic frame); every function scales by the rendered width, so
 // the unit never matters.
-import type { BezelEntry, BezelIndex, DeviceFamily, Dims, Rect, SizePreset } from '../../config/types.ts';
+import { presetOrientation } from '../../config/presets.ts';
+import type { BezelEntry, BezelIndex, CornerRadii, DeviceFamily, Dims, Rect, SizePreset } from '../../config/types.ts';
 
 /** The subset of BezelEntry the frame needs; genericGeometry produces the same shape in pt. */
 export interface FrameGeometry {
@@ -13,6 +14,8 @@ export interface FrameGeometry {
   deviceRect: Rect;
   screenRect: Rect;
   cornerRadius: number;
+  /** Per-corner radii when the corners differ (iPhone Duo's outer display). */
+  cornerRadii?: CornerRadii;
   islandRect?: Rect;
 }
 
@@ -53,13 +56,15 @@ interface GenericSpec {
 /**
  * Proportions of the real bezels in pt (docs/bezels.md): iPhone 17 Pro Max
  * insets 18/15 pt, corner 63 pt, island 125x36 pt 14 pt below the screen top;
- * iPad Pro 13" insets 45/47 pt, corner 30 pt. Close enough that a layout made
- * against the generic frame keeps its shape once bezels are installed.
+ * iPad Pro 13" insets 45/47 pt, corner 30 pt; iPhone Duo inner display insets
+ * 23 pt, corner 53 pt. Close enough that a layout made against the generic
+ * frame keeps its shape once bezels are installed.
  */
 const GENERIC: Record<DeviceFamily, GenericSpec> = {
   iphone: { border: 17, screenRadius: 63, island: { width: 125, height: 36, top: 14 } },
   ipad: { border: 46, screenRadius: 30 },
   watch: { border: 20, screenRadius: 84 },
+  duo: { border: 23, screenRadius: 53 },
 };
 
 /** Frame geometry for a family whose screen is `screen` (pt). */
@@ -91,22 +96,24 @@ export function bezelUrl(entry: BezelEntry): string {
   return `/bezels/${entry.file.split('/').map(encodeURIComponent).join('/')}`;
 }
 
-function usable(entry: BezelEntry): boolean {
+function usable(entry: BezelEntry, orientation: BezelEntry['orientation']): boolean {
   const { deviceRect: d, screenRect: s } = entry;
-  return entry.orientation === 'portrait' && d.width > 0 && d.height > 0 && s.width > 0 && s.height > 0;
+  return entry.orientation === orientation && d.width > 0 && d.height > 0 && s.width > 0 && s.height > 0;
 }
 
 /**
  * Picks the bezel for a preset: `bezelId` (if given), then preset.bezel, then
- * preset.bezelFallbacks in order. Within an id the requested variant wins,
- * else the first installed one. Nothing installed -> generic geometry.
+ * preset.bezelFallbacks in order, each in the preset's orientation (a
+ * landscape set takes the landscape file). Within an id the requested variant
+ * wins, else the first installed one. Nothing installed -> generic geometry.
  */
 export function selectBezel(index: BezelIndex | null, preset: SizePreset, opts: BezelOptions = {}): ReadyBezel {
   const wantedId = opts.bezelId ?? preset.bezel;
   const variant = opts.variant ?? 'auto';
+  const orientation = presetOrientation(preset);
   const ids = [...new Set([wantedId, preset.bezel, ...preset.bezelFallbacks])];
   for (const id of ids) {
-    const entries = index?.entries.filter((e) => e.id === id && usable(e)) ?? [];
+    const entries = index?.entries.filter((e) => e.id === id && usable(e, orientation)) ?? [];
     const entry = (variant === 'auto' ? undefined : entries.find((e) => e.variant === variant)) ?? entries[0];
     if (!entry) continue;
     return {
@@ -164,26 +171,42 @@ export interface FrameLayout {
   /** Full device outline in CSS px (the visible box may be shorter when cropped). */
   device: Dims;
   /** Capture box: screenRect grown by SCREEN_GROW, relative to the device box. */
-  screen: Rect & { radius: number };
+  screen: Rect & { radius: number; radii?: CornerRadii };
   /** Bezel image box relative to the device box (negative offsets: the PNG canvas is larger than the device). */
   image: Rect;
 }
 
 /** CSS placement of the capture and the bezel image for a device drawn `width` CSS px wide. */
 export function frameLayout(geometry: FrameGeometry, width: number): FrameLayout {
-  const { deviceRect: d, screenRect: s, imageSize, cornerRadius } = geometry;
+  const { deviceRect: d, screenRect: s, imageSize, cornerRadius, cornerRadii } = geometry;
   const k = width / d.width;
   const g = SCREEN_GROW;
+  const css = (radius: number) => (radius + g) * k;
+  const screen: FrameLayout['screen'] = {
+    x: (s.x - d.x - g) * k,
+    y: (s.y - d.y - g) * k,
+    width: (s.width + 2 * g) * k,
+    height: (s.height + 2 * g) * k,
+    radius: css(cornerRadius),
+  };
+  if (cornerRadii) {
+    screen.radii = {
+      topLeft: css(cornerRadii.topLeft),
+      topRight: css(cornerRadii.topRight),
+      bottomRight: css(cornerRadii.bottomRight),
+      bottomLeft: css(cornerRadii.bottomLeft),
+    };
+  }
   return {
     k,
     device: { width, height: d.height * k },
-    screen: {
-      x: (s.x - d.x - g) * k,
-      y: (s.y - d.y - g) * k,
-      width: (s.width + 2 * g) * k,
-      height: (s.height + 2 * g) * k,
-      radius: (cornerRadius + g) * k,
-    },
+    screen,
     image: { x: -d.x * k, y: -d.y * k, width: imageSize.width * k, height: imageSize.height * k },
   };
+}
+
+/** CSS border-radius of the capture box: one value, or four when the corners differ. */
+export function screenBorderRadius(screen: FrameLayout['screen']): number | string {
+  const r = screen.radii;
+  return r ? `${r.topLeft}px ${r.topRight}px ${r.bottomRight}px ${r.bottomLeft}px` : screen.radius;
 }

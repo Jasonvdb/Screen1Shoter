@@ -3,7 +3,8 @@
 Measured on 2026-09-02 from the first two DMGs below with `hdiutil`, `sips` and
 a sharp script (raw RGBA scan); the Apple Watch Series 11 DMG was added on
 2026-09-03 for W7 and the Apple Watch Ultra 3 DMG the same day for W8, both
-measured the same way. `src/core/bezels/sources.ts` encodes these facts; this
+measured the same way. The iPhone Duo DMG was added on 2026-10-26 and
+measured with `measureBezel` on the mounted PNGs. `src/core/bezels/sources.ts` encodes these facts; this
 file is the human record so nobody has to re-download to check a number.
 
 ## DMGs
@@ -14,6 +15,7 @@ file is the human record so nobody has to re-download to check a number.
 | iPad Pro (M5) | `https://devimages-cdn.apple.com/design/resources/download/Bezel-iPad-Pro-(M5).dmg` | 6,787,021 | `~/.screen1shoter/dmg/Bezel-iPad-Pro-(M5).dmg` |
 | Apple Watch Series 11 (W7) | `https://devimages-cdn.apple.com/design/resources/download/Bezel-Apple-Watch-Series-11-2025.dmg` | 357,953,080 | `~/.screen1shoter/dmg/Bezel-Apple-Watch-Series-11-2025.dmg` |
 | Apple Watch Ultra 3 (W8) | `https://devimages-cdn.apple.com/design/resources/download/Bezel-Apple-Watch-Ultra-3-2025.dmg` | 329,151,217 | `~/.screen1shoter/dmg/Bezel-Apple-Watch-Ultra-3-2025.dmg` |
+| iPhone Duo | `https://devimages-cdn.apple.com/design/resources/download/Bezel-iPhone-Duo.dmg` | 452,785,429 | `~/.screen1shoter/dmg/Bezel-iPhone-Duo.dmg` (Last-Modified 2026-10-14) |
 
 Apple lists other bezels not used here: `Bezel-Apple-Watch-Ultra-2-2024.dmg`,
 `Bezel-iPhone-16.dmg`, `Bezel-iPad-Air-(M4).dmg`, `Bezel-iPad-(A16).dmg`,
@@ -142,6 +144,23 @@ generic `ipad-<family>-<chip>-<size>` reorder. Anything without exactly three
 parts, a `.png` extension or a known orientation is `null` (`.DS_Store`, PSDs,
 the `.DropDMGBackground` image).
 
+iPhone Duo (`Bezel-iPhone-Duo.dmg`), flat `PNG/` folder, two colours
+(`Night Sky`, `Star White`):
+
+```
+.DropDMGBackground/Bezel-iPhoneDuo@2x.png
+PNG/iPhone Duo - <Colour> - Inner Open {Portrait,Landscape}.png    2247x3093 / 3093x2247, 216 dpi
+PNG/iPhone Duo - <Colour> - Outer Closed {Portrait,Landscape}.png  1574x2194 / 2194x1574, 216 dpi
+PNG/iPhone Duo - <Colour> - Outer Open.png                         3056x2194, both displays, no single cut-out (skipped)
+Photoshop/... also Inner Partially Open {Portrait,Landscape}.psd   (PSD only, ignored)
+```
+
+A foldable spends the third part on `<Display> <Pose> <Orientation>`; the
+display and pose join the model, so the ids are `iphone-duo-inner-open` and
+`iphone-duo-outer-closed`. `Outer Open` has no orientation word and normalises
+to `null`. `iphone-duo-inner-open`'s landscape file is installed without
+`--landscape` because `iphone-duo-landscape` draws it.
+
 ## Pixel facts (portrait PNGs)
 
 All PNGs: 8-bit RGBA (`sips hasAlpha: yes`, sharp `channels: 4`), sRGB. iPhone
@@ -160,6 +179,21 @@ preset, so captures drop in 1:1 with no resampling.
 | apple-watch-series-11-46mm | 560x880 | (31,16) 521x849 | (72,192) 416x496 | 0.8387 | none | 127 | 101 |
 | apple-watch-series-11-42mm | 520x800 | (36,19) 469x763 | (73,177) 374x446 | 0.8386 | none | 114 | 90 |
 | apple-watch-ultra-3 | 600x960 | (34,18) 561x924 | (89,223) 422x514 | 0.8210 | none | 132* | 114 |
+| iphone-duo-inner-open | 2247x3093 | (50,50) 2139x2985 | (120,120) 2007x2853 | 0.7035 | none | - | 160 |
+| iphone-duo-outer-closed | 1574x2194 | (11,24) 1531x2138 | (88,80) 1398x2034 | 0.6873 | none (camera ring top right) | - | 24 / 175 / 174 / 24 (`cornerRadii`) |
+
+iPhone Duo's outer display is the one bezel whose corners differ: square on the
+hinge (left) side, round on the free side. `measure.ts` reads every corner with
+`diagonalRadius`, a walk along the 45 degree diagonal from the corner of the
+screen box, and records `cornerRadii` (top-left, top-right, bottom-right,
+bottom-left) only when the corners spread by more than 25 % of the largest.
+On every other bezel the four diagonal radii agree with `cornerRadius` within
+2 px (17 Pro Max 190/188/188/188 against 189, iPad 13 58 x4, Ultra 3
+115/115/114/115 against 114), so their index entries do not change. The
+diagonal walk starts outside the device body on a round corner (see
+`cornerProfile`), so it crosses that gap and the bezel before it stops at the
+screen; a camera ring further in is never reached. `DeviceFrame` clips the
+capture with four radii when they are present.
 
 \* The Ultra's corner-row count was taken with `cornerProfile` on the installed
 (trimmed) PNG rather than the spike's untrimmed scan. The two conventions

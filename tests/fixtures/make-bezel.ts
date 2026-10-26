@@ -162,9 +162,11 @@ export function isWatchModel(id: BezelSourceId): boolean {
  */
 export function appleBezelRelPath(id: BezelSourceId, variant: string, orientation: BezelOrientation): string {
   const source = BEZEL_SOURCES[id];
+  // iPhone Duo puts its display and pose before the orientation: 'Inner Open Portrait'.
+  const display = source.display ? `${source.display} ` : '';
   const name = isWatchModel(id)
     ? `${source.model} - ${bezelColourName(variant)}.png`
-    : `${source.model} - ${bezelColourName(variant)} - ${orientation === 'portrait' ? 'Portrait' : 'Landscape'}.png`;
+    : `${source.model} - ${bezelColourName(variant)} - ${display}${orientation === 'portrait' ? 'Portrait' : 'Landscape'}.png`;
   return source.subDir ? `${source.subDir}/${name}` : name;
 }
 

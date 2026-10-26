@@ -1,6 +1,7 @@
-// Whole upright device on top, text block below.
+// Whole upright device on top, text block below; on a landscape canvas the
+// device stands left of the text column.
 import type { TemplateModule } from '../../runtime/index.ts';
-import { FramedScreen, framedFamily, type FramedFamily, type FramedLayout } from './hero-top-text.tsx';
+import { FramedRow, FramedScreen, framedFamily, isLandscape, type FramedFamily, type FramedLayout } from './hero-top-text.tsx';
 
 export const LAYOUT: Record<FramedFamily, FramedLayout> = {
   iphone: {
@@ -31,9 +32,14 @@ export const LAYOUT: Record<FramedFamily, FramedLayout> = {
 
 const textBottom: TemplateModule = {
   id: 'text-bottom',
-  families: ['iphone', 'ipad'],
+  families: ['iphone', 'ipad', 'duo'],
   compliant: true,
-  Component: (props) => <FramedScreen props={props} layout={LAYOUT[framedFamily(props)]} order="device-first" />,
+  Component: (props) =>
+    isLandscape(props) ? (
+      <FramedRow props={props} order="device-first" />
+    ) : (
+      <FramedScreen props={props} layout={LAYOUT[framedFamily(props)]} order="device-first" />
+    ),
 };
 
 export default textBottom;
